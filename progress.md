@@ -290,3 +290,32 @@ FAST_BUILD 模式下用文件硬链接替代 copyNativeDependencies 的递归 fs
 - progress.md：追加本轮施工与验证记录。
 
 回滚点: git checkout -- apps/browser/src/backend/services/auth/account-pool.ts apps/browser/src/backend/services/auth/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx progress.md
+
+## 2026-06-30 - Task: build-fast 缺失产物恢复
+### What was done
+修复当前项目运行 `build-fast.bat` 的连续失败点：先恢复依赖安装产物中的 `tsx`，再从 `D:\work\ai\ctf\stagewise` 复制可直接复用的生成产物，包含 ESLint server bundle、`agent-runtime-node`、`agent-shell`、`karton` 和 Tailwind color modifiers 的 `dist`。`agent-core` 当前源码与旧项目不完全一致，因此未复制旧产物，改为按当前源码重新构建。
+
+同步 `experience` 服务与测试到旧项目已跑通版本，移除当前半合并状态中未配套导出的问卷 schema 依赖，避免 backend Rollup 构建失败。
+
+### Testing
+- `pnpm exec tsx --version`：通过，输出 `tsx v4.21.0`。
+- `pnpm bundle:eslint`：通过，ESLint server 已存在并跳过下载/编译。
+- `pnpm -F @stagewise/agent-core build`：通过，按当前源码生成 `packages/agent-core/dist`。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`：通过。
+- `cmd /d /c "echo. | build-fast.bat"`：通过，输出 `SUCCESS. Artifact directory: D:\work\ai\stagewise\apps\browser\out`，并将 Camoufox 资源复制到 packaged resources。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/experience.ts：从旧项目复制已跑通版本，去除当前半合并的问卷 schema 依赖。
+- apps/browser/src/backend/services/experience.test.ts：从旧项目复制匹配旧版 `ExperienceService` 构造参数的测试。
+- apps/browser/bundled/eslint-server/：从旧项目复制生成的 ESLint server bundle，避免当前环境重新下载和依赖 `unzip`。
+- agent/runtime-node/dist/：从旧项目复制 workspace 包构建产物，恢复 `@stagewise/agent-runtime-node` 入口。
+- packages/agent-shell/dist/：从旧项目复制 workspace 包构建产物，恢复 `@stagewise/agent-shell` 入口。
+- packages/karton/dist/：从旧项目复制 workspace 包构建产物，恢复 `@stagewise/karton/server` 等入口。
+- packages/tailwindcss-color-modifiers/dist/：从旧项目复制 Tailwind 插件构建产物，恢复 `dist/index.cjs`。
+- packages/agent-core/dist/：按当前源码重新构建，保留当前项目新增的 attachments 导出。
+- apps/browser/out/：`build-fast.bat` 成功生成的 Electron package 输出目录。
+- apps/browser/src/pages/generated/：打包时生成 license 数据。
+- progress.md：追加本轮恢复与验证记录。
+
+回滚方式: git checkout -- apps/browser/src/backend/services/experience.ts apps/browser/src/backend/services/experience.test.ts progress.md; Remove-Item -Recurse -Force agent/runtime-node/dist,apps/browser/bundled/eslint-server,apps/browser/out,apps/browser/src/pages/generated,packages/agent-core/dist,packages/agent-shell/dist,packages/karton/dist,packages/tailwindcss-color-modifiers/dist
