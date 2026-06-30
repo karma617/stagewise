@@ -6,6 +6,7 @@ import {
 } from '@stagewise/stage-ui/components/tooltip';
 import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { useTrack } from '@ui/hooks/use-track';
+import { useI18n } from '@ui/hooks/use-i18n';
 import type {
   CustomEndpoint,
   CustomModel,
@@ -128,6 +129,7 @@ function getThinkingDefaultOptionsForModel(
 }
 
 function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
+  const { t } = useI18n();
   const setSettingsRoute = useKartonProcedure(
     (p) => p.appScreen.setSettingsRoute,
   );
@@ -253,24 +255,29 @@ function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
 
       {hasActiveCodingPlanConnection && (
         <p className="rounded-md border border-derived bg-surface-1 px-2 py-1.5 text-muted-foreground text-xs">
-          Connected via {connectedCodingPlan.displayName}.
+          {t('settings.models.connected.viaPlan').replace(
+            '{plan}',
+            connectedCodingPlan.displayNameKey
+              ? t(connectedCodingPlan.displayNameKey)
+              : connectedCodingPlan.displayName,
+          )}
         </p>
       )}
 
       <RadioGroup value={config.mode} onValueChange={handleModeChange}>
         <RadioLabel>
           <Radio value="stagewise" />
-          <span>Use my stagewise account</span>
+          <span>{t('settings.models.use.stagewise')}</span>
         </RadioLabel>
 
         <RadioLabel>
           <Radio value="official" />
-          <span>Use own API key with {displayInfo.name} API</span>
+          <span>{t('settings.models.use.ownKey').replace('{provider}', displayInfo.name)}</span>
         </RadioLabel>
 
         <RadioLabel>
           <Radio value="custom" />
-          <span>Use custom provider</span>
+          <span>{t('settings.models.use.custom')}</span>
         </RadioLabel>
       </RadioGroup>
 
@@ -279,7 +286,7 @@ function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
         <div className="grid grid-cols-1 gap-3 border-derived border-t pt-3 sm:grid-cols-2">
           <div className="space-y-1">
             <p className="font-medium text-muted-foreground text-xs">
-              Endpoint URL
+              {t('settings.models.dialog.endpointUrl')}
             </p>
             <Input
               value={
@@ -296,15 +303,15 @@ function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
 
           <div className="space-y-1">
             <p className="font-medium text-muted-foreground text-xs">
-              API Key
+              {t('settings.models.apiKey')}
               {isValidating && (
                 <span className="ml-1.5 font-normal text-subtle-foreground">
-                  validating...
+                  {t('settings.models.validating')}
                 </span>
               )}
               {!isValidating && validated?.success && (
                 <span className="ml-1.5 font-normal text-success-foreground">
-                  Updated
+                  {t('settings.models.updated')}
                 </span>
               )}
             </p>
@@ -315,7 +322,7 @@ function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
                 placeholder={
                   hasKey || validated
                     ? '••••••••••••••••••••••••••••••••'
-                    : 'Enter API key...'
+                    : t('settings.models.apiKeyPlaceholder')
                 }
                 onValueChange={(v) => {
                   setApiKeyInput(v);
@@ -343,11 +350,11 @@ function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
                   onClick={() => void handleSaveAndValidate(apiKeyInput)}
                   disabled={isValidating || isSavingKey}
                 >
-                  Save
+                  {t('settings.models.save')}
                 </Button>
               ) : hasKey ? (
                 <Button variant="ghost" size="sm" onClick={handleClearApiKey}>
-                  Clear
+                  {t('settings.models.clear')}
                 </Button>
               ) : null}
             </div>
@@ -364,7 +371,7 @@ function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
           {customEndpoints.length === 0 ? (
             <div className="space-y-2">
               <p className="text-muted-foreground text-xs">
-                No custom providers configured yet.
+                {t('settings.models.empty')}
               </p>
               <Button
                 variant="secondary"
@@ -373,20 +380,20 @@ function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
                   setSettingsRoute({ section: 'custom-providers' })
                 }
               >
-                Configure Providers
+                {t('settings.models.configureProviders')}
                 <IconChevronRightOutline18 className="size-3" />
               </Button>
             </div>
           ) : (
             <div className="space-y-1">
               <p className="font-medium text-muted-foreground text-xs">
-                Provider
+                {t('settings.models.dialog.provider')}
               </p>
               <Select
                 value={config.customProviderId ?? ''}
                 onValueChange={handleCustomProviderChange}
                 items={customProviderItems}
-                placeholder="Select a provider..."
+                placeholder={t('settings.models.dialog.providerPlaceholder')}
                 size="md"
                 triggerClassName="w-full"
               />
@@ -403,6 +410,7 @@ function ProviderConfigCard({ provider }: { provider: ModelProvider }) {
 // =============================================================================
 
 function SettingsCodingPlanCard({ plan }: { plan: CodingPlan }) {
+  const { t } = useI18n();
   const preferences = useKartonState((s) => s.preferences);
   const connectCodingPlan = useKartonProcedure(
     (p) => p.preferences.connectCodingPlan,
@@ -447,6 +455,7 @@ function SettingsCodingPlanCard({ plan }: { plan: CodingPlan }) {
 }
 
 function CodingPlansSection() {
+  const { t } = useI18n();
   const [showAll, setShowAll] = useState(false);
   const plans = useMemo(() => Object.values(CODING_PLANS), []);
   const primary = plans.slice(0, 2);
@@ -467,7 +476,12 @@ function CodingPlansSection() {
             size="xs"
             onClick={() => setShowAll((v) => !v)}
           >
-            {showAll ? 'Show less' : `Show ${secondary.length} more plans`}
+            {showAll
+              ? t('settings.models.showLess')
+              : t('settings.models.showMorePlans').replace(
+                  '{count}',
+                  String(secondary.length),
+                )}
           </Button>
         </div>
       )}
@@ -480,6 +494,7 @@ function CodingPlansSection() {
 // =============================================================================
 
 function ModelProvidersSection() {
+  const { t } = useI18n();
   const [showAll, setShowAll] = useState(false);
   const primary = PROVIDERS.slice(0, 3);
   const secondary = PROVIDERS.slice(3);
@@ -499,7 +514,12 @@ function ModelProvidersSection() {
             size="xs"
             onClick={() => setShowAll((v) => !v)}
           >
-            {showAll ? 'Show less' : `Show ${secondary.length} more providers`}
+            {showAll
+              ? t('settings.models.showLess')
+              : t('settings.models.showMoreProviders').replace(
+                  '{count}',
+                  String(secondary.length),
+                )}
           </Button>
         </div>
       )}
@@ -535,6 +555,7 @@ function CustomModelDialog({
   existingModelIds: Set<string>;
   customEndpoints: CustomEndpoint[];
 }) {
+  const { t } = useI18n();
   // Pages run under a different preload than the sidebar UI, so we cannot
   // import `@ui/hooks/use-track` here (it reaches for `window.electron`).
   // `useTrack` from the pages hooks routes through the pages-API
@@ -746,9 +767,9 @@ function CustomModelDialog({
       <DialogContent className="max-h-[85vh] sm:max-w-md">
         <DialogClose />
         <DialogHeader>
-          <DialogTitle>{model ? 'Edit Model' : 'Add Custom Model'}</DialogTitle>
+          <DialogTitle>{model ? t('settings.models.dialog.title.edit') : t('settings.models.dialog.title.add')}</DialogTitle>
           <DialogDescription>
-            Define a model and assign it to a provider or custom endpoint.
+            {t('settings.models.dialog.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -759,9 +780,9 @@ function CustomModelDialog({
         >
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <p className="font-medium text-foreground text-xs">Model ID</p>
+              <p className="font-medium text-foreground text-xs">{t('settings.models.dialog.modelId')}</p>
               <Input
-                placeholder="gpt-4o-mini"
+                placeholder={t('settings.models.dialog.modelIdPlaceholder')}
                 value={modelId}
                 onValueChange={(val) => {
                   setModelId(val);
@@ -771,17 +792,17 @@ function CustomModelDialog({
               />
               {isDuplicate && (
                 <p className="text-error-foreground text-xs">
-                  This model ID already exists.
+                  {t('settings.models.dialog.modelIdExists')}
                 </p>
               )}
             </div>
 
             <div className="space-y-1.5">
               <p className="font-medium text-foreground text-xs">
-                Display Name
+                {t('settings.models.dialog.displayName')}
               </p>
               <Input
-                placeholder="GPT-4o Mini"
+                placeholder={t('settings.models.dialog.displayNamePlaceholder')}
                 value={displayName}
                 onValueChange={setDisplayName}
                 size="sm"
@@ -790,13 +811,13 @@ function CustomModelDialog({
 
             <div className="space-y-1.5">
               <p className="font-medium text-foreground text-xs">
-                Description{' '}
+                {t('settings.models.dialog.description.label')}{' '}
                 <span className="font-normal text-muted-foreground">
-                  (optional)
+                  {t('settings.customProviders.dialog.regionOptional')}
                 </span>
               </p>
               <Input
-                placeholder="A fast, affordable model..."
+                placeholder={t('settings.models.dialog.descriptionPlaceholder')}
                 value={description}
                 onValueChange={setDescription}
                 size="sm"
@@ -805,7 +826,7 @@ function CustomModelDialog({
 
             <div className="space-y-1.5">
               <p className="font-medium text-foreground text-xs">
-                Context Window
+                {t('settings.models.dialog.contextWindow')}
               </p>
               <Input
                 type="number"
@@ -818,7 +839,7 @@ function CustomModelDialog({
             </div>
 
             <div className="space-y-1.5">
-              <p className="font-medium text-foreground text-xs">Endpoint</p>
+              <p className="font-medium text-foreground text-xs">{t('settings.models.dialog.endpoint')}</p>
               <Select
                 value={endpointId}
                 onValueChange={(val) => setEndpointId(val as string)}
@@ -831,7 +852,7 @@ function CustomModelDialog({
             {/* Capabilities */}
             <div className="space-y-3 border-derived border-t pt-3">
               <p className="font-medium text-foreground text-xs">
-                Capabilities
+                {t('settings.models.dialog.capabilities')}
               </p>
 
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
@@ -842,7 +863,7 @@ function CustomModelDialog({
                     onCheckedChange={setThinkingEnabled}
                     size="xs"
                   />
-                  Thinking
+                  {t('settings.models.dialog.thinking')}
                 </label>
 
                 {/* biome-ignore lint/a11y/noLabelWithoutControl: base-ui Switch renders a button, label click delegates correctly */}
@@ -854,13 +875,13 @@ function CustomModelDialog({
                     }
                     size="xs"
                   />
-                  Tool Calling
+                  {t('settings.models.dialog.toolCalling')}
                 </label>
               </div>
 
               <div className="space-y-1.5">
                 <p className="text-muted-foreground text-xs">
-                  Input Modalities
+                  {t('settings.models.dialog.inputModalities')}
                 </p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                   {(['text', 'image', 'audio', 'video', 'file'] as const).map(
@@ -892,7 +913,7 @@ function CustomModelDialog({
 
               <div className="space-y-1.5">
                 <p className="text-muted-foreground text-xs">
-                  Output Modalities
+                  {t('settings.models.dialog.outputModalities')}
                 </p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                   {(['text', 'image', 'audio', 'video', 'file'] as const).map(
@@ -932,13 +953,13 @@ function CustomModelDialog({
                 <IconChevronDownOutline18
                   className={`size-3.5 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
                 />
-                Advanced
+                {t('settings.models.advanced')}
               </button>
               {showAdvanced && (
                 <div className="mt-3 space-y-3">
                   <div className="space-y-1.5">
                     <p className="font-medium text-foreground text-xs">
-                      Provider Options (JSON)
+                      {t('settings.models.dialog.providerOptionsJson')}
                     </p>
                     <textarea
                       className="w-full rounded-lg border border-derived p-2 font-mono text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-muted-foreground/35"
@@ -953,7 +974,7 @@ function CustomModelDialog({
                   </div>
                   <div className="space-y-1.5">
                     <p className="font-medium text-foreground text-xs">
-                      Headers (JSON)
+                      {t('settings.models.dialog.headersJson')}
                     </p>
                     <textarea
                       className="w-full rounded-lg border border-derived p-2 font-mono text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-muted-foreground/35"
@@ -982,14 +1003,14 @@ function CustomModelDialog({
             disabled={!canSave}
             onClick={handleSave}
           >
-            {model ? 'Save Changes' : 'Add Model'}
+            {model ? t('settings.models.save') : t('settings.models.addModel')}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => handleDialogOpenChange(false)}
           >
-            Cancel
+            {t('settings.models.cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1010,6 +1031,7 @@ function BuiltInModelCard({
   onToggle: () => void;
   onEditThinking: (event: React.MouseEvent<HTMLElement>) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       data-model-card
@@ -1033,7 +1055,7 @@ function BuiltInModelCard({
             {model.modelId} &middot;{' '}
             {model.officialProvider
               ? PROVIDER_DISPLAY_INFO[model.officialProvider].name
-              : 'Unknown'}{' '}
+              : t('settings.models.unknown')}{' '}
             &middot; {model.modelContext}
           </p>
         </div>
@@ -1050,14 +1072,18 @@ function BuiltInModelCard({
               className="h-5 px-1.5 opacity-0 transition-opacity group-focus-within/model-card:opacity-100 group-hover/model-card:opacity-100"
               onClick={onEditThinking}
             >
-              Edit
+              {t('settings.models.edit')}
             </Button>
           )}
           <Switch
             checked={isEnabled}
             onCheckedChange={() => onToggle()}
             size="xs"
-            aria-label={`${isEnabled ? 'Disable' : 'Enable'} ${model.modelDisplayName}`}
+            aria-label={t(
+              isEnabled
+                ? 'settings.models.disableModelAria'
+                : 'settings.models.enableModelAria',
+            ).replace('{name}', model.modelDisplayName)}
           />
         </div>
       </div>
@@ -1080,6 +1106,7 @@ function CustomModelCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className={cn(
@@ -1127,7 +1154,11 @@ function CustomModelCard({
             checked={isEnabled}
             onCheckedChange={() => onToggle()}
             size="xs"
-            aria-label={`${isEnabled ? 'Disable' : 'Enable'} ${model.displayName}`}
+            aria-label={t(
+              isEnabled
+                ? 'settings.models.disableModelAria'
+                : 'settings.models.enableModelAria',
+            ).replace('{name}', model.displayName)}
           />
         </div>
       </div>
@@ -1136,6 +1167,7 @@ function CustomModelCard({
 }
 
 function CustomModelsSection() {
+  const { t } = useI18n();
   const preferences = useKartonState((s) => s.preferences);
   const updatePreferences = useKartonProcedure((p) => p.preferences.update);
 
@@ -1172,10 +1204,11 @@ function CustomModelsSection() {
       if (endpointId === 'xiaomi-mimo') return 'Xiaomi MiMo';
       if (endpointId === 'mistral') return 'Mistral';
       return (
-        customEndpoints.find((ep) => ep.id === endpointId)?.name ?? 'Unknown'
+        customEndpoints.find((ep) => ep.id === endpointId)?.name ??
+        t('settings.models.unknown')
       );
     },
-    [customEndpoints],
+    [customEndpoints, t],
   );
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -1513,7 +1546,7 @@ function CustomModelsSection() {
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <Input
-          placeholder="Filter models..."
+          placeholder={t('settings.models.filter.placeholder')}
           value={searchQuery}
           onValueChange={setSearchQuery}
           size="sm"
@@ -1522,7 +1555,7 @@ function CustomModelsSection() {
         />
         <Button variant="secondary" size="sm" onClick={handleAdd}>
           <IconPlusOutline18 className="size-3.5" />
-          Add Model
+          {t('settings.models.addModel')}
         </Button>
       </div>
 
@@ -1568,7 +1601,7 @@ function CustomModelsSection() {
           {noResults && (
             <div className="rounded-lg border border-derived-subtle p-4">
               <p className="text-center text-muted-foreground text-sm">
-                No models match your filter.
+                {t('settings.models.filter.noMatch')}
               </p>
             </div>
           )}
@@ -1623,6 +1656,7 @@ function CustomModelsSection() {
 // =============================================================================
 
 export function ModelsProvidersSection() {
+  const { t } = useI18n();
   const setSettingsRoute = useKartonProcedure(
     (p) => p.appScreen.setSettingsRoute,
   );
@@ -1635,18 +1669,17 @@ export function ModelsProvidersSection() {
           {/* Header */}
           <div>
             <h1 className="font-semibold text-foreground text-xl">
-              Models & Providers
+              {t('settings.models.title')}
             </h1>
           </div>
           {/* Coding Plans Section */}
           <section className="space-y-6">
             <div>
               <h2 className="font-medium text-foreground text-lg">
-                Coding Plans
+                {t('settings.models.codingPlans')}
               </h2>
               <p className="text-muted-foreground text-sm">
-                Connect a subscription you already pay for. We validate your
-                key, then route built-in models through the provider directly.
+                {t('settings.models.codingPlans.description')}
               </p>
             </div>
 
@@ -1658,10 +1691,11 @@ export function ModelsProvidersSection() {
           {/* API Keys Section */}
           <section className="space-y-6">
             <div>
-              <h2 className="font-medium text-foreground text-lg">API Keys</h2>
+              <h2 className="font-medium text-foreground text-lg">
+                {t('settings.models.apiKeys')}
+              </h2>
               <p className="text-muted-foreground text-sm">
-                Configure how the agent connects to LLM providers. Use your
-                stagewise account, official provider endpoints, or custom URLs.
+                {t('settings.models.apiKeys.description')}
               </p>
             </div>
 
@@ -1674,10 +1708,11 @@ export function ModelsProvidersSection() {
           <section className="space-y-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="font-medium text-foreground text-lg">Models</h2>
+                <h2 className="font-medium text-foreground text-lg">
+                  {t('settings.models.modelsTitle')}
+                </h2>
                 <p className="text-muted-foreground text-sm">
-                  Built-in models are shown for reference. Define additional
-                  models that use built-in providers or custom endpoints.
+                  {t('settings.models.models.description')}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -1688,7 +1723,7 @@ export function ModelsProvidersSection() {
                     setSettingsRoute({ section: 'custom-providers' })
                   }
                 >
-                  Custom Providers
+                  {t('settings.models.customProviders')}
                   <IconChevronRightOutline18 className="size-3" />
                 </Button>
               </div>
@@ -1703,6 +1738,7 @@ export function ModelsProvidersSection() {
 }
 
 function TruncatedErrorText({ text }: { text: string }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLParagraphElement>(null);
   const { isTruncated, tooltipOpen, setTooltipOpen } = useIsTruncated(ref);
 

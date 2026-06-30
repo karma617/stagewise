@@ -29,6 +29,7 @@ import {
 } from '@stagewise/stage-ui/components/tooltip';
 import type { RefObject } from 'react';
 import { SettingsScrollTabs } from '../_components/settings-scroll-tabs';
+import { useI18n } from '@ui/hooks/use-i18n';
 import { ALWAYS_ENABLED_GLOBAL_SKILL_PREFIXES } from '@shared/global-skill-prefixes';
 
 // =============================================================================
@@ -213,13 +214,16 @@ function WorkspaceDetails({
   mount: MountEntry;
   contextFiles: ContextFilesResult | null;
 }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-8">
       <section className="space-y-3">
         <div>
-          <h2 className="font-medium text-foreground text-lg">Skills</h2>
+          <h2 className="font-medium text-foreground text-lg">
+            {t('settings.skillsContext.skills.title')}
+          </h2>
           <p className="text-muted-foreground text-sm">
-            Enable or disable skills for this workspace.
+            {t('settings.skillsContext.skills.description')}
           </p>
         </div>
         {mount.skills.length > 0 ? (
@@ -230,7 +234,7 @@ function WorkspaceDetails({
         ) : (
           <div className="rounded-lg border border-derived-subtle p-4">
             <p className="text-center text-muted-foreground text-sm">
-              No skills detected in this workspace.
+              {t('settings.skillsContext.skills.empty')}
             </p>
           </div>
         )}
@@ -238,9 +242,11 @@ function WorkspaceDetails({
       <hr className="border-derived-subtle border-t" />
       <section className="space-y-3">
         <div>
-          <h2 className="font-medium text-foreground text-lg">Context files</h2>
+          <h2 className="font-medium text-foreground text-lg">
+            {t('settings.skillsContext.contextFiles.title')}
+          </h2>
           <p className="text-muted-foreground text-sm">
-            Manage workspace context files used by the AI agent.
+            {t('settings.skillsContext.contextFiles.description')}
           </p>
         </div>
         <WorkspaceContextFilesList
@@ -464,6 +470,7 @@ function WorkspaceContextFilesList({
   workspacePath: string;
   workspaceMd: { exists: boolean; path: string | null; content: string | null };
 }) {
+  const { t } = useI18n();
   const preferences = useKartonState((s) => s.preferences);
   const updatePreferences = useKartonProcedure((p) => p.preferences.update);
   const generateWorkspaceMd = useKartonProcedure(
@@ -520,8 +527,8 @@ function WorkspaceContextFilesList({
           <p className="font-medium text-foreground text-sm">WORKSPACE.md</p>
           <p className="text-muted-foreground text-xs">
             {workspaceMd.exists
-              ? 'Auto-generated project analysis.'
-              : 'Not yet generated.'}
+              ? t('settings.skillsContext.workspaceMd.generated')
+              : t('settings.skillsContext.workspaceMd.notGenerated')}
           </p>
         </div>
         {workspaceMd.exists ? (
@@ -536,7 +543,9 @@ function WorkspaceContextFilesList({
             ) : (
               <RefreshCwIcon className="size-3" />
             )}
-            {isGenerating ? 'Updating…' : 'Regenerate'}
+            {isGenerating
+              ? t('settings.skillsContext.workspaceMd.updating')
+              : t('settings.skillsContext.workspaceMd.regenerate')}
           </Button>
         ) : (
           <Button
@@ -550,7 +559,9 @@ function WorkspaceContextFilesList({
             ) : (
               <IconPenDrawSparkleFillDuo18 className="size-3" />
             )}
-            {isGenerating ? 'Generating…' : 'Generate'}
+            {isGenerating
+              ? t('settings.skillsContext.workspaceMd.generating')
+              : t('settings.skillsContext.workspaceMd.generate')}
           </Button>
         )}
       </div>
@@ -577,7 +588,7 @@ function WorkspaceContextFilesList({
                 : 'text-subtle-foreground',
             )}
           >
-            Include in agent context
+            {t('settings.skillsContext.agentsMd.includeInContext')}
           </p>
         </div>
         <div onClick={(e) => e.stopPropagation()}>
@@ -597,6 +608,7 @@ function WorkspaceContextFilesList({
 // =============================================================================
 
 export function SkillsContextSection() {
+  const { t } = useI18n();
   const workspaceMounts = useKartonState(
     useComparingSelector(
       (s): MountEntry[] => {
@@ -705,11 +717,10 @@ export function SkillsContextSection() {
           {/* Header */}
           <div>
             <h1 className="font-semibold text-foreground text-xl">
-              Skills & Context files
+              {t('settings.skillsContext.title')}
             </h1>
             <p className="text-muted-foreground text-sm">
-              Per-workspace configuration, context files, and skills for the
-              stagewise agent.
+              {t('settings.skillsContext.description')}
             </p>
           </div>
           <div className="space-y-8">

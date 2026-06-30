@@ -45,6 +45,7 @@ import type {
 const EMPTY_PERMISSION_REQUESTS: PermissionRequest[] = [];
 
 import TimeAgo from 'react-timeago';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 // ============================================================================
 // Icon Rendering
@@ -249,6 +250,7 @@ function PermissionRequestRow({
     pin?: string,
   ) => void;
 }) {
+  const { t } = useI18n();
   const icons = getRequestIcons(request);
   const description = getRequestDescription(request);
   const isSimple = isSimpleRequest(request);
@@ -364,7 +366,7 @@ function PermissionRequestRow({
                 onValueChange={setSelectedDevice}
                 triggerVariant="secondary"
                 size="md"
-                placeholder="Select a device…"
+                placeholder={t('chat.permissions.selectDevice')}
                 items={devices.map((device) => ({
                   value: device.id,
                   label: device.name,
@@ -380,7 +382,7 @@ function PermissionRequestRow({
           <div className="flex items-center gap-2">
             <input
               type="text"
-              placeholder="Enter pairing PIN"
+              placeholder={t('chat.permissions.enterPairingPin')}
               value={pairingPin}
               onChange={(e) => setPairingPin(e.target.value)}
               className="h-7 w-full rounded-lg border border-derived bg-surface-1 px-2 font-mono text-foreground text-sm placeholder:text-subtle-foreground focus:outline-none focus:ring-1 focus:ring-derived-strong"
@@ -452,6 +454,7 @@ export function ResourceRequestsControlButton({
   tabId: string;
   isActive: boolean;
 }) {
+  const { t } = useI18n();
   const permissionRequests = useKartonState(
     (s) =>
       s.contentTabs.tabs[tabId]?.permissionRequests ??
@@ -620,7 +623,7 @@ export function ResourceRequestsControlButton({
 
   const tooltipText =
     permissionRequests.length === 0
-      ? 'Permission Requests'
+      ? t('chat.permissions.title')
       : `${permissionRequests.length} permission${permissionRequests.length > 1 ? 's' : ''} requested`;
 
   const hasRequests = permissionRequests.length > 0;
@@ -659,7 +662,7 @@ export function ResourceRequestsControlButton({
         onMouseEnter={handlePopoverMouseEnter}
         onMouseLeave={handlePopoverMouseLeave}
       >
-        <PopoverTitle>Permission Requests</PopoverTitle>
+        <PopoverTitle>{t('chat.permissions.title')}</PopoverTitle>
         <OverlayScrollbar
           className="max-h-64 w-full"
           contentClassName="flex flex-col divide-y divide-border-subtle px-1"
@@ -667,7 +670,7 @@ export function ResourceRequestsControlButton({
           {permissionRequests.length === 0 ? (
             <div className="flex items-center justify-center py-3">
               <span className="text-muted-foreground text-sm">
-                No pending requests
+                {t('chat.permissions.noPending')}
               </span>
             </div>
           ) : (

@@ -41,7 +41,6 @@ const codingPlanIdSchema = z.enum([
   'kimi-plan',
   'qwen-plan',
   'minimax-plan',
-  'mimo-plan',
 ]);
 const onboardingAuthFailureKindSchema = z.enum([
   'validation-error',
@@ -153,19 +152,6 @@ export type EventProperties = {
     agent_type: string;
     agent_instance_id: string;
     model_id: string;
-    /**
-     * Provider routing mode from the most recent completed step.
-     * Empty string on the first message in a new chat (no prior step).
-     * `'stagewise'` = stagewise backend, `'official'` = own key or coding
-     * plan, `'custom'` = custom endpoint.
-     */
-    provider_mode: string;
-    /**
-     * Connected coding plan ID when `provider_mode === 'official'` and the
-     * user connected via a coding plan (e.g. `'glm-coding-plan'`).
-     * Undefined for stagewise/custom routes or plain BYOK keys.
-     */
-    coding_plan_id?: string;
     has_attachments: boolean;
     attachment_count: number;
     slash_command_ids: string[];
@@ -206,7 +192,6 @@ export type EventProperties = {
     agent_instance_id: string;
     model_id: string;
     provider_mode: string;
-    coding_plan_id?: string;
     input_tokens: number;
     output_tokens: number;
     tool_call_count: number;
@@ -473,17 +458,6 @@ export type EventProperties = {
   'changed-notification-sound-theme': {
     theme: string;
   };
-
-  // Experience survey
-  'experience-survey-answered': {
-    answer: 'yes' | 'no';
-  };
-  'experience-survey-feedback-submitted': {
-    feedback: string;
-    feedback_length: number;
-  };
-  'experience-founder-call-survey-opened': undefined;
-  'experience-founder-call-survey-dismissed': undefined;
 };
 
 export const UI_TELEMETRY_EVENT_NAMES = [
@@ -535,10 +509,6 @@ export const UI_TELEMETRY_EVENT_NAMES = [
   'changed-theme',
   'changed-notification-sound-loudness',
   'changed-notification-sound-theme',
-  'experience-survey-answered',
-  'experience-survey-feedback-submitted',
-  'experience-founder-call-survey-opened',
-  'experience-founder-call-survey-dismissed',
 ] as const satisfies ReadonlyArray<keyof EventProperties>;
 
 export type UIEventName = (typeof UI_TELEMETRY_EVENT_NAMES)[number];
@@ -691,15 +661,6 @@ const UI_TELEMETRY_EVENT_SCHEMAS = {
   'changed-notification-sound-theme': z.object({
     theme: z.string(),
   }),
-  'experience-survey-answered': z.object({
-    answer: z.enum(['yes', 'no']),
-  }),
-  'experience-survey-feedback-submitted': z.object({
-    feedback: z.string(),
-    feedback_length: z.number(),
-  }),
-  'experience-founder-call-survey-opened': z.undefined().optional(),
-  'experience-founder-call-survey-dismissed': z.undefined().optional(),
 } satisfies {
   [K in UIEventName]: z.ZodType<UIEventProperties[K]>;
 };
@@ -731,7 +692,7 @@ export class TelemetryService extends DisposableService {
   private readonly logger: Logger;
   private userProperties: UserProperties = {};
   private pendingAppLaunchedCapture: Promise<void> | null = null;
-  public posthogClient: PostHog;
+  public posthogClient: PostHog | null;
 
   public constructor(
     identifierService: IdentifierService,
@@ -743,12 +704,13 @@ export class TelemetryService extends DisposableService {
     this.preferencesService = preferencesService;
     this.logger = logger;
     const apiKey = process.env.POSTHOG_API_KEY ?? '';
-    this.posthogClient = new PostHog(apiKey, {
-      host: process.env.POSTHOG_HOST || 'https://eu.i.posthog.com',
-      flushAt: 1,
-      flushInterval: 0,
-      disabled: !apiKey,
-    });
+    this.posthogClient = apiKey
+      ? new PostHog(apiKey, {
+          host: process.env.POSTHOG_HOST || 'https://eu.i.posthog.com',
+          flushAt: 1,
+          flushInterval: 0,
+        })
+      : null;
 
     this.identifyUser();
 
@@ -772,7 +734,9 @@ export class TelemetryService extends DisposableService {
   }
 
   private getTelemetryLevel(): TelemetryLevel {
-    return this.telemetryLevel;
+    // Telemetry is disabled for this build. Keep the service surface intact so
+    // existing capture call sites do not require a broad, risky removal pass.
+    return 'off';
   }
 
   setUserProperties(properties: UserProperties): void {
@@ -787,6 +751,7 @@ export class TelemetryService extends DisposableService {
 
   identifyUser() {
     if (
+      this.posthogClient &&
       this.userProperties.user_id &&
       this.userProperties.user_email &&
       this.getTelemetryLevel() === 'full'
@@ -818,6 +783,7 @@ export class TelemetryService extends DisposableService {
 
     const distinctId = this.getDistinctId();
 
+    if (!this.posthogClient) return model;
     const wrappedModel = withTracing(model, this.posthogClient, {
       posthogDistinctId: distinctId,
       ...properties,
@@ -882,18 +848,7 @@ export class TelemetryService extends DisposableService {
       }
       const telemetryLevel = this.getTelemetryLevel();
 
-      // Always allow critical lifecycle events through so we can measure
-      // opt-out rates and keep funnels intact even when telemetry is off.
-      const bypassOptOut: Array<keyof EventProperties> = [
-        'app-launched',
-        'telemetry-level-changed',
-        'onboarding-completed',
-        'experience-survey-answered',
-        'experience-survey-feedback-submitted',
-        'experience-founder-call-survey-opened',
-        'experience-founder-call-survey-dismissed',
-      ];
-      if (telemetryLevel === 'off' && !bypassOptOut.includes(eventName)) return;
+      if (telemetryLevel === 'off') return;
 
       if (!this.posthogClient) return;
 
@@ -940,6 +895,7 @@ export class TelemetryService extends DisposableService {
         `[TelemetryService] Capturing exception: ${error.message}`,
       );
 
+      if (!this.posthogClient) return;
       const distinctId = this.getDistinctId();
       this.posthogClient.captureException(error, distinctId, {
         properties: {

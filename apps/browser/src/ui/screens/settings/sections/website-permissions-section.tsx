@@ -5,6 +5,7 @@ import { Select } from '@stagewise/stage-ui/components/select';
 import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { produceWithPatches, enablePatches } from 'immer';
 import { ChevronLeftIcon } from 'lucide-react';
+import { useI18n } from '@ui/hooks/use-i18n';
 import type { ConfigurablePermissionType } from '@shared/karton-contracts/ui/shared-types';
 import {
   PermissionSetting,
@@ -13,31 +14,6 @@ import {
 
 enablePatches();
 
-/** Human-readable labels for permission types */
-const permissionTypeLabels: Record<ConfigurablePermissionType, string> = {
-  media: 'Camera & Microphone',
-  geolocation: 'Location',
-  notifications: 'Notifications',
-  fullscreen: 'Fullscreen',
-  bluetooth: 'Bluetooth',
-  hid: 'HID Devices',
-  serial: 'Serial Ports',
-  usb: 'USB Devices',
-  'clipboard-read': 'Clipboard Read',
-  'display-capture': 'Screen Capture',
-  midi: 'MIDI Devices',
-  'idle-detection': 'Idle Detection',
-  'speaker-selection': 'Speaker Selection',
-  'storage-access': 'Storage Access',
-};
-
-/** Human-readable labels for permission settings */
-const permissionSettingLabels: Record<PermissionSetting | -1, string> = {
-  [-1]: 'Default',
-  [PermissionSetting.Ask]: 'Ask',
-  [PermissionSetting.Allow]: 'Allow',
-  [PermissionSetting.Block]: 'Block',
-};
 
 export function WebsitePermissionsSection() {
   const settingsRoute = useKartonState((s) => s.appScreen.settingsRoute);
@@ -48,6 +24,29 @@ export function WebsitePermissionsSection() {
   );
   const preferences = useKartonState((s) => s.preferences);
   const updatePreferences = useKartonProcedure((p) => p.preferences.update);
+  const { t } = useI18n();
+  const permissionTypeLabels: Record<ConfigurablePermissionType, string> = {
+    media: t('settings.websitePermissions.permission.media'),
+    geolocation: t('settings.websitePermissions.permission.geolocation'),
+    notifications: t('settings.websitePermissions.permission.notifications'),
+    fullscreen: t('settings.websitePermissions.permission.fullscreen'),
+    bluetooth: t('settings.websitePermissions.permission.bluetooth'),
+    hid: t('settings.websitePermissions.permission.hid'),
+    serial: t('settings.websitePermissions.permission.serial'),
+    usb: t('settings.websitePermissions.permission.usb'),
+    'clipboard-read': t('settings.websitePermissions.permission.clipboard-read'),
+    'display-capture': t('settings.websitePermissions.permission.display-capture'),
+    midi: t('settings.websitePermissions.permission.midi'),
+    'idle-detection': t('settings.websitePermissions.permission.idle-detection'),
+    'speaker-selection': t('settings.websitePermissions.permission.speaker-selection'),
+    'storage-access': t('settings.websitePermissions.permission.storage-access'),
+  };
+  const permissionSettingLabels: Record<PermissionSetting | -1, string> = {
+    [-1]: t('settings.websitePermissions.option.default.label'),
+    [PermissionSetting.Ask]: t('settings.websitePermissions.option.ask.label'),
+    [PermissionSetting.Allow]: t('settings.websitePermissions.option.allow.label'),
+    [PermissionSetting.Block]: t('settings.websitePermissions.option.block.label'),
+  };
 
   // Get the current setting for a permission type for this host
   const getHostSetting = useCallback(
@@ -129,13 +128,13 @@ export function WebsitePermissionsSection() {
       const options = [
         {
           value: '-1',
-          label: 'Default',
-          description: `Use global default (${defaultLabel})`,
+          label: t('settings.websitePermissions.option.default.label'),
+          description: t('settings.websitePermissions.option.default.description').replace('{default}', defaultLabel),
         },
         {
           value: String(PermissionSetting.Ask),
-          label: 'Ask',
-          description: 'Ask every time',
+          label: t('settings.websitePermissions.option.ask.label'),
+          description: t('settings.websitePermissions.option.ask.description'),
         },
       ];
 
@@ -143,15 +142,15 @@ export function WebsitePermissionsSection() {
       if (!isDevicePermission) {
         options.push({
           value: String(PermissionSetting.Allow),
-          label: 'Allow',
-          description: 'Always allow for this site',
+          label: t('settings.websitePermissions.option.allow.label'),
+          description: t('settings.websitePermissions.option.allow.description'),
         });
       }
 
       options.push({
         value: String(PermissionSetting.Block),
-        label: 'Block',
-        description: 'Always block for this site',
+        label: t('settings.websitePermissions.option.block.label'),
+        description: t('settings.websitePermissions.option.block.description'),
       });
 
       return options;
@@ -183,13 +182,12 @@ export function WebsitePermissionsSection() {
                 <ChevronLeftIcon className="size-4" />
               </Button>
               <h1 className="font-semibold text-foreground text-xl">
-                Website Permissions
-              </h1>
-            </div>
-            <p className="text-muted-foreground">
-              No website selected. Please select a website from the Browsing
-              Settings page.
-            </p>
+                            {t('settings.websitePermissions.title')}
+                          </h1>
+                        </div>
+                        <p className="text-muted-foreground">
+                          {t('settings.websitePermissions.noHostSelected')}
+                        </p>
           </div>
         </OverlayScrollbar>
       </div>
@@ -212,7 +210,7 @@ export function WebsitePermissionsSection() {
             </Button>
             <div className="flex flex-col">
               <h1 className="font-semibold text-foreground text-xl">
-                Website Permissions
+                {t('settings.websitePermissions.title')}
               </h1>
               <span className="text-muted-foreground text-sm">{host}</span>
             </div>
@@ -221,15 +219,9 @@ export function WebsitePermissionsSection() {
           <div className="rounded-lg border border-border/30 bg-surface-1/50 p-4">
             <p className="text-muted-foreground text-sm">
               {overrideCount === 0 ? (
-                'No custom permissions set for this site. All permissions use global defaults.'
+                t('settings.websitePermissions.summary.none')
               ) : (
-                <>
-                  <span className="font-medium text-foreground">
-                    {overrideCount}
-                  </span>{' '}
-                  custom permission{overrideCount !== 1 ? 's' : ''} set for this
-                  site.
-                </>
+                t('settings.websitePermissions.summary.count').replace('{n}', String(overrideCount))
               )}
             </p>
           </div>
@@ -238,11 +230,11 @@ export function WebsitePermissionsSection() {
           <section className="space-y-4">
             <div>
               <h2 className="font-medium text-foreground text-lg">
-                Permission Settings
-              </h2>
-              <p className="text-muted-foreground text-sm">
-                Configure how this site can access browser features.
-              </p>
+                              {t('settings.websitePermissions.section.title')}
+                            </h2>
+                            <p className="text-muted-foreground text-sm">
+                              {t('settings.websitePermissions.section.description')}
+                            </p>
             </div>
 
             <div className="space-y-3">
@@ -265,7 +257,7 @@ export function WebsitePermissionsSection() {
                       </span>
                       {isOverridden && (
                         <span className="text-primary text-xs">
-                          Custom setting
+                          {t('settings.websitePermissions.customSetting')}
                         </span>
                       )}
                     </div>

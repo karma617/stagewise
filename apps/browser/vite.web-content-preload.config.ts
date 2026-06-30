@@ -7,7 +7,7 @@ import * as buildConstants from './build-constants';
 export default defineConfig({
   plugins: [react()],
   build: {
-    sourcemap: 'hidden',
+    sourcemap: process.env.FAST_BUILD === '1' ? false : 'hidden',
     rollupOptions: {
       output: {
         dir: '.vite/build/web-content-preload',

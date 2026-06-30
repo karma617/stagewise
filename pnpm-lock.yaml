@@ -266,6 +266,9 @@ importers:
       tiptap-markdown:
         specifier: ^0.9.0
         version: 0.9.0(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))
+      undici:
+        specifier: ^7.27.2
+        version: 7.27.2
       web-tree-sitter:
         specifier: ^0.26.6
         version: 0.26.8
@@ -23008,8 +23011,7 @@ snapshots:
 
   undici-types@7.16.0: {}
 
-  undici@7.27.2:
-    optional: true
+  undici@7.27.2: {}
 
   unicorn-magic@0.1.0: {}
 

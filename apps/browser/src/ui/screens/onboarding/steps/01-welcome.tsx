@@ -4,6 +4,7 @@ import { useWindowFocused } from '@ui/hooks/use-window-focused';
 import { cn } from '@ui/utils';
 import { SplitText } from '@stagewise/stage-ui/components/split-text';
 import type { StepValidityCallback } from '..';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export function StepWelcome({
   isActive,
@@ -14,6 +15,9 @@ export function StepWelcome({
   onValidityChange: StepValidityCallback;
   onAnimationStart?: () => void;
 }) {
+  const { t } = useI18n();
+  const welcomeLine1 = t('onboarding.welcome.line1');
+  const welcomeLine2 = t('onboarding.welcome.line2');
   const [isComplete, setIsComplete] = useState(false);
   const [showText, setShowText] = useState(false);
   const [showSecondLine, setShowSecondLine] = useState(false);
@@ -50,12 +54,12 @@ export function StepWelcome({
       <Logo className="mb-4 size-16" />
       <div className="relative w-full text-center">
         <span className="invisible font-normal text-foreground text-lg">
-          Welcome to the Open Source Agentic IDE.
+          {welcomeLine1}
         </span>
         {showText && (
           <div className="absolute inset-0 flex items-center justify-center">
             <SplitText
-              text="Welcome to the Open Source Agentic IDE."
+              text={welcomeLine1}
               className="font-normal text-foreground text-lg"
               delay={10}
               duration={0.25}
@@ -74,12 +78,12 @@ export function StepWelcome({
       </div>
       <div className="relative w-full text-center">
         <span className="invisible font-normal text-base text-primary-foreground">
-          Welcome to stagewise.
+          {welcomeLine2}
         </span>
         {showSecondLine && (
           <div className="absolute inset-0 flex items-center justify-center">
             <SplitText
-              text="Welcome to stagewise."
+              text={welcomeLine2}
               className={cn('font-normal text-base text-primary-foreground')}
               delay={12}
               duration={0.25}

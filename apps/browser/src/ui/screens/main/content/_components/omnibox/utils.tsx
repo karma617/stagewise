@@ -15,6 +15,7 @@ import {
 } from 'nucleo-ui-outline-18';
 import { useKartonProcedure } from '@ui/hooks/use-karton';
 import { useDebouncedValue } from '@ui/hooks/use-debounced-value';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 /**
  * Determines if the input is a URL or search query, and returns the appropriate URL.
@@ -183,6 +184,7 @@ export function useOmniboxSuggestions(
   groups: OmniboxSuggestionGroup[];
   resetSuggestions: () => void;
 } {
+  const { t } = useI18n();
   const getSuggestions = useKartonProcedure((p) => p.getOmniboxSuggestions);
 
   // Separate state for search suggestions (non-empty input) and default suggestions (empty input).
@@ -383,7 +385,7 @@ export function useOmniboxSuggestions(
                   suggestionIcon: (
                     <IconRefreshAnticlockwiseOutline18 className="size-4 text-muted-foreground" />
                   ),
-                  suggestionLabel: <span>Reload current page</span>,
+                  suggestionLabel: <span>{t('chat.omnibox.reloadCurrent')}</span>,
                 },
               ],
             },

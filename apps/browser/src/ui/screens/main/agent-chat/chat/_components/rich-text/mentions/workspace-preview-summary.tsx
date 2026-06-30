@@ -1,6 +1,7 @@
 import { IconCodeBranchOutline18 } from 'nucleo-ui-outline-18';
 import { CheckIcon, XIcon } from 'lucide-react';
 import type { MountEntry } from '@shared/karton-contracts/ui';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 interface WorkspacePreviewSummaryProps {
   mount: MountEntry;
@@ -11,6 +12,7 @@ export function WorkspacePreviewSummary({
   mount,
   name,
 }: WorkspacePreviewSummaryProps) {
+  const { t } = useI18n();
   const hasSkills = mount.skills.length > 0;
   const gitRef = mount.git?.branch ?? mount.git?.headSha?.slice(0, 7) ?? null;
 
@@ -84,7 +86,7 @@ export function WorkspacePreviewSummary({
       {hasSkills && (
         <div className="mt-2 flex flex-col gap-1 border-derived-subtle border-t pt-2">
           <div className="flex items-center gap-1.5">
-            <span className="font-medium text-foreground text-xs">Skills</span>
+            <span className="font-medium text-foreground text-xs">{t('chat.attachments.skills')}</span>
           </div>
           {mount.skills
             .slice()

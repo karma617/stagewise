@@ -24,12 +24,13 @@ import {
   useState,
 } from 'react';
 import { cn } from '@ui/utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 interface ToolApprovalOption {
   value: ToolApprovalMode;
-  label: string;
-  title: string;
-  description: string;
+  labelKey: string;
+  titleKey: string;
+  descriptionKey: string;
   /** Optional leading icon shown in the dropdown item and in the trigger
    * when this option is the active mode. */
   icon?: ComponentType<{ className?: string }>;
@@ -42,25 +43,22 @@ interface ToolApprovalOption {
 const OPTIONS: ToolApprovalOption[] = [
   {
     value: 'alwaysAsk',
-    label: 'Always ask',
-    title: 'Ask before shell commands',
-    description:
-      'This agent will pause and ask for your approval before running any shell command.',
+    labelKey: 'chat.toolApproval.alwaysAsk.label',
+    titleKey: 'chat.toolApproval.alwaysAsk.title',
+    descriptionKey: 'chat.toolApproval.alwaysAsk.description',
   },
   {
     value: 'smart',
-    label: 'Smart approval',
+    labelKey: 'chat.toolApproval.smart.label',
     trailingIcon: IconSparkleOutline18,
-    title: 'Only ask for risky commands',
-    description:
-      'A fast classifier decides per command. Read-only and workspace-scoped commands run automatically; destructive or system-level commands still ask for approval.',
+    titleKey: 'chat.toolApproval.smart.title',
+    descriptionKey: 'chat.toolApproval.smart.description',
   },
   {
     value: 'alwaysAllow',
-    label: 'Always allow',
-    title: 'Skip future approvals',
-    description:
-      'This agent will run every shell command without asking. Only enable this if you trust what this agent is about to do.',
+    labelKey: 'chat.toolApproval.alwaysAllow.label',
+    titleKey: 'chat.toolApproval.alwaysAllow.title',
+    descriptionKey: 'chat.toolApproval.alwaysAllow.description',
   },
 ];
 
@@ -71,6 +69,7 @@ interface ToolApprovalSelectProps {
 export const ToolApprovalSelect = memo(function ToolApprovalSelect({
   onToolApprovalChange,
 }: ToolApprovalSelectProps) {
+  const { t } = useI18n();
   const [openAgent] = useOpenAgent();
   const currentMode = useKartonState((s) =>
     openAgent
@@ -86,7 +85,9 @@ export const ToolApprovalSelect = memo(function ToolApprovalSelect({
     () => OPTIONS.find((o) => o.value === currentMode),
     [currentMode],
   );
-  const currentLabel = currentOption?.label ?? 'Always ask';
+  const currentLabel = currentOption
+    ? t(currentOption.labelKey)
+    : t('chat.toolApproval.alwaysAsk.label');
   const CurrentIcon = currentOption?.icon;
 
   // Side-panel hover state
@@ -224,9 +225,9 @@ export const ToolApprovalSelect = memo(function ToolApprovalSelect({
                 )}
                 style={{ top: sidePanelOffset }}
               >
-                <div className="font-semibold">{hoveredOption.title}</div>
+                <div className="font-semibold">{t(hoveredOption.titleKey)}</div>
                 <div className="text-muted-foreground">
-                  {hoveredOption.description}
+                  {t(hoveredOption.descriptionKey)}
                 </div>
               </div>
             )}
@@ -244,6 +245,7 @@ const ToolApprovalItem = memo(function ToolApprovalItem({
   option: ToolApprovalOption;
   onHighlight: (option: ToolApprovalOption, element: HTMLElement) => void;
 }) {
+  const { t } = useI18n();
   const itemRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -271,7 +273,7 @@ const ToolApprovalItem = memo(function ToolApprovalItem({
       <span className="col-start-2 flex min-w-0 flex-row items-center justify-between gap-2">
         <div className="flex min-w-0 flex-row items-center gap-1">
           {Icon && <Icon className="size-3 shrink-0" />}
-          <span className="truncate">{option.label}</span>
+          <span className="truncate">{t(option.labelKey)}</span>
         </div>
         {TrailingIcon && (
           <div className="flex size-4 shrink-0 items-center justify-center">

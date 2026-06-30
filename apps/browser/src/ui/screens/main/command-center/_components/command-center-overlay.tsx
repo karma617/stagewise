@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export function CommandCenterOverlay({
   children,
@@ -7,17 +8,18 @@ export function CommandCenterOverlay({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Command center"
+      aria-label={t('chat.cmdCenter.label')}
       data-command-center-modal-root=""
       className="app-no-drag fixed inset-0 z-100 flex items-start justify-center bg-overlay/55 p-6"
     >
       <button
         type="button"
-        aria-label="Close command center"
+        aria-label={t('chat.cmdCenter.close')}
         className="absolute inset-0 cursor-default"
         onClick={onClose}
       />

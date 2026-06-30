@@ -29,6 +29,7 @@ import {
 } from '@ui/components/attachment-renderers';
 import { Suspense } from 'react';
 import { ExpandedShell } from '@ui/components/attachment-renderers/shared/expanded-shell';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const ExecuteSandboxJsToolPart = ({
   part,
@@ -46,6 +47,7 @@ export const ExecuteSandboxJsToolPart = ({
   /** Attachments from the parent message metadata — populated after the step completes. */
   messageAttachments?: AttachmentMetadata[];
 }) => {
+  const { t } = useI18n();
   const [scriptExpanded, setScriptExpanded] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(true);
   const activeTabs = useKartonState((s) => s.contentTabs.tabs);
@@ -229,7 +231,7 @@ export const ExecuteSandboxJsToolPart = ({
                       !scriptExpanded && '-rotate-90',
                     )}
                   />
-                  <span className="text-2xs">Script</span>
+                  <span className="text-2xs">{t('tools.executeSandbox.script')}</span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="duration-0!">
                   <CodeBlock
@@ -252,7 +254,7 @@ export const ExecuteSandboxJsToolPart = ({
                       !resultExpanded && '-rotate-90',
                     )}
                   />
-                  <span className="text-2xs">Error</span>
+                  <span className="text-2xs">{t('tools.executeSandbox.error')}</span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="duration-0!">
                   <CodeBlock
@@ -325,7 +327,7 @@ export const ExecuteSandboxJsToolPart = ({
                         !scriptExpanded && '-rotate-90',
                       )}
                     />
-                    <span className="text-2xs">Script</span>
+                    <span className="text-2xs">{t('tools.executeSandbox.script')}</span>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="duration-0!">
                     <CodeBlock
@@ -348,7 +350,7 @@ export const ExecuteSandboxJsToolPart = ({
                         !resultExpanded && '-rotate-90',
                       )}
                     />
-                    <span className="text-2xs">Result</span>
+                    <span className="text-2xs">{t('tools.executeSandbox.result')}</span>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="duration-0!">
                     {effectiveAttachments && (

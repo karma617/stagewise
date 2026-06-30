@@ -11,6 +11,11 @@ import type {
   UsageHistoryResponse,
 } from '@shared/karton-contracts/pages-api/types';
 import type { SocialAuthProvider } from '@shared/karton-contracts/ui/shared-types';
+import {
+  createRegistrationFingerprint,
+  fetchWithRegistrationFallback,
+  type RegistrationFingerprint,
+} from './registration-network';
 
 export const API_URL = process.env.API_URL || 'https://api.stagewise.io';
 const CONSOLE_URL =
@@ -18,6 +23,7 @@ const CONSOLE_URL =
 const ELECTRON_CLIENT_ID = 'electron';
 const STAGEWISE_PRODUCTION_API_ORIGIN = 'https://api.stagewise.io';
 const STABLE_AUTH_CALLBACK_SCHEME = 'stagewise';
+declare const __APP_VERSION__: string;
 // @better-auth/electron stores Electron OAuth PKCE code verifiers in this
 // process-global map keyed by OAuth state. Our API-hosted handoff constructs
 // the same PKCE request manually, so it must seed the official store before
@@ -152,6 +158,116 @@ export async function openEmailAuthInSystemBrowser(): Promise<void> {
   }
 }
 
+function createConsoleAuthHeaders(
+  captchaToken?: string,
+  fingerprint: RegistrationFingerprint = createRegistrationFingerprint(),
+  visitorId?: string,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    accept: 'application/json',
+    origin: CONSOLE_URL,
+    referer: CONSOLE_URL + '/',
+    'x-stagewise-client': `electron/${__APP_VERSION__}`,
+    'x-request-id': createBase64UrlRandomString(16),
+    'user-agent': fingerprint.userAgent,
+    'accept-language': fingerprint.acceptLanguage,
+    'sec-ch-ua': fingerprint.secChUa,
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': fingerprint.secChUaPlatform,
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-site',
+  };
+  if (captchaToken) {
+    headers['x-captcha-response'] = captchaToken;
+  }
+  if (visitorId) {
+    headers['x-visitor-id'] = visitorId;
+  }
+  return headers;
+}
+
+async function readApiError(response: Response): Promise<string> {
+  const body = await response.text().catch(() => '');
+  if (!body) return `HTTP ${response.status}`;
+  try {
+    const parsed = JSON.parse(body) as { message?: string; error?: unknown };
+    return String(parsed.message ?? parsed.error ?? body);
+  } catch {
+    return body;
+  }
+}
+
+/**
+ * Silent email OTP handoff used by auto-registration.
+ *
+ * This mirrors the console-origin OTP flow but runs entirely in the Electron
+ * main process: no system browser, no manual input, and no UI handoff.
+ */
+export async function sendSilentEmailOtp(
+  email: string,
+  captchaToken?: string,
+  proxyUrl?: string,
+  fingerprint?: RegistrationFingerprint,
+  visitorId?: string,
+): Promise<void> {
+  const response = await fetchWithRegistrationFallback(
+    `${API_URL}/v1/auth/email-otp/send-verification-otp`,
+    {
+      method: 'POST',
+      headers: createConsoleAuthHeaders(captchaToken, fingerprint, visitorId),
+      body: JSON.stringify({ email, type: 'sign-in' }),
+    },
+    proxyUrl,
+  );
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+}
+
+export async function verifySilentEmailOtp(
+  email: string,
+  otp: string,
+  captchaToken?: string,
+  proxyUrl?: string,
+  fingerprint?: RegistrationFingerprint,
+  visitorId?: string,
+): Promise<string> {
+  const response = await fetchWithRegistrationFallback(
+    `${API_URL}/v1/auth/sign-in/email-otp`,
+    {
+      method: 'POST',
+      headers: createConsoleAuthHeaders(captchaToken, fingerprint, visitorId),
+      body: JSON.stringify({ email, otp }),
+    },
+    proxyUrl,
+  );
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+  // better-auth signInEmailOTP returns the session token in the JSON body
+  // ({ token, user }). The bearer plugin also mirrors it into the
+  // set-auth-token response header, so we try the body first and fall back
+  // to the header for robustness.
+  let token: string | null = null;
+  try {
+    const body = (await response.json()) as { token?: string };
+    if (body && typeof body.token === 'string' && body.token) {
+      token = body.token;
+    }
+  } catch {
+    // Response may not be JSON in some edge cases; fall through to header.
+  }
+  if (!token) {
+    token = response.headers.get('set-auth-token');
+  }
+  if (!token) {
+    throw new Error('Stagewise did not return a session token');
+  }
+  return token;
+}
+
 /**
  * Creates a better-auth client for the Electron main process.
  *
@@ -255,11 +371,19 @@ export class AuthServerInterop {
 
     const { data, error } = await client.v1.usage.current.get();
     if (error) {
-      throw new Error(
+      const err = new Error(
         typeof error === 'string'
           ? error
           : ((error as { message?: string }).message ?? JSON.stringify(error)),
       );
+      const status =
+        typeof error === 'object' && error !== null && 'status' in error
+          ? Number((error as { status?: unknown }).status)
+          : undefined;
+      if (status) {
+        (err as Error & { status?: number }).status = status;
+      }
+      throw err;
     }
     return data as CurrentUsageResponse;
   }

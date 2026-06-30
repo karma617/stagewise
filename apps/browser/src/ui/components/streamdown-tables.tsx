@@ -14,6 +14,7 @@ import type { ExtraProps } from 'react-markdown';
 import { cn } from '@ui/utils';
 import { Button } from '@stagewise/stage-ui/components/button';
 import { CopyIcon, CopyCheckIcon, DownloadIcon } from 'lucide-react';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 // ============================================
 // Table Wrapper with Custom Controls
@@ -26,6 +27,7 @@ type TableProps = DetailedHTMLProps<
   ExtraProps;
 
 const TableComponent = ({ className, children, ...props }: TableProps) => {
+  const { t } = useI18n();
   const tableRef = useRef<HTMLTableElement>(null);
   const [hasCopied, setHasCopied] = useState(false);
   const copyTimeoutRef = useRef<number | null>(null);
@@ -109,7 +111,7 @@ const TableComponent = ({ className, children, ...props }: TableProps) => {
           variant="ghost"
           size="icon-xs"
           onClick={copyAsCSV}
-          title="Copy table as CSV"
+          title={t('tools.streamdown.copyCsv')}
         >
           {hasCopied ? (
             <CopyCheckIcon className="size-3" />
@@ -121,7 +123,7 @@ const TableComponent = ({ className, children, ...props }: TableProps) => {
           variant="ghost"
           size="icon-xs"
           onClick={downloadAsCSV}
-          title="Download as CSV"
+          title={t('tools.streamdown.downloadCsv')}
         >
           <DownloadIcon className="size-3" />
         </Button>

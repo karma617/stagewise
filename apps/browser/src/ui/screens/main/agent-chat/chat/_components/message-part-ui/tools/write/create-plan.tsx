@@ -29,6 +29,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@stagewise/stage-ui/components/tooltip';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 /**
  * Dedicated tool-part UI for plan file creation / update.
@@ -42,6 +43,7 @@ import {
  */
 export const CreatePlanToolPart = memo(
   function CreatePlanToolPart({ part }: { part: WritePart }) {
+    const { t } = useI18n();
     const streaming =
       part.state === 'input-streaming' || part.state === 'input-available';
     const isError = part.state === 'output-error';
@@ -51,7 +53,9 @@ export const CreatePlanToolPart = memo(
       return (
         <div className="flex h-6 w-full items-center gap-1 font-medium text-muted-foreground">
           <IconClipboardOutline18 className="size-3 shrink-0 text-primary-foreground" />
-          <span className="shimmer-text-primary text-xs">Creating plan…</span>
+          <span className="shimmer-text-primary text-xs">
+            {t('tools.createPlan.creating')}
+          </span>
         </div>
       );
     }
@@ -94,6 +98,7 @@ export const CreatePlanToolPart = memo(
  * Extracted so Karton subscriptions only run after streaming finishes.
  */
 function CreatePlanSettledCard({ part }: { part: WritePart }) {
+  const { t } = useI18n();
   const relativePath = part.input?.path ?? '';
 
   // Plan lifecycle phase — controls whether footer buttons are shown
@@ -229,7 +234,7 @@ function CreatePlanSettledCard({ part }: { part: WritePart }) {
             onClick={handleImplement}
           >
             <span className="flex items-center gap-1.5">
-              <span>Implement</span>
+              <span>{t('tools.createPlan.implement')}</span>
               {implementIsWinner && (
                 <HotkeyCombo
                   action={HotkeyActions.CMD_ENTER}

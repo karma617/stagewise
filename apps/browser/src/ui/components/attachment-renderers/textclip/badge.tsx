@@ -18,6 +18,7 @@ import {
   InlineBadge,
   InlineBadgeWrapper,
 } from '@ui/screens/main/agent-chat/chat/_components/rich-text/shared';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 /** Maximum character count that allows inline expansion */
 const EXPAND_THRESHOLD = 10_000;
@@ -26,6 +27,7 @@ const EXPAND_THRESHOLD = 10_000;
  * Preview content component showing text content with copy functionality.
  */
 function TextPreviewContent({ content }: { content: string }) {
+  const { t } = useI18n();
   const [hasCopied, setHasCopied] = useState(false);
   const copyResetTimeoutRef = useRef<number | null>(null);
 
@@ -66,7 +68,7 @@ function TextPreviewContent({ content }: { content: string }) {
           buttonVariants({ variant: 'ghost', size: 'icon-xs' }),
           'absolute top-3 right-3 z-10 size-3 shrink-0 transition-opacity',
         )}
-        title="Copy to clipboard"
+        title={t('chat.attachments.copyToClipboard')}
       >
         {hasCopied ? (
           <CopyCheckIcon className="size-3" />
@@ -76,7 +78,7 @@ function TextPreviewContent({ content }: { content: string }) {
       </span>
       <div className="max-w-96">
         <div className="flex items-center justify-start gap-1">
-          <h3 className="font-medium text-foreground text-xs">Pasted text</h3>
+          <h3 className="font-medium text-foreground text-xs">{t('chat.attachments.pastedText')}</h3>
           <span className="font-mono text-2xs text-muted-foreground">
             {'  '}({content.length.toLocaleString()} characters)
           </span>
@@ -98,6 +100,7 @@ function TextPreviewContent({ content }: { content: string }) {
  * that inlines the text and removes the attachment.
  */
 export function TextClipBadge(props: BadgeProps) {
+  const { t } = useI18n();
   const { fileName, blobUrl, viewOnly, selected, onDelete } = props;
   const isEditable = !viewOnly;
 
@@ -169,12 +172,12 @@ export function TextClipBadge(props: BadgeProps) {
                 className={cn(
                   'absolute top-1/2 right-px flex size-4 -translate-y-1/2 cursor-pointer items-center justify-center rounded-r bg-surface-1 opacity-0 transition-opacity group-hover/badge:opacity-100',
                 )}
-                title="Use raw text"
+                title={t('chat.attachments.useRawText')}
               >
                 <Maximize2 className="size-2.5 text-foreground-subtle" />
               </span>
             </TooltipTrigger>
-            <TooltipContent>Use raw text</TooltipContent>
+            <TooltipContent>{t('chat.attachments.useRawText')}</TooltipContent>
           </Tooltip>
         )}
       </span>

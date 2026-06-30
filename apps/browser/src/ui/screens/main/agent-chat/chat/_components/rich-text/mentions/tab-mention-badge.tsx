@@ -8,6 +8,7 @@ import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { ContextMenu } from '@base-ui/react/context-menu';
 import { Menu as MenuBase } from '@base-ui/react/menu';
 import type { TabMentionMeta } from '@shared/karton-contracts/ui/agent/metadata';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 interface TabMentionBadgeProps {
   /** Tab ID — always available from the mention node's id attr. */
@@ -66,6 +67,7 @@ export function TabMentionBadge({
   onDelete,
   viewOnly = true,
 }: TabMentionBadgeProps) {
+  const { t } = useI18n();
   const { sessionId: messageBrowserSessionId, tabs: tabSnapshots } =
     useMessageBrowserContext();
   const switchTab = useKartonProcedure((p) => p.browser.switchTab);
@@ -240,7 +242,7 @@ export function TabMentionBadge({
                 onClick={handleOpenOriginalInNewTab}
               >
                 <ExternalLinkIcon className="size-3.5 shrink-0" />
-                <span>Open original URL in new tab</span>
+                <span>{t('chat.mentions.openOriginalUrl')}</span>
               </MenuBase.Item>
             </MenuBase.Popup>
           </MenuBase.Positioner>

@@ -1,4 +1,5 @@
 import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
+import { useI18n } from '@ui/hooks/use-i18n';
 import {
   RadioGroup,
   Radio,
@@ -45,6 +46,7 @@ interface LicenseEntry {
 }
 
 function AppUpdateStatus() {
+  const { t } = useI18n();
   const autoUpdate = useKartonState((s) => s.autoUpdate);
   const checkForUpdates = useKartonProcedure(
     (p) => p.autoUpdate.checkForUpdates,
@@ -61,20 +63,20 @@ function AppUpdateStatus() {
         return (
           <Button variant="ghost" size="sm" className="px-0" disabled>
             <IconRefreshAnticlockwiseOutline18 className="size-3 animate-spin" />
-            Checking for Updates
+            {t('settings.about.update.checking')}
           </Button>
         );
       case 'downloading':
         return (
           <Button variant="secondary" size="sm" disabled>
             <LoaderCircleIcon className="size-3.5 animate-spin" />
-            Downloading Update...
+            {t('settings.about.update.downloading')}
           </Button>
         );
       case 'not-available':
         return (
           <>
-            <span className="text-muted-foreground text-sm">Up to date</span>
+            <span className="text-muted-foreground text-sm">{t('settings.about.update.upToDate')}</span>
             <Button
               variant="ghost"
               size="sm"
@@ -82,14 +84,14 @@ function AppUpdateStatus() {
               onClick={() => checkForUpdates()}
             >
               <IconRefreshAnticlockwiseOutline18 className="size-3" />
-              Check Again
+              {t('settings.about.update.checkAgain')}
             </Button>
           </>
         );
       case 'ready':
         return (
           <Button size="sm" onClick={() => quitAndInstall()}>
-            Install Update & Restart
+            {t('settings.about.update.installRestart')}
           </Button>
         );
       case 'error':
@@ -103,7 +105,7 @@ function AppUpdateStatus() {
             onClick={() => checkForUpdates()}
           >
             <IconRefreshAnticlockwiseOutline18 className="size-3" />
-            Check for Updates
+            {t('settings.about.update.checkForUpdates')}
           </Button>
         );
     }
@@ -113,7 +115,7 @@ function AppUpdateStatus() {
     <div className="flex flex-col gap-2">
       {autoUpdate.status === 'ready' && autoUpdate.updateInfo?.releaseName && (
         <p className="text-muted-foreground text-sm">
-          Version {autoUpdate.updateInfo.releaseName} available
+          {t('settings.about.update.versionAvailable').replace('{version}', String(autoUpdate.updateInfo?.releaseName ?? ''))}
         </p>
       )}
       {autoUpdate.status === 'error' && autoUpdate.errorMessage && (
@@ -127,6 +129,7 @@ function AppUpdateStatus() {
 }
 
 function UpdateChannelSetting() {
+  const { t } = useI18n();
   const preferences = useKartonState((s) => s.preferences);
   const appInfo = useKartonState((s) => s.appInfo);
   const updatePreferences = useKartonProcedure((p) => p.preferences.update);
@@ -149,10 +152,10 @@ function UpdateChannelSetting() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h3 className="font-medium text-base text-foreground">
-          Update Channel
+          {t('settings.about.updateChannel.title')}
         </h3>
         <p className="text-muted-foreground text-sm">
-          Choose which pre-release channel to receive updates from.
+          {t('settings.about.updateChannel.description')}
         </p>
       </div>
 
@@ -160,9 +163,9 @@ function UpdateChannelSetting() {
         <RadioLabel>
           <Radio value="beta" />
           <div className="flex flex-col">
-            <span className="font-medium text-foreground">Beta</span>
+            <span className="font-medium text-foreground">{t('settings.about.updateChannel.beta')}</span>
             <span className="text-muted-foreground text-xs">
-              More stable pre-release updates
+              {t('settings.about.updateChannel.betaDesc')}
             </span>
           </div>
         </RadioLabel>
@@ -170,9 +173,9 @@ function UpdateChannelSetting() {
         <RadioLabel>
           <Radio value="alpha" />
           <div className="flex flex-col">
-            <span className="font-medium text-foreground">Alpha</span>
+            <span className="font-medium text-foreground">{t('settings.about.updateChannel.alpha')}</span>
             <span className="text-muted-foreground text-xs">
-              Bleeding-edge updates including alpha and beta releases
+              {t('settings.about.updateChannel.alphaDesc')}
             </span>
           </div>
         </RadioLabel>
@@ -190,6 +193,7 @@ function LicenseTextDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useI18n();
   if (!entry) return null;
 
   return (
@@ -213,7 +217,7 @@ function LicenseTextDialog({
                       buttonVariants({ variant: 'ghost', size: 'icon-md' }),
                       'w-min p-0',
                     )}
-                    aria-label="GitHub Repository"
+                    aria-label={t('settings.about.licenses.ghRepo')}
                   >
                     <IconGithub className="size-4" />
                   </a>
@@ -230,7 +234,7 @@ function LicenseTextDialog({
             </pre>
           ) : (
             <p className="text-muted-foreground text-sm italic">
-              No license text available for this package.
+              {t('settings.about.licenses.noLicenseText')}
             </p>
           )}
         </div>
@@ -240,6 +244,7 @@ function LicenseTextDialog({
 }
 
 function OpenSourceLicenses() {
+  const { t } = useI18n();
   const [licenses, setLicenses] = useState<LicenseEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -302,11 +307,10 @@ function OpenSourceLicenses() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h3 className="font-medium text-base text-foreground">
-            Open Source Licenses
+            {t('settings.about.licenses.title')}
           </h3>
           <p className="text-muted-foreground text-sm">
-            This software incorporates open source packages. View their licenses
-            below.
+            {t('settings.about.licenses.description')}
           </p>
         </div>
         <Button
@@ -316,7 +320,7 @@ function OpenSourceLicenses() {
           onClick={expanded ? () => setExpanded(false) : loadLicenses}
           disabled={loading}
         >
-          {loading ? 'Loading...' : expanded ? 'Collapse' : 'View All'}
+          {loading ? t('settings.about.licenses.loading') : expanded ? t('settings.about.licenses.collapse') : t('settings.about.licenses.viewAll')}
         </Button>
       </div>
 
@@ -334,7 +338,7 @@ function OpenSourceLicenses() {
                 </span>
               ))}
               <span className="rounded-md bg-surface-1 px-2 py-1 text-muted-foreground text-xs">
-                Total{' '}
+                {t('settings.about.licenses.total')}{' '}
                 <span className="font-medium text-foreground">
                   {licenses.length}
                 </span>
@@ -347,13 +351,13 @@ function OpenSourceLicenses() {
             value={search}
             onValueChange={(val) => setSearch(val as string)}
             debounce={150}
-            placeholder="Search packages or licenses..."
+            placeholder={t('settings.about.licenses.searchPlaceholder')}
           />
 
           <div className="scrollbar-subtle h-[400px] overflow-y-auto rounded-lg border border-border-subtle">
             {filteredLicenses.length === 0 ? (
               <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-                No packages found matching &ldquo;{search}&rdquo;
+                {t('settings.about.licenses.noMatch').replace('{q}', search)}
               </div>
             ) : (
               filteredLicenses.map((entry) => (
@@ -387,7 +391,7 @@ function OpenSourceLicenses() {
                             size: 'icon-xs',
                           }),
                         )}
-                        title="View repository"
+                        title={t('settings.about.licenses.viewRepo')}
                       >
                         <ExternalLinkIcon className="size-3.5" />
                       </a>
@@ -396,7 +400,7 @@ function OpenSourceLicenses() {
                       variant="ghost"
                       size="icon-xs"
                       onClick={() => handleViewLicense(entry)}
-                      title="View license text"
+                      title={t('settings.about.licenses.viewLicenseText')}
                     >
                       <ScrollTextIcon className="size-3.5" />
                     </Button>
@@ -418,6 +422,7 @@ function OpenSourceLicenses() {
 }
 
 export function AboutSection() {
+  const { t } = useI18n();
   const appInfo = useKartonState((s) => s.appInfo);
   const [appLicenseOpen, setAppLicenseOpen] = useState(false);
 
@@ -428,7 +433,7 @@ export function AboutSection() {
         <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-8">
           {/* Header */}
           <div>
-            <h1 className="font-semibold text-foreground text-xl">About</h1>
+            <h1 className="font-semibold text-foreground text-xl">{t('settings.about.title')}</h1>
           </div>
           {/* App Name Section */}
           <div className="flex flex-col gap-2">
@@ -473,7 +478,7 @@ export function AboutSection() {
             <div className="flex flex-col gap-y-3">
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  Bundle ID
+                  {t('settings.about.details.bundleId')}
                 </span>
                 <span className="break-all text-foreground text-sm">
                   {appInfo.bundleId}
@@ -482,7 +487,7 @@ export function AboutSection() {
 
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  Release Channel
+                  {t('settings.about.details.releaseChannel')}
                 </span>
                 <span className="text-foreground text-sm capitalize">
                   {appInfo.releaseChannel}
@@ -491,7 +496,7 @@ export function AboutSection() {
 
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  Platform
+                  {t('settings.about.details.platform')}
                 </span>
                 <span className="text-foreground text-sm capitalize">
                   {appInfo.platform}
@@ -500,14 +505,14 @@ export function AboutSection() {
 
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  Architecture
+                  {t('settings.about.details.arch')}
                 </span>
                 <span className="text-foreground text-sm">{appInfo.arch}</span>
               </div>
 
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  Author
+                  {t('settings.about.details.author')}
                 </span>
                 <span className="text-foreground text-sm">
                   {appInfo.author}
@@ -516,7 +521,7 @@ export function AboutSection() {
 
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  Copyright
+                  {t('settings.about.details.copyright')}
                 </span>
                 <span className="text-foreground text-sm">
                   {appInfo.copyright}
@@ -525,7 +530,7 @@ export function AboutSection() {
 
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  License
+                  {t('settings.about.details.license')}
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-foreground text-sm">
@@ -537,7 +542,7 @@ export function AboutSection() {
                     onClick={() => {
                       setAppLicenseOpen(true);
                     }}
-                    title="View full license text"
+                    title={t('settings.about.details.viewFullLicense')}
                   >
                     <ScrollTextIcon className="size-3.5" />
                   </Button>
@@ -546,7 +551,7 @@ export function AboutSection() {
 
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  Homepage
+                  {t('settings.about.details.homepage')}
                 </span>
                 <a
                   href={appInfo.homepage}
@@ -563,12 +568,12 @@ export function AboutSection() {
 
               <div className="grid grid-cols-[140px_1fr] gap-x-4">
                 <span className="font-medium text-muted-foreground text-sm">
-                  Other Versions
+                  {t('settings.about.details.otherVersions')}
                 </span>
                 <div className="text-foreground text-sm">
                   {Object.entries(appInfo.otherVersions).map(([key, value]) => (
                     <div key={key}>
-                      {key}: {value ?? 'N/A'}
+                      {key}: {value ?? t('settings.about.details.na')}
                     </div>
                   ))}
                 </div>

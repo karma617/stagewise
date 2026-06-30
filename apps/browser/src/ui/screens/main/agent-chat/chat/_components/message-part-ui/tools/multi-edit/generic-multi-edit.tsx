@@ -29,12 +29,14 @@ import {
   StreamingCodeBlock,
   getLanguageFromPath,
 } from '@ui/components/ui/streaming-code-block';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const GenericMultiEditToolPart = ({
   part,
 }: {
   part: Extract<AgentToolUIPart, { type: 'tool-multiEdit' }>;
 }) => {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(true);
   const [openAgent] = useOpenAgent();
   const openFileTab = useKartonProcedure((p) => p.fileTree.openFileTab);
@@ -232,7 +234,7 @@ export const GenericMultiEditToolPart = ({
                   Open file
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Click to see full file</TooltipContent>
+              <TooltipContent>{t('common.clickToSeeFullFile')}</TooltipContent>
             </Tooltip>
           </div>
         ) : undefined

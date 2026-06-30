@@ -24,13 +24,16 @@ import {
   DialogDescription,
   DialogClose,
 } from '@stagewise/stage-ui/components/dialog';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 interface BasicAuthDialogProps {
   request: AuthenticationRequest;
   container?: ComponentProps<typeof DialogContent>['container'];
 }
 
-export function BasicAuthDialog({ request, container }: BasicAuthDialogProps) {
+export function BasicAuthDialog({
+  request, container }: BasicAuthDialogProps) {
+  const { t } = useI18n();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,7 +88,7 @@ export function BasicAuthDialog({ request, container }: BasicAuthDialogProps) {
           <div className="flex size-8 items-center justify-center rounded-full bg-surface-1">
             <IconLockKeyFillDuo18 className="size-4 text-primary-foreground" />
           </div>
-          <DialogTitle>Sign in required</DialogTitle>
+          <DialogTitle>{t('dialogs.basicAuth.signInRequired')}</DialogTitle>
           <DialogDescription>{request.host}</DialogDescription>
         </DialogHeader>
 
@@ -106,26 +109,26 @@ export function BasicAuthDialog({ request, container }: BasicAuthDialogProps) {
           }}
         >
           <FormField>
-            <FormFieldLabel>Username</FormFieldLabel>
+            <FormFieldLabel>{t('dialogs.basicAuth.username')}</FormFieldLabel>
             <Input
               autoFocus
               ref={usernameInputRef}
               type="text"
               value={username}
               onValueChange={setUsername}
-              placeholder="Enter username"
+              placeholder={t('dialogs.basicAuth.enterUsername')}
               autoComplete="username"
               disabled={isSubmitting}
             />
           </FormField>
 
           <FormField>
-            <FormFieldLabel>Password</FormFieldLabel>
+            <FormFieldLabel>{t('dialogs.basicAuth.password')}</FormFieldLabel>
             <Input
               type="password"
               value={password}
               onValueChange={setPassword}
-              placeholder="Enter password"
+              placeholder={t('dialogs.basicAuth.enterPassword')}
               autoComplete="current-password"
               disabled={isSubmitting}
             />

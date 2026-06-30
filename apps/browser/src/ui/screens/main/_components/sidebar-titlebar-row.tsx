@@ -16,6 +16,7 @@ import { HotkeyCombo } from '@ui/components/hotkey-combo';
 import { HotkeyActions } from '@shared/hotkeys';
 import { IconPenPlusOutline18 } from 'nucleo-ui-outline-18';
 import { useKartonState } from '@ui/hooks/use-karton';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 /**
  * Titlebar row containing the macOS traffic-light gutter and the sidebar
@@ -48,6 +49,7 @@ export function SidebarTitlebarRow({
   onCreateChat?: () => void;
   children?: React.ReactNode;
 }) {
+  const { t } = useI18n();
   const counterScale = useUiZoomCounterScale();
   const isMacOs = useKartonState((s) => s.appInfo.platform === 'darwin');
   return (
@@ -80,7 +82,7 @@ export function SidebarTitlebarRow({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="New chat"
+              aria-label={t('chat.sidebar.newChat')}
               className="app-no-drag shrink-0"
               style={
                 isMacOs
@@ -94,7 +96,7 @@ export function SidebarTitlebarRow({
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <span className="flex items-center gap-1.5">
-              <span>New chat</span>
+              <span>{t('chat.sidebar.newChat')}</span>
               <HotkeyCombo action={HotkeyActions.NEW_CHAT} size="xs" />
             </span>
           </TooltipContent>

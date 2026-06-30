@@ -23,6 +23,7 @@ import {
   TooltipTrigger,
 } from '@stagewise/stage-ui/components/tooltip';
 import { HotkeyCombo } from '@ui/components/hotkey-combo';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export interface SearchBarRef {
   focus: () => void;
@@ -34,6 +35,7 @@ interface SearchBarProps {
 }
 
 export function SearchBar({ tabId, ref }: SearchBarProps) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchString, setSearchString] = useState('');
   const [shouldShow, setShouldShow] = useState(false);
@@ -187,7 +189,7 @@ export function SearchBar({ tabId, ref }: SearchBarProps) {
       <IconSearchContentOutline18 className="size-4 text-muted-foreground opacity-50" />
       <input
         ref={inputRef}
-        placeholder="Search in tab..."
+        placeholder={t('chat.search.placeholder')}
         type="text"
         value={searchString}
         onChange={(e) => setSearchString(e.target.value)}
@@ -223,7 +225,7 @@ export function SearchBar({ tabId, ref }: SearchBarProps) {
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label="Previous search result"
+                aria-label={t('chat.search.previousAria')}
                 disabled={!tabSearch || tabSearch.resultsCount === 0}
                 onClick={() => previousSearchResult(tabId)}
               >
@@ -232,7 +234,7 @@ export function SearchBar({ tabId, ref }: SearchBarProps) {
             </TooltipTrigger>
             <TooltipContent>
               <span className="flex items-center gap-1.5">
-                <span>Previous match</span>
+                <span>{t('chat.search.previousMatch')}</span>
                 <HotkeyCombo action={HotkeyActions.FIND_PREV} size="xs" />
               </span>
             </TooltipContent>
@@ -245,7 +247,7 @@ export function SearchBar({ tabId, ref }: SearchBarProps) {
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label="Next search result"
+                aria-label={t('chat.search.nextAria')}
                 disabled={!tabSearch || tabSearch.resultsCount === 0}
                 onClick={() => nextSearchResult(tabId)}
               >
@@ -254,7 +256,7 @@ export function SearchBar({ tabId, ref }: SearchBarProps) {
             </TooltipTrigger>
             <TooltipContent>
               <span className="flex items-center gap-1.5">
-                <span>Next match</span>
+                <span>{t('chat.search.nextMatch')}</span>
                 <HotkeyCombo action={HotkeyActions.FIND_NEXT} size="xs" />
               </span>
             </TooltipContent>
@@ -266,7 +268,7 @@ export function SearchBar({ tabId, ref }: SearchBarProps) {
           <Button
             variant="ghost"
             size="icon-xs"
-            aria-label="Close search"
+            aria-label={t('chat.search.closeAria')}
             onClick={() => {
               setShouldShow(false);
               deactivateSearchBar();
@@ -277,7 +279,7 @@ export function SearchBar({ tabId, ref }: SearchBarProps) {
         </TooltipTrigger>
         <TooltipContent>
           <span className="flex items-center gap-1.5">
-            <span>Close search</span>
+            <span>{t('chat.search.closeAria')}</span>
             <ShortcutCombo value="Esc" size="xs" />
           </span>
         </TooltipContent>

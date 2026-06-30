@@ -6,6 +6,7 @@ import {
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '@ui/utils';
 import { Mermaid } from '../ui/mermaid';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 type MermaidMode = 'view' | 'edit' | 'split';
 
@@ -17,7 +18,9 @@ const MERMAID_DEBOUNCE_MS = 400;
  * - Non-mermaid blocks: renders the default editable code area.
  * - Mermaid blocks: adds a rendered diagram preview with view/edit/split toggle.
  */
-export function CodeBlockNodeView({ node }: NodeViewProps) {
+export function CodeBlockNodeView({
+  node }: NodeViewProps) {
+  const { t } = useI18n();
   const language = (node.attrs.language as string) ?? '';
   const isMermaid = language === 'mermaid';
 
@@ -39,6 +42,7 @@ export function CodeBlockNodeView({ node }: NodeViewProps) {
  * but visually hidden in "view" mode.
  */
 function MermaidCodeBlock({ node }: { node: NodeViewProps['node'] }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<MermaidMode>('view');
   const [debouncedChart, setDebouncedChart] = useState(node.textContent);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,9 +77,9 @@ function MermaidCodeBlock({ node }: { node: NodeViewProps['node'] }) {
               mode === 'view' && 'mermaid-toggle-btn-active',
             )}
             onClick={() => setMode('view')}
-            title="View diagram"
+            title={t('tools.viewDiagram')}
           >
-            View
+            {t('common.view')}
           </button>
           <button
             type="button"
@@ -84,9 +88,9 @@ function MermaidCodeBlock({ node }: { node: NodeViewProps['node'] }) {
               mode === 'split' && 'mermaid-toggle-btn-active',
             )}
             onClick={() => setMode('split')}
-            title="Side by side"
+            title={t('tools.sideBySide')}
           >
-            Split
+            {t('common.split')}
           </button>
           <button
             type="button"
@@ -95,9 +99,9 @@ function MermaidCodeBlock({ node }: { node: NodeViewProps['node'] }) {
               mode === 'edit' && 'mermaid-toggle-btn-active',
             )}
             onClick={() => setMode('edit')}
-            title="Edit source"
+            title={t('tools.editSource')}
           >
-            Edit
+            {t('common.edit')}
           </button>
         </div>
       </div>

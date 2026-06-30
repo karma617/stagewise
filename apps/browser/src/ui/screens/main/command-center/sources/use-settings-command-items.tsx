@@ -18,6 +18,7 @@ import {
   type CommandCenterSettingDefinition,
 } from '../command-center-settings';
 import { filterAndRankCommandCenterItems } from '../command-center-search';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 function iconForSetting(setting: CommandCenterSettingDefinition) {
   const className = 'size-4';
@@ -45,15 +46,18 @@ function iconForSetting(setting: CommandCenterSettingDefinition) {
 }
 
 export function useSettingsCommandItems(query: string) {
+  const { t } = useI18n();
   const allItems = useMemo<SettingCommandItem[]>(
     () =>
       commandCenterSettings.map((setting) => ({
         ...setting,
+        title: t(setting.titleKey),
+        subtitle: t(setting.subtitleKey),
         kind: 'setting',
         mode: 'settings',
         icon: iconForSetting(setting),
       })),
-    [],
+    [t],
   );
 
   const items = useMemo(

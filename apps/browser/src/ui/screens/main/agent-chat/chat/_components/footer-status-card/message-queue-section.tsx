@@ -20,6 +20,7 @@ import {
 import { AttachmentMetadataProvider } from '@ui/hooks/use-attachment-metadata';
 import type { StatusCardSection } from './shared';
 import { getMessageText } from './shared';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export interface QueuedMessagesSectionProps {
   queuedMessages: AgentMessage[];
@@ -31,6 +32,7 @@ function MessageQueueSectionContent({
   queuedMessages,
   onRemoveMessage,
 }: QueuedMessagesSectionProps) {
+  const { t } = useI18n();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   return (
@@ -88,7 +90,7 @@ function MessageQueueSectionContent({
                     <IconTrash2Outline24 className="size-3" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Remove from queue</TooltipContent>
+                <TooltipContent>{t('chat.queue.removeFromQueue')}</TooltipContent>
               </Tooltip>
             </div>
           </div>

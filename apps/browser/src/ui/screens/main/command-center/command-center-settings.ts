@@ -3,8 +3,10 @@ import type { SettingsRoute } from '@shared/settings-route';
 
 export type CommandCenterSettingDefinition = Omit<
   SettingCommandItem,
-  'kind' | 'mode' | 'icon'
+  'kind' | 'mode' | 'icon' | 'title' | 'subtitle'
 > & {
+  titleKey: string;
+  subtitleKey: string;
   iconName:
     | 'models'
     | 'key'
@@ -32,8 +34,8 @@ const ROUTE_HISTORY: SettingsRoute = { section: 'history' };
 export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   {
     id: 'setting:models-providers',
-    title: 'Models & Providers',
-    subtitle: 'Configure model providers and coding plans',
+    titleKey: 'commandCenter.setting.modelsProviders.title',
+    subtitleKey: 'commandCenter.setting.modelsProviders.subtitle',
     keywords: ['models', 'providers', 'llm', 'ai', 'coding plans'],
     url: '',
     settingsRoute: ROUTE_MODELS_PROVIDERS,
@@ -41,8 +43,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:api-keys',
-    title: 'Set API Keys',
-    subtitle: 'Connect Anthropic, OpenAI, Google, and other providers',
+    titleKey: 'commandCenter.setting.apiKeys.title',
+    subtitleKey: 'commandCenter.setting.apiKeys.subtitle',
     keywords: [
       'api keys',
       'anthropic',
@@ -62,8 +64,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:custom-providers',
-    title: 'Custom Providers',
-    subtitle: 'Manage custom model endpoints',
+    titleKey: 'commandCenter.setting.customProviders.title',
+    subtitleKey: 'commandCenter.setting.customProviders.subtitle',
     keywords: ['custom provider', 'endpoint', 'openai compatible', 'bedrock'],
     url: '',
     settingsRoute: ROUTE_CUSTOM_PROVIDERS,
@@ -71,8 +73,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:agent-general',
-    title: 'General Agent Settings',
-    subtitle: 'Configure default agent behavior',
+    titleKey: 'commandCenter.setting.agentGeneral.title',
+    subtitleKey: 'commandCenter.setting.agentGeneral.subtitle',
     keywords: ['agent', 'general', 'settings', 'behavior'],
     url: '',
     settingsRoute: ROUTE_AGENT_GENERAL,
@@ -80,8 +82,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:skills-context',
-    title: 'Skills & Context files',
-    subtitle: 'Manage skill and context file preferences',
+    titleKey: 'commandCenter.setting.skillsContext.title',
+    subtitleKey: 'commandCenter.setting.skillsContext.subtitle',
     keywords: ['skills', 'context', 'agents.md', 'workspace.md'],
     url: '',
     settingsRoute: ROUTE_SKILLS_CONTEXT,
@@ -89,8 +91,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:worktree-setup',
-    title: 'Worktrees',
-    subtitle: 'Manage worktree setup scripts',
+    titleKey: 'commandCenter.setting.worktrees.title',
+    subtitleKey: 'commandCenter.setting.worktrees.subtitle',
     keywords: ['worktree', 'worktrees', 'setup', 'script', 'branch'],
     url: '',
     settingsRoute: ROUTE_WORKTREE_SETUP,
@@ -98,8 +100,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:plugins',
-    title: 'Plugins',
-    subtitle: 'Configure bundled and enabled plugins',
+    titleKey: 'commandCenter.setting.plugins.title',
+    subtitleKey: 'commandCenter.setting.plugins.subtitle',
     keywords: ['plugins', 'extensions', 'tools'],
     url: '',
     settingsRoute: ROUTE_PLUGINS,
@@ -107,9 +109,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:personalization',
-    title: 'Personalization',
-    subtitle:
-      'Configure UI size, theme colors, notifications, and dock behavior',
+    titleKey: 'commandCenter.setting.personalization.title',
+    subtitleKey: 'commandCenter.setting.personalization.subtitle',
     keywords: ['personalization', 'theme', 'colors', 'ui size', 'sound'],
     url: '',
     settingsRoute: ROUTE_PERSONALIZATION,
@@ -117,8 +118,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:browsing',
-    title: 'Browsing Settings',
-    subtitle: 'Configure browser behavior and permissions',
+    titleKey: 'commandCenter.setting.browsing.title',
+    subtitleKey: 'commandCenter.setting.browsing.subtitle',
     keywords: ['browser', 'browsing', 'permissions', 'search engine'],
     url: '',
     settingsRoute: ROUTE_BROWSING,
@@ -126,8 +127,8 @@ export const commandCenterSettings: CommandCenterSettingDefinition[] = [
   },
   {
     id: 'setting:history',
-    title: 'History',
-    subtitle: 'Open browsing history',
+    titleKey: 'commandCenter.setting.history.title',
+    subtitleKey: 'commandCenter.setting.history.subtitle',
     keywords: ['history', 'visited', 'pages'],
     url: '',
     settingsRoute: ROUTE_HISTORY,

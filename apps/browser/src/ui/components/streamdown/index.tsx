@@ -54,6 +54,7 @@ import {
 } from './attachment-links';
 import { resolveLinkAlias } from './link-aliases';
 import { useKartonProcedure } from '@ui/hooks/use-karton';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const ChatLinkModifierContext = createContext(false);
 
@@ -640,6 +641,7 @@ const ImgComponent = ({
   ...props
 }: DetailedHTMLProps<ImgHTMLAttributes<HTMLImageElement>, HTMLImageElement> &
   ExtraProps) => {
+  const { t } = useI18n();
   const downloadImage = useCallback(async () => {
     if (!src) return;
 
@@ -678,7 +680,7 @@ const ImgComponent = ({
           variant="ghost"
           size="icon-xs"
           onClick={downloadImage}
-          title="Download image"
+          title={t('tools.streamdown.downloadImage')}
         >
           <DownloadIcon className="size-3" />
         </Button>

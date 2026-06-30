@@ -38,6 +38,7 @@ import { cn } from '@ui/utils';
 import { useScrollFadeMask } from '@ui/hooks/use-scroll-fade-mask';
 import { useHotKeyListener } from '@ui/hooks/use-hotkey-listener';
 import { HotkeyCombo } from '@ui/components/hotkey-combo';
+import { useI18n } from '@ui/hooks/use-i18n';
 import { ModelThinkingPanel } from '@ui/components/model-thinking-panel';
 import {
   getEnabledModelThinkingOption,
@@ -133,6 +134,7 @@ const EMPTY_MODEL_THINKING_OVERRIDES: UserPreferences['agent']['modelThinkingOve
 export const ModelSelect = memo(function ModelSelect({
   onModelChange,
 }: ModelSelectProps) {
+  const { t } = useI18n();
   const [openAgent] = useOpenAgent();
   const selectedModel = useKartonState((s) =>
     openAgent ? s.agents.instances[openAgent]?.state.activeModelId : null,
@@ -220,8 +222,8 @@ export const ModelSelect = memo(function ModelSelect({
     }
 
     return [
-      { label: 'Recommended', models: recommended },
-      { label: 'Custom', models: custom },
+      { label: t('chat.modelSelect.group.recommended'), models: recommended },
+      { label: t('chat.modelSelect.group.custom'), models: custom },
     ].filter(({ models }) => models.length > 0);
   }, [modelOptions]);
 
@@ -557,11 +559,11 @@ export const ModelSelect = memo(function ModelSelect({
         <TooltipContent side="top">
           <div className="flex flex-col gap-1">
             <span className="flex items-center justify-between gap-2">
-              <span>Switch model</span>
+              <span>{t('chat.modelSelect.switchModel')}</span>
               <HotkeyCombo action={HotkeyActions.OPEN_MODEL_SELECT} size="xs" />
             </span>
             <span className="flex items-center justify-between gap-2">
-              <span>Change reasoning effort</span>
+              <span>{t('chat.modelSelect.changeEffort')}</span>
               <HotkeyCombo
                 action={HotkeyActions.CYCLE_MODEL_THINKING_EFFORT}
                 size="xs"
@@ -594,7 +596,7 @@ export const ModelSelect = memo(function ModelSelect({
               )}
             >
               <div className="mb-1 rounded-md">
-                <ComboboxInput ref={inputRef} size="xs" placeholder="Search…" />
+                <ComboboxInput ref={inputRef} size="xs" placeholder={t('chat.modelSelect.search')} />
               </div>
 
               <ComboboxList>
@@ -622,13 +624,13 @@ export const ModelSelect = memo(function ModelSelect({
 
                 {!hasFilteredResults && (
                   <div className="px-2 py-1.5 text-muted-foreground text-xs">
-                    No results
+                    {t('chat.modelSelect.noResults')}
                   </div>
                 )}
 
                 <ComboboxItem value={OPEN_MODEL_SETTINGS_VALUE} size="xs">
                   <ComboboxItemIndicator />
-                  <span className="col-start-2 truncate">Model settings</span>
+                  <span className="col-start-2 truncate">{t('chat.modelSelect.openSettings')}</span>
                 </ComboboxItem>
               </ComboboxList>
             </ComboboxBase.Popup>
@@ -701,6 +703,7 @@ const ModelItem = memo(function ModelItem({
     event: React.MouseEvent<HTMLElement>,
   ) => void;
 }) {
+  const { t } = useI18n();
   const itemRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -752,7 +755,7 @@ const ModelItem = memo(function ModelItem({
                   onEditThinking(model.targetModelId ?? model.modelId, event)
                 }
               >
-                Edit
+                {t('chat.modelSelect.editThinking')}
               </Button>
             )}
           </span>

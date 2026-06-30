@@ -11,6 +11,7 @@ import {
 } from '@ui/screens/main/agent-chat/chat/_components/rich-text/shared';
 import { resolveAttachmentBlobUrl } from '@ui/components/attachment-renderers';
 import { useOpenAgent } from '@ui/hooks/use-open-chat';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ function ScreenshotThumbnail({
   src: string;
   className?: string;
 }) {
+  const { t } = useI18n();
   const [retry, setRetry] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -93,7 +95,7 @@ function ScreenshotThumbnail({
       {!gaveUp && (
         <img
           src={cacheBustedSrc}
-          alt="Element screenshot"
+          alt={t('chat.attachments.elementScreenshot')}
           className={`absolute inset-0 size-full object-cover ${
             loaded ? '' : 'invisible'
           }`}
@@ -136,6 +138,7 @@ function SwDomPreviewContent({
   blobData: SwDomBlobData;
   screenshotUrl: string | undefined;
 }) {
+  const { t } = useI18n();
   const tagLabel = blobData.tagName ? `<${blobData.tagName}>` : null;
   const innerTextPreview = blobData.innerText?.trim() || null;
   const elementSize = blobData.boundingClientRect
@@ -155,7 +158,7 @@ function SwDomPreviewContent({
         {screenshotUrl && (
           <img
             src={screenshotUrl}
-            alt="Element screenshot"
+            alt={t('chat.attachments.elementScreenshot')}
             className="max-h-40 w-full rounded object-contain"
           />
         )}
@@ -163,7 +166,7 @@ function SwDomPreviewContent({
         {/* Node type */}
         {tagLabel && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Node type</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.nodeType')}</p>
             <div className="w-full font-mono text-2xs text-muted-foreground leading-tight">
               {tagLabel}
             </div>
@@ -173,7 +176,7 @@ function SwDomPreviewContent({
         {/* Size */}
         {elementSize && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Size</p>
+            <p className="font-medium text-foreground text-xs">{t('common.size')}</p>
             <div className="w-full font-mono text-2xs text-muted-foreground leading-tight">
               {elementSize.width} × {elementSize.height}px
             </div>
@@ -183,7 +186,7 @@ function SwDomPreviewContent({
         {/* Inner text */}
         {innerTextPreview && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Text</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.text')}</p>
             <div className="line-clamp-3 w-full text-2xs text-muted-foreground leading-tight">
               {innerTextPreview}
             </div>
@@ -193,7 +196,7 @@ function SwDomPreviewContent({
         {/* XPath */}
         {blobData.xpath && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">XPath</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.xpath')}</p>
             <div className="w-full break-all font-mono text-2xs text-muted-foreground leading-tight">
               {blobData.xpath}
             </div>
@@ -203,7 +206,7 @@ function SwDomPreviewContent({
         {/* Page URL */}
         {blobData.url && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Page</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.page')}</p>
             <div className="w-full break-all font-mono text-2xs text-muted-foreground leading-tight">
               {blobData.url}
             </div>
@@ -245,6 +248,7 @@ function SwDomPreviewContent({
  * Shows a rich preview card on hover matching the TipTap element badge.
  */
 export function SwDomElementBadge(props: BadgeProps) {
+  const { t } = useI18n();
   const [openAgent] = useOpenAgent();
   const [blobData, setBlobData] = useState<SwDomBlobData | null>(null);
 

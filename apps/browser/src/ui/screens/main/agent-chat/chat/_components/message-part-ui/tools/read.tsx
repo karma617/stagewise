@@ -13,6 +13,7 @@ import { useAttachmentMetadata } from '@ui/hooks/use-attachment-metadata';
 import { useKartonState } from '@ui/hooks/use-karton';
 import { useOpenAgent } from '@ui/hooks/use-open-chat';
 import { isLogPath, LOGS_PREFIX } from '@stagewise/agent-core/logs';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const PLUGIN_SKILL_RE = /^plugins\/([^/]+)\/SKILL\.md$/;
 const WORKSPACE_SKILL_RE =
@@ -55,6 +56,7 @@ export const ReadToolPart = ({
   disableShimmer?: boolean;
   minimal?: boolean;
 }) => {
+  const { t } = useI18n();
   const plugins = useKartonState((s) => s.plugins);
   const [openAgent] = useOpenAgent();
   const relativePath = part.input?.path ?? '';
@@ -99,7 +101,7 @@ export const ReadToolPart = ({
     const finishedText =
       part.state === 'output-available' ? (
         <span className="flex min-w-0 gap-1">
-          <span className="shrink-0 font-medium">Enabled</span>
+          <span className="shrink-0 font-medium">{t('common.enabled')}</span>
           <span className="truncate font-normal opacity-75">
             {pluginMatch.displayName}
           </span>
@@ -135,7 +137,7 @@ export const ReadToolPart = ({
     const finishedText =
       part.state === 'output-available' ? (
         <span className="flex min-w-0 gap-1">
-          <span className="shrink-0 font-medium">Enabled</span>
+          <span className="shrink-0 font-medium">{t('common.enabled')}</span>
           <span className="truncate font-normal opacity-75">
             {workspaceSkillName}
           </span>
@@ -160,7 +162,7 @@ export const ReadToolPart = ({
     const finishedText =
       part.state === 'output-available' ? (
         <span className="flex min-w-0 gap-1">
-          <span className="shrink-0 font-medium">Read log</span>
+          <span className="shrink-0 font-medium">{t('tools.read.readLog')}</span>
           <span className="truncate font-normal opacity-75">
             {logChannelName}
           </span>
@@ -185,7 +187,7 @@ export const ReadToolPart = ({
     const finishedText =
       part.state === 'output-available' ? (
         <span className="flex min-w-0 gap-1">
-          <span className="shrink-0 font-medium">Read shell output</span>
+          <span className="shrink-0 font-medium">{t('tools.read.readShellOutput')}</span>
         </span>
       ) : undefined;
 
@@ -208,7 +210,7 @@ export const ReadToolPart = ({
     const finishedText =
       part.state === 'output-available' ? (
         <span className="flex min-w-0 gap-1">
-          <span className="shrink-0 font-medium">Read memory</span>
+          <span className="shrink-0 font-medium">{t('tools.read.readMemory')}</span>
           <span className="truncate font-normal opacity-75">
             {memoryReadLabel}
           </span>
@@ -228,13 +230,13 @@ export const ReadToolPart = ({
   }
 
   const streamingText = displayPath
-    ? `Reading ${displayPath}...`
-    : 'Reading file...';
+    ? t('tools.read.reading').replace('{path}', displayPath)
+    : t('tools.read.readingFile');
 
   const finishedText =
     part.state === 'output-available' ? (
       <span className="flex min-w-0 gap-1">
-        <span className="shrink-0 truncate font-medium">Read </span>
+        <span className="shrink-0 truncate font-medium">{t('tools.read.read')} </span>
         <span className="truncate font-normal opacity-75">
           {displayPath ?? ''}
         </span>

@@ -5,9 +5,11 @@ import {
   IconTriangleWarningOutline18,
   IconCircleInfoOutline18,
 } from 'nucleo-ui-outline-18';
-import { SidebarToast } from '../../../_components/sidebar-toast';
+import { IconXmark } from 'nucleo-micro-bold';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export function NotificationBanners() {
+  const { t } = useI18n();
   const notifications = useKartonState((s) => s.notifications);
   const triggerAction = useKartonProcedure(
     (s) => s.notifications.triggerAction,
@@ -21,12 +23,13 @@ export function NotificationBanners() {
   return (
     <div className="flex shrink-0 flex-col gap-2">
       {notifications.map((notification) => (
-        <SidebarToast
+        <div
           key={notification.id}
-          dismissLabel="Dismiss notification"
-          onDismiss={() => dismissNotification(notification.id)}
+          className={cn(
+            'relative flex shrink-0 flex-col gap-1.5 rounded-md bg-background/60 p-2.5 shadow-elevation-1 ring-1 ring-derived-strong backdrop-blur-xl dark:bg-surface-1/60',
+          )}
         >
-          <div className="flex flex-row items-start gap-2 pr-7">
+          <div className="flex flex-row items-start gap-2">
             <NotificationIcon type={notification.type} />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               {notification.title && (
@@ -48,6 +51,15 @@ export function NotificationBanners() {
                 </p>
               )}
             </div>
+            <Button
+              variant="ghost"
+              size="icon-2xs"
+              className="ml-auto shrink-0"
+              aria-label={t('common.dismissNotification')}
+              onClick={() => dismissNotification(notification.id)}
+            >
+              <IconXmark className="size-3" />
+            </Button>
           </div>
           {notification.actions.length > 0 && (
             <div className="flex flex-row-reverse items-center gap-2">
@@ -66,7 +78,7 @@ export function NotificationBanners() {
               ))}
             </div>
           )}
-        </SidebarToast>
+        </div>
       ))}
     </div>
   );

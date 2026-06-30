@@ -126,6 +126,7 @@ import { useScrollFadeMask } from '@ui/hooks/use-scroll-fade-mask';
 import { useCommandCenter } from '../../command-center';
 import { IDE_SELECTION_ITEMS } from '@shared/ide-url';
 import { getBaseName } from '@shared/path-utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 enablePatches();
 
@@ -507,6 +508,7 @@ function WorkspaceGroupHeader({
   onCreateAgent?: () => void;
   hideActions?: boolean;
 }) {
+  const { t } = useI18n();
   const openInFileManagerLabel = `Open in ${IDE_SELECTION_ITEMS.other}`;
   const remoteRepositoryLabel =
     openRemoteRepositoryLabel ?? 'Open remote repository';
@@ -596,7 +598,7 @@ function WorkspaceGroupHeader({
             <Button
               variant="ghost"
               size="icon-2xs"
-              aria-label="Delete worktree"
+              aria-label={t('chat.agentList.deleteWorktree')}
               className="size-5 shrink-0 opacity-0 transition-opacity group-hover/workspace-header:opacity-100"
               onClick={(event) => {
                 event.stopPropagation();
@@ -610,7 +612,7 @@ function WorkspaceGroupHeader({
               <IconTrashOutline18 className="size-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Delete worktree</TooltipContent>
+          <TooltipContent>{t('chat.agentList.deleteWorktree')}</TooltipContent>
         </Tooltip>
       )}
       {!hideActions && onCreateAgent && (
@@ -638,6 +640,7 @@ function AgentListGroupingToggle({
   mode: AgentListGroupingMode;
   onModeChange: (mode: AgentListGroupingMode) => void;
 }) {
+  const { t } = useI18n();
   const label = mode === 'workspace' ? 'Group by Workspace' : 'Group by Age';
   const options = [
     { value: 'age', label: 'Age' },
@@ -650,7 +653,7 @@ function AgentListGroupingToggle({
         <button
           type="button"
           className="flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded-md bg-transparent px-1 text-sidebar-foreground text-xs transition-colors hover:text-foreground"
-          aria-label="Change agent grouping mode"
+          aria-label={t('chat.agentList.changeGroupingMode')}
         >
           <span>{label}</span>
           <IconChevronDownOutline18 className="size-3 shrink-0" />
@@ -682,6 +685,7 @@ function AgentListGroupingToggle({
 // ============================================================================
 
 export function AgentsList() {
+  const { t } = useI18n();
   const [openAgent, setOpenAgent] = useOpenAgent();
   const { previewAgentId } = useAgentSwitcher();
   const createAgent = useKartonProcedure((p) => p.agents.create);
@@ -2353,8 +2357,8 @@ export function AgentsList() {
           <IconMagnifierOutline18 className="size-3.5 shrink-0 text-sidebar-foreground" />
           <input
             type="text"
-            aria-label="Search agents"
-            placeholder="Search agents…"
+            aria-label={t('chat.agentList.searchAgents')}
+            placeholder={t('chat.agentList.searchAgentsPlaceholder')}
             value=""
             onPointerDown={(e) => {
               if (!e.isPrimary || e.button !== 0) return;
@@ -2547,7 +2551,7 @@ export function AgentsList() {
         open={worktreeDelete !== null}
         isolated
         anchorPoint={worktreeDelete?.anchorPoint}
-        title="Delete worktree?"
+        title={t('dialogs.deleteWorktreeTitle')}
         description={
           worktreeDelete?.loading
             ? 'Checking worktree status…'

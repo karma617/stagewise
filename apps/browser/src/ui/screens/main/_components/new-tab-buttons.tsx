@@ -8,6 +8,7 @@ import { HotkeyActions } from '@shared/hotkeys';
 import { HotkeyCombo } from '@ui/components/hotkey-combo';
 import { GlobePlusIcon } from './globe-plus-icon';
 import { WindowPlusIcon } from '../terminal-panel/_components/window-plus-icon';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 interface NewTabButtonsProps {
   onCreateBrowserTab: () => void;
@@ -20,6 +21,7 @@ export function NewTabButtons({
   onCreateTerminalTab,
   buttonClassName,
 }: NewTabButtonsProps) {
+  const { t } = useI18n();
   return (
     <div className="flex shrink-0 flex-row items-center gap-0.5">
       <Tooltip>
@@ -27,7 +29,7 @@ export function NewTabButtons({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Open new browser tab"
+            aria-label={t('chat.newTab.openNewBrowserTab')}
             className={buttonClassName}
             onClick={onCreateBrowserTab}
           >
@@ -36,7 +38,7 @@ export function NewTabButtons({
         </TooltipTrigger>
         <TooltipContent>
           <span className="flex items-center gap-1.5">
-            <span>Open browsing tab</span>
+            <span>{t('chat.newTab.openBrowserTab')}</span>
             <HotkeyCombo action={HotkeyActions.NEW_TAB} size="xs" />
           </span>
         </TooltipContent>
@@ -46,7 +48,7 @@ export function NewTabButtons({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Open new terminal tab"
+            aria-label={t('chat.newTab.openNewTerminalTab')}
             className={buttonClassName}
             onClick={onCreateTerminalTab}
           >
@@ -55,7 +57,7 @@ export function NewTabButtons({
         </TooltipTrigger>
         <TooltipContent>
           <span className="flex items-center gap-1.5">
-            <span>Open terminal tab</span>
+            <span>{t('chat.newTab.openTerminalTab')}</span>
             <HotkeyCombo action={HotkeyActions.NEW_TERMINAL_TAB} size="xs" />
           </span>
         </TooltipContent>

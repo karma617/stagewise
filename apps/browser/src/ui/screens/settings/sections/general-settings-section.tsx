@@ -7,6 +7,48 @@ import { toast } from '@stagewise/stage-ui/components/toaster';
 import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { useTrack } from '@ui/hooks/use-track';
 import { PlayIcon, TriangleAlertIcon, UploadIcon } from 'lucide-react';
+import { useI18n } from '@ui/hooks/use-i18n';
+
+// =============================================================================
+// Interface Language Setting Component
+// =============================================================================
+
+function LanguageSetting() {
+  const { lang, t } = useI18n();
+  const setGlobalConfig = useKartonProcedure((p) => p.config.set);
+
+  const items = [
+    { value: 'zh-CN', label: t('settings.general.language.zh-CN') },
+    { value: 'en', label: t('settings.general.language.en') },
+  ];
+
+  const handleChange = async (value: string) => {
+    await setGlobalConfig({ appLanguage: value as 'zh-CN' | 'en' });
+  };
+
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <label htmlFor="app-language-select">
+          <h3 className="font-medium text-base text-foreground">
+            {t('settings.general.language.label')}
+          </h3>
+          <p className="text-muted-foreground text-sm">
+            {t('settings.general.language.description')}
+          </p>
+        </label>
+      </div>
+      <Select
+        value={lang}
+        onValueChange={handleChange}
+        items={items}
+        size="sm"
+        triggerClassName="w-32 shrink-0 mt-1"
+        side="bottom"
+      />
+    </div>
+  );
+}
 
 // =============================================================================
 // Power Save Blocker Setting Component
@@ -16,6 +58,7 @@ function PowerSaveBlockerSetting() {
   const globalConfig = useKartonState((s) => s.globalConfig);
   const isMacOs = useKartonState((s) => s.appInfo.platform === 'darwin');
   const setGlobalConfig = useKartonProcedure((p) => p.config.set);
+  const { t } = useI18n();
 
   const isEnabled = globalConfig.blockAppSuspensionWhenAgentsActive ?? true;
 
@@ -30,11 +73,10 @@ function PowerSaveBlockerSetting() {
       <div className="min-w-0 flex-1">
         <label htmlFor="agent-power-save-blocker">
           <h3 className="font-medium text-base text-foreground">
-            Keep app awake while agents work
+            {t('settings.general.powerSave.title')}
           </h3>
           <p className="text-muted-foreground text-sm">
-            Prevent app suspension while agents run tool loops or other active
-            work. Waiting for questions or tool approval still counts as idle.
+            {t('settings.general.powerSave.description')}
           </p>
         </label>
 
@@ -42,9 +84,7 @@ function PowerSaveBlockerSetting() {
           <div className="mt-2 flex items-start gap-1.5 rounded-md bg-warning-background/45 p-2 text-warning-foreground text-xs leading-snug ring-1 ring-warning-solid/20">
             <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0 text-warning-foreground" />
             <p>
-              To prevent sleep in battery mode on macOS devices, including when
-              the lid is closed, you must enable “Keep awake” mode in the
-              bottom-right corner of the sidebar.
+              {t('settings.general.powerSave.macWarning')}
             </p>
           </div>
         )}
@@ -76,20 +116,19 @@ type SoundLoudness = (typeof NOTIFICATION_LOUDNESS_OPTIONS)[number]['value'];
 
 export function NotificationsSetting() {
   const globalConfig = useKartonState((s) => s.globalConfig);
-  const notificationSoundPacks = useKartonState(
-    (s) => s.notificationSoundPacks,
-  );
   const isMacOs = useKartonState((s) => s.appInfo.platform === 'darwin');
   const setGlobalConfig = useKartonProcedure((p) => p.config.set);
   const previewSoundPack = useKartonProcedure((p) => p.config.previewSoundPack);
   const importSoundPack = useKartonProcedure((p) => p.config.importSoundPack);
   const track = useTrack();
+  const { t } = useI18n();
 
   const soundLoudness: SoundLoudness =
-    globalConfig.notificationSoundLoudness ?? 'subtle';
+    globalConfig.notificationSoundLoudness ??
+    (globalConfig.notificationSoundsEnabled === false ? 'off' : 'subtle');
   const availablePacks =
-    notificationSoundPacks.available.length > 0
-      ? notificationSoundPacks.available
+    globalConfig.availableSoundPacks.length > 0
+      ? globalConfig.availableSoundPacks
       : [DEFAULT_SOUND_PACK];
   const configuredPack = globalConfig.notificationSoundPack?.trim();
   const currentPack =
@@ -108,7 +147,7 @@ export function NotificationsSetting() {
 
   const soundPackItems = packOptions.map((pack) => ({
     value: pack,
-    label: notificationSoundPacks.displayNames[pack] ?? pack,
+    label: globalConfig.packDisplayNames[pack] ?? pack,
   }));
 
   const previewSound = (pack = currentPack, loudness = soundLoudness) => {
@@ -129,6 +168,7 @@ export function NotificationsSetting() {
     previewSound(currentPack, notificationSoundLoudness);
 
     await setGlobalConfig({
+      notificationSoundsEnabled: notificationSoundLoudness !== 'off',
       notificationSoundLoudness,
     });
     track('changed-notification-sound-loudness', {
@@ -154,7 +194,7 @@ export function NotificationsSetting() {
         if (result.error) {
           toast({
             id: `import-sound-pack-error-${Date.now()}`,
-            title: 'Custom sound import failed',
+            title: t('settings.general.notifications.import.errorTitle'),
             message: result.error,
             type: 'error',
             actions: [],
@@ -165,8 +205,8 @@ export function NotificationsSetting() {
 
       toast({
         id: `import-sound-pack-success-${Date.now()}`,
-        title: 'Custom sound imported',
-        message: `${result.name} is now selected for notifications.`,
+        title: t('settings.general.notifications.import.successTitle'),
+        message: t('settings.general.notifications.import.successMessage').replace('{name}', result.name),
         type: 'info',
         duration: 4000,
         actions: [],
@@ -174,9 +214,9 @@ export function NotificationsSetting() {
     } catch (err) {
       toast({
         id: `import-sound-pack-error-${Date.now()}`,
-        title: 'Custom sound import failed',
+        title: t('settings.general.notifications.import.errorTitle'),
         message:
-          err instanceof Error ? err.message : 'Custom sound import failed.',
+          err instanceof Error ? err.message : t('settings.general.notifications.import.errorFallback'),
         type: 'error',
         actions: [],
       });
@@ -193,24 +233,23 @@ export function NotificationsSetting() {
     <div className="space-y-4">
       <div>
         <h3 className="font-medium text-base text-foreground">
-          Notification sounds
-        </h3>
-        <p className="text-muted-foreground text-sm">
-          Play a sound when the agent finishes work, asks a question, or
-          encounters an error.
-        </p>
+                  {t('settings.general.notifications.title')}
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  {t('settings.general.notifications.description')}
+                </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <h4 className="font-medium text-foreground text-sm">Loudness</h4>
+          <h4 className="font-medium text-foreground text-sm">{t('settings.general.notifications.loudness')}</h4>
           <div className="w-32 space-y-0.5 pl-2">
             <Slider
               value={loudnessIndex}
               min={0}
               max={2}
               step={1}
-              ariaLabel="Notification sound loudness"
+              ariaLabel={t('settings.general.notifications.loudness')}
               thickness="default"
               onValueChange={handleLoudnessChange}
             />
@@ -225,7 +264,7 @@ export function NotificationsSetting() {
                     }%`,
                   }}
                 >
-                  {option.label}
+                  {t(`settings.general.notifications.loudness.${option.value}`)}
                 </span>
               ))}
             </div>
@@ -233,7 +272,7 @@ export function NotificationsSetting() {
         </div>
 
         <div className="space-y-2">
-          <h4 className="font-medium text-foreground text-sm">Sound pack</h4>
+          <h4 className="font-medium text-foreground text-sm">{t('settings.general.notifications.soundPack')}</h4>
           <div className="flex items-center gap-1">
             <Select
               value={currentPack}
@@ -249,7 +288,7 @@ export function NotificationsSetting() {
               size="icon-xs"
               disabled={soundLoudness === 'off'}
               onClick={() => previewSound()}
-              aria-label="Preview sound"
+              aria-label={t('settings.general.notifications.previewSound')}
             >
               <PlayIcon className="size-3.5" />
             </Button>
@@ -261,8 +300,8 @@ export function NotificationsSetting() {
           >
             <span className="inline-flex items-center gap-1">
               <UploadIcon className="size-3" />
-              Use custom sound…
-            </span>
+                            {t('settings.general.notifications.useCustomSound')}
+                          </span>
           </button>
         </div>
       </div>
@@ -276,12 +315,11 @@ export function NotificationsSetting() {
         >
           <div>
             <h3 className="font-medium text-base text-foreground">
-              Dock icon bounce
-            </h3>
-            <p className="text-muted-foreground text-sm">
-              Bounce the dock icon when the agent finishes, asks a question, or
-              encounters an error while the window is not focused.
-            </p>
+                          {t('settings.general.notifications.dockBounce.title')}
+                        </h3>
+                        <p className="text-muted-foreground text-sm">
+                          {t('settings.general.notifications.dockBounce.description')}
+                        </p>
           </div>
           <div onClick={(e) => e.stopPropagation()}>
             <Switch
@@ -301,15 +339,19 @@ export function NotificationsSetting() {
 // =============================================================================
 
 export function GeneralSettingsSection() {
+  const { t } = useI18n();
   return (
     <div className="h-full w-full">
       <OverlayScrollbar className="h-full" contentClassName="px-6 pt-24 pb-24">
         <div className="mx-auto max-w-3xl space-y-8">
           {/* Header */}
           <div>
-            <h1 className="font-semibold text-foreground text-xl">General</h1>
+            <h1 className="font-semibold text-foreground text-xl">
+              {t('settings.general.title')}
+            </h1>
           </div>
           <section className="space-y-6">
+            <LanguageSetting />
             <PowerSaveBlockerSetting />
           </section>
         </div>

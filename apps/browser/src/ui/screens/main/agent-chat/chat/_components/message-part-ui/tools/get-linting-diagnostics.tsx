@@ -10,6 +10,7 @@ import { cn, stripMountPrefix } from '@ui/utils';
 import { useToolAutoExpand } from './shared/use-tool-auto-expand';
 import type { LintingDiagnostic } from '@shared/karton-contracts/ui/agent/tools/types';
 import type { AgentToolUIPart } from '@shared/karton-contracts/ui/agent';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const GetLintingDiagnosticsToolPart = ({
   part,
@@ -22,6 +23,7 @@ export const GetLintingDiagnosticsToolPart = ({
   capMaxHeight?: boolean;
   isLastPart?: boolean;
 }) => {
+  const { t } = useI18n();
   const streaming = useMemo(() => {
     return part.state === 'input-streaming' || part.state === 'input-available';
   }, [part.state]);

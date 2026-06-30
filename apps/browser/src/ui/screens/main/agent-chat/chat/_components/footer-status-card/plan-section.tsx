@@ -27,6 +27,11 @@ export interface PlanSectionProps {
   plans: PlanEntry[];
   onOpenPlan: (filename: string) => void;
   onImplement: () => void;
+  labels?: {
+    implement: string;
+    implementing: string;
+    openPlan: string;
+  };
 }
 
 function TaskRow({ task, isCurrent }: { task: PlanTask; isCurrent: boolean }) {
@@ -68,10 +73,15 @@ function PlanImplementButton({
   planFilename,
   onImplement,
   isImplementing,
+  labels,
 }: {
   planFilename: string;
   onImplement: () => void;
   isImplementing: boolean;
+  labels: {
+    implement: string;
+    implementing: string;
+  };
 }) {
   const { setRef, isWinner } = useCmdEnterTarget({
     id: `plan-section-implement-${planFilename}`,
@@ -94,7 +104,7 @@ function PlanImplementButton({
         onImplement();
       }}
     >
-      {isImplementing ? 'Implementing' : 'Implement'}
+      {isImplementing ? labels.implementing : labels.implement}
       {isWinner && (
         <HotkeyCombo
           action={HotkeyActions.CMD_ENTER}
@@ -153,6 +163,11 @@ export function buildPlanSections({
   plans,
   onOpenPlan,
   onImplement,
+  labels = {
+    implement: 'Implement',
+    implementing: 'Implementing',
+    openPlan: 'Open Plan',
+  },
 }: PlanSectionProps): StatusCardSection[] {
   return plans.map((plan) => {
     const isImplementing = plan.phase === 'implementing';
@@ -196,7 +211,7 @@ export function buildPlanSections({
                   onOpenPlan(plan.filename);
                 }}
               >
-                Open Plan
+                {labels.openPlan}
               </Button>
             )}
             {showImplement && (
@@ -204,6 +219,7 @@ export function buildPlanSections({
                 planFilename={plan.filename}
                 onImplement={onImplement}
                 isImplementing={isImplementing}
+                labels={labels}
               />
             )}
           </div>

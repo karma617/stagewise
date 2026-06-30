@@ -11,8 +11,8 @@ import type { TutorialDefinition } from './types';
 
 const step = (n: number) => ({
   targetSelector: `[data-tutorial="step-${n}"]`,
-  title: `Step ${n}`,
-  description: `Description ${n}`,
+  titleKey: `tutorial.test.step${n}.title`,
+  descriptionKey: `tutorial.test.step${n}.description`,
 });
 
 const makeTutorial = (

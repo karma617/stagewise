@@ -14,6 +14,7 @@ import {
   type CodingPlanId,
 } from '@shared/coding-plans';
 import type { ProviderEndpointMode } from '@shared/karton-contracts/ui/shared-types';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export { CODING_PLANS };
 export type { CodingPlan, CodingPlanId };
@@ -70,9 +71,21 @@ export function CodingPlanCard({
   hideHeader,
   autoFocusInput,
 }: CodingPlanCardProps) {
+  const { t } = useI18n();
   const reactId = useId();
   const inputId = `coding-plan-${plan.id}-api-key-${reactId}`;
   const errorId = `${inputId}-error`;
+  const displayName = plan.displayNameKey
+    ? t(plan.displayNameKey)
+    : plan.displayName;
+  const tagline = plan.taglineKey ? t(plan.taglineKey) : plan.tagline;
+  const helpText = plan.helpTextKey ? t(plan.helpTextKey) : plan.helpText;
+  const endpointHelpText = plan.endpointHelpTextKey
+    ? t(plan.endpointHelpTextKey)
+    : plan.endpointHelpText;
+  const disclaimer = plan.disclaimerKey
+    ? t(plan.disclaimerKey)
+    : plan.disclaimer;
 
   const isConnected =
     !!config.encryptedApiKey &&
@@ -118,7 +131,7 @@ export function CodingPlanCard({
         setLocalError(res.error);
       }
     } catch {
-      setLocalError('Connection failed. Please try again.');
+      setLocalError(t('settings.models.connectFailed'));
     } finally {
       connectInFlightRef.current = false;
       setIsConnecting(false);
@@ -137,7 +150,7 @@ export function CodingPlanCard({
       setLocalError(
         err instanceof Error
           ? err.message
-          : 'Disconnection failed. Please try again.',
+          : t('settings.models.disconnectFailed'),
       );
     } finally {
       disconnectInFlightRef.current = false;
@@ -156,15 +169,15 @@ export function CodingPlanCard({
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <h3 className="flex items-center gap-1.5 font-medium text-foreground text-sm">
-              {plan.displayName}
+              {displayName}
               {isConnected && (
                 <span className="rounded-full border border-border-subtle bg-surface-1 px-1.5 py-[1px] font-medium text-[10px] text-muted-foreground">
-                  Connected
+                  {t('settings.models.connected.badge')}
                 </span>
               )}
             </h3>
             <p className="mt-0.5 truncate text-muted-foreground text-xs">
-              {plan.tagline}
+              {tagline}
             </p>
           </div>
         </div>
@@ -173,14 +186,17 @@ export function CodingPlanCard({
       <div className="space-y-1">
         <div className="flex gap-1.5">
           <label htmlFor={inputId} className="sr-only">
-            {`${plan.displayName} API key`}
+            {t('settings.models.plan.apiKeyLabel').replace(
+              '{plan}',
+              displayName,
+            )}
           </label>
           <Input
             id={inputId}
             autoFocus={autoFocusInput && !isConnected}
             type="password"
             value={isConnected ? '••••••••••••••••' : localInput}
-            placeholder="Enter API key..."
+            placeholder={t('chat.codingPlan.enterApiKey')}
             onValueChange={isConnected ? undefined : handleInputChange}
             onKeyDown={(e) => {
               if (isConnected) return;
@@ -213,7 +229,9 @@ export function CodingPlanCard({
               onClick={handleDisconnect}
               disabled={isDisconnecting}
             >
-              {isDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+              {isDisconnecting
+                ? t('settings.models.disconnecting')
+                : t('settings.models.disconnect')}
             </Button>
           ) : (
             !isConnected &&
@@ -224,7 +242,9 @@ export function CodingPlanCard({
                 onClick={handleConnect}
                 disabled={isConnecting}
               >
-                {isConnecting ? 'Connecting…' : 'Connect'}
+                {isConnecting
+                  ? t('settings.models.connecting')
+                  : t('settings.models.connect')}
               </Button>
             )
           )}
@@ -232,17 +252,16 @@ export function CodingPlanCard({
         {localError && <TruncatedErrorText id={errorId} text={localError} />}
         {!localError && !isConnected && config.mode === 'custom' && (
           <p className="text-2xs text-subtle-foreground">
-            This provider is currently set to Custom. Connecting will switch it
-            to Official.
+            {t('settings.models.customSwitchNotice')}
           </p>
         )}
         {!localError &&
           !isConnected &&
           config.mode !== 'custom' &&
-          plan.helpText && (
+          helpText && (
             <p className="text-subtle-foreground text-xs">
               <span className="inline-flex items-center gap-0">
-                {plan.helpText}
+                {helpText}
                 <Tooltip>
                   <TooltipTrigger>
                     <a
@@ -260,21 +279,21 @@ export function CodingPlanCard({
                         'shrink-0',
                       )}
                     >
-                      Create key
+                      {t('common.createKey')}
                     </a>
                   </TooltipTrigger>
                   <TooltipContent>{plan.apiKeyUrl}</TooltipContent>
                 </Tooltip>
               </span>
-              {plan.endpointHelpText && (
+              {endpointHelpText && (
                 <span className="block text-2xs text-subtle-foreground">
-                  {plan.endpointHelpText}
+                  {endpointHelpText}
                 </span>
               )}
             </p>
           )}
-        {plan.disclaimer && (
-          <p className="text-2xs text-warning-foreground">{plan.disclaimer}</p>
+        {disclaimer && (
+          <p className="text-2xs text-warning-foreground">{disclaimer}</p>
         )}
       </div>
     </div>

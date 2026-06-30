@@ -48,6 +48,7 @@ import {
 } from './log-channel-section';
 import { getPlanUIPhases, type LivePlanData } from '@shared/plan-lifecycle';
 import { useSendImplement } from '@ui/hooks/use-send-implement';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 // Stable empty arrays/sets to avoid infinite loop with useSyncExternalStore
 const EMPTY_HISTORY: AgentMessage[] = [];
@@ -80,6 +81,7 @@ function compareAgentEntries(
 }
 
 export function StatusCard() {
+  const { t } = useI18n();
   const cardRef = useRef<HTMLDivElement>(null);
   const previousHeightRef = useRef(0);
   const [openAgentId] = useOpenAgent();
@@ -443,6 +445,19 @@ export function StatusCard() {
               void stopAgent(agentId);
             }
           : undefined,
+        labels: {
+          contextGenerationFailed: t('common.contextGenerationFailed'),
+          dismiss: t('common.dismiss'),
+          done: t('common.done'),
+          failedGenerateWorkspaceMd: t('common.failedGenerateWorkspaceMd'),
+          generated: t('common.generated'),
+          generatingContext: (workspace) =>
+            t('common.generatingContext').replace('{workspace}', workspace),
+          showFile: t('common.showFile'),
+          stop: t('common.stop'),
+          stopContextGeneration: t('common.stopContextGeneration'),
+          tryAgain: t('common.tryAgain'),
+        },
       });
       if (section) sections.push(section);
     }
@@ -458,6 +473,7 @@ export function StatusCard() {
     openAgentId,
     generateWorkspaceMd,
     stopAgent,
+    t,
   ]);
 
   // Active plans owned by this agent (excluding dismissed and just-created)
@@ -578,6 +594,11 @@ export function StatusCard() {
       plans: ownedPlans,
       onOpenPlan: handleOpenPlan,
       onImplement: handleImplement,
+      labels: {
+        implement: t('common.implement'),
+        implementing: t('common.implementing'),
+        openPlan: t('common.openPlan'),
+      },
     });
     for (const section of planSections) result.push(section);
 
@@ -585,6 +606,13 @@ export function StatusCard() {
       channels: ownedLogChannels,
       onClear: (filename) => {
         void clearLogChannel(filename);
+      },
+      labels: {
+        clearLog: t('common.clearLog'),
+        entryCount: (count) =>
+          t('common.logEntryCount')
+            .replace('{count}', String(count))
+            .replace('{plural}', count === 1 ? 'entry' : 'entries'),
       },
     });
     for (const section of logSections) result.push(section);
@@ -624,6 +652,14 @@ export function StatusCard() {
         });
       },
       onOpenDiffReview: openDiffReviewPage,
+      labels: {
+        acceptAll: t('common.acceptAll'),
+        editCount: (count) =>
+          t('common.editCount')
+            .replace('{count}', String(count))
+            .replace('{plural}', count > 1 ? 's' : ''),
+        reject: t('common.reject'),
+      },
     });
     if (fileDiffSection) result.push(fileDiffSection);
 
@@ -646,6 +682,7 @@ export function StatusCard() {
     rejectAllPendingEdits,
     acceptAllPendingEdits,
     openDiffReviewPage,
+    t,
     pendingUserQuestion,
     submitUserQuestionStep,
     cancelUserQuestion,

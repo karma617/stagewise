@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Logo } from '@ui/components/ui/logo';
 import { IconGlobe2Fill18 } from 'nucleo-ui-fill-18';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export function CommandCenterTabFavicon({
   faviconUrls,
@@ -11,6 +12,7 @@ export function CommandCenterTabFavicon({
   title: string;
   url: string;
 }) {
+  const { t } = useI18n();
   const isStagewisePage = url.startsWith('stagewise://internal/');
   const faviconUrl = useMemo(
     () => faviconUrls.find((value) => value.trim())?.trim() ?? null,
@@ -37,7 +39,11 @@ export function CommandCenterTabFavicon({
   return (
     <img
       src={faviconUrl}
-      alt={title ? `${title} icon` : 'Tab icon'}
+      alt={
+        title
+          ? t('commandCenter.tab.iconAlt').replace('{title}', title)
+          : t('commandCenter.tab.genericIconAlt')
+      }
       onError={() => setHasError(true)}
       className="size-4 shrink-0 rounded-[2px]"
     />

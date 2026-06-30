@@ -2,24 +2,32 @@ import { useMemo, useRef } from 'react';
 import { Button } from '@stagewise/stage-ui/components/button';
 import { useKartonProcedure, useKartonState } from '@ui/hooks/use-karton';
 import { useScrollFadeMask } from '@ui/hooks/use-scroll-fade-mask';
+import { XIcon } from 'lucide-react';
 import { IconTrash2Outline24 } from 'nucleo-core-outline-24';
 import { IconBranchOutOutline18 } from 'nucleo-ui-outline-18';
-import { SidebarToast } from '../_components/sidebar-toast';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 function getBaseName(value: string): string {
   return value.split(/[\\/]/).filter(Boolean).at(-1) ?? value;
 }
 
-function formatLastUsedAge(lastUsedAt: number | null): string {
-  if (lastUsedAt === null) return 'never';
+function formatLastUsedAge(
+  lastUsedAt: number | null,
+  t: (key: string) => string,
+): string {
+  if (lastUsedAt === null) return t('chat.worktreeCleanup.lastUsedNever');
   const days = Math.max(
     1,
     Math.floor((Date.now() - lastUsedAt) / (24 * 60 * 60 * 1000)),
   );
-  return `${days}d`;
+  return t('chat.worktreeCleanup.lastUsedDays').replace(
+    '{count}',
+    String(days),
+  );
 }
 
 export function WorktreeCleanupBadge() {
+  const { t } = useI18n();
   const cleanup = useKartonState((s) => s.workspaceGitCleanup);
   const dismissCleanup = useKartonProcedure(
     (p) => p.toolbox.dismissWorkspaceGitCleanupPrompt,
@@ -52,21 +60,29 @@ export function WorktreeCleanupBadge() {
   };
 
   return (
-    <SidebarToast
-      dismissLabel="Dismiss worktree cleanup"
-      onDismiss={handleDismiss}
-    >
-      <div className="flex flex-col gap-1 pr-7">
+    <div className="relative flex shrink-0 flex-col gap-2 rounded-md bg-background/60 p-2.5 shadow-elevation-1 ring-1 ring-derived-strong backdrop-blur-xl dark:bg-surface-1/60">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1.5">
           <IconTrash2Outline24 className="size-3.5 shrink-0 text-foreground" />
           <div className="mt-0.5 min-w-0 flex-1 font-medium text-foreground text-xs">
-            Clean old worktrees?
+            {t('chat.worktreeCleanup.title')}
           </div>
+          <Button
+            variant="ghost"
+            size="icon-2xs"
+            className="ml-auto shrink-0"
+            aria-label={t('chat.worktreeCleanup.dismiss')}
+            onClick={handleDismiss}
+          >
+            <XIcon className="size-3" />
+          </Button>
         </div>
         <p className="text-muted-foreground text-xs leading-snug">
-          {count} clean, inactive{' '}
-          {count === 1 ? 'worktree is' : 'worktrees are'} already merged and can
-          be removed safely.
+          {t(
+            count === 1
+              ? 'chat.worktreeCleanup.description.one'
+              : 'chat.worktreeCleanup.description.other',
+          ).replace('{count}', String(count))}
         </p>
       </div>
 
@@ -86,10 +102,13 @@ export function WorktreeCleanupBadge() {
                 {candidate.branch ?? getBaseName(candidate.path)}
               </span>
               <span className="shrink-0 text-sidebar-foreground">
-                merged into {candidate.mergedInto}
+                {t('chat.worktreeCleanup.mergedInto').replace(
+                  '{target}',
+                  candidate.mergedInto,
+                )}
               </span>
               <span className="ml-auto shrink-0 text-sidebar-foreground">
-                {formatLastUsedAge(candidate.lastUsedAt)}
+                {formatLastUsedAge(candidate.lastUsedAt, t)}
               </span>
             </div>
             <div
@@ -104,7 +123,8 @@ export function WorktreeCleanupBadge() {
 
       {failedCount > 0 && (
         <div className="py-1 text-error-foreground text-xs">
-          {cleanup.lastResult?.failed[0]?.message ?? 'Cleanup failed.'}
+          {cleanup.lastResult?.failed[0]?.message ??
+            t('chat.worktreeCleanup.failed')}
         </div>
       )}
 
@@ -115,7 +135,7 @@ export function WorktreeCleanupBadge() {
           disabled={cleanup.cleaning}
           onClick={handleDismiss}
         >
-          Don&apos;t Clean
+          {t('common.dontClean')}
         </Button>
         <Button
           variant="primary"
@@ -123,9 +143,9 @@ export function WorktreeCleanupBadge() {
           disabled={cleanup.cleaning}
           onClick={handleClean}
         >
-          {cleanup.cleaning ? 'Cleaning…' : 'Clean worktrees'}
+          {cleanup.cleaning ? t('common.cleaning') : t('common.cleanWorktrees')}
         </Button>
       </div>
-    </SidebarToast>
+    </div>
   );
 }

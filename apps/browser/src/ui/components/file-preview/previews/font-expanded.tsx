@@ -2,12 +2,14 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Loader2Icon } from 'lucide-react';
 import type { FilePreviewProps } from '../types';
 import { cn } from '@ui/utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const PANGRAM = 'The quick brown fox jumps over the lazy dog';
 const ALPHABET = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz';
 const DIGITS = '0123456789';
 
 export default function FontExpanded({ src, className }: FilePreviewProps) {
+  const { t } = useI18n();
   const instanceId = useId();
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function FontExpanded({ src, className }: FilePreviewProps) {
           className,
         )}
       >
-        Failed to load font
+        {t('common.failedToLoadFont')}
       </div>
     );
   }

@@ -680,10 +680,18 @@ export class LspClient extends EventEmitter {
       },
       contentChanges: [{ text: content }],
     };
-    await this.connection.sendNotification(
-      DidChangeTextDocumentNotification.type,
-      params,
-    );
+    try {
+      await this.connection.sendNotification(
+        DidChangeTextDocumentNotification.type,
+        params,
+      );
+    } catch (error) {
+      this.logger.debug(
+        `[LspClient:${this.serverID}] Failed to update document ${filePath}:`,
+        error,
+      );
+      return undefined;
+    }
 
     // Pull-model servers (e.g. ESLint) won't re-validate on didChange — request
     // diagnostics explicitly so the change is reflected (tagged with the new
@@ -712,10 +720,17 @@ export class LspClient extends EventEmitter {
     const params: DidCloseTextDocumentParams = {
       textDocument: { uri },
     };
-    await this.connection.sendNotification(
-      DidCloseTextDocumentNotification.type,
-      params,
-    );
+    try {
+      await this.connection.sendNotification(
+        DidCloseTextDocumentNotification.type,
+        params,
+      );
+    } catch (error) {
+      this.logger.debug(
+        `[LspClient:${this.serverID}] Failed to close document ${filePath}:`,
+        error,
+      );
+    }
   }
 
   /**

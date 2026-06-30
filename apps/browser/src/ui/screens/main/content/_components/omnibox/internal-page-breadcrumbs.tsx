@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { IconChevronRight } from 'nucleo-micro-bold';
 import { Logo } from '@ui/components/ui/logo';
 import { useKartonState } from '@ui/hooks/use-karton';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 interface InternalPageBreadcrumbsProps {
   url: string;
@@ -73,6 +74,7 @@ function decodePathSegment(segment: string | undefined): string | null {
 }
 
 export function InternalPageBreadcrumbs({ url }: InternalPageBreadcrumbsProps) {
+  const { t } = useI18n();
   const previewAgentId = useMemo(() => {
     try {
       const parsedUrl = new URL(url);
@@ -163,7 +165,7 @@ export function InternalPageBreadcrumbs({ url }: InternalPageBreadcrumbsProps) {
       ) : (
         <div className="flex shrink-0 flex-row items-center gap-1.5">
           <IconChevronRight className="size-3 shrink-0 text-muted-foreground" />
-          <span className="text-foreground text-sm">Home</span>
+          <span className="text-foreground text-sm">{t('common.home')}</span>
         </div>
       )}
     </div>

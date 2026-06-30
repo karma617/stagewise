@@ -23,6 +23,7 @@ import { Button } from '@stagewise/stage-ui/components/button';
 import { cn } from '@stagewise/stage-ui/lib/utils';
 import { InternalPageBreadcrumbs } from './internal-page-breadcrumbs';
 import { dispatchArrowFromCtrl } from '@ui/utils/keyboard-nav';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export interface OmniboxRef {
   focus: () => void;
@@ -39,6 +40,7 @@ export const Omnibox = ({
   isActive: boolean;
   ref: Ref<OmniboxRef>;
 }) => {
+  const { t } = useI18n();
   const displayedTabUrl =
     tab?.url === 'stagewise://internal/home' ? '' : tab?.url;
 
@@ -271,7 +273,7 @@ export const Omnibox = ({
         <div className="h-full flex-1">
           <Autocomplete.Input
             ref={inputRef}
-            placeholder="Search or type a URL"
+            placeholder={t('chat.omnibox.placeholder')}
             disabled={!isActive}
             onFocus={onInputFocus}
             onKeyDown={onInputKeyDown}

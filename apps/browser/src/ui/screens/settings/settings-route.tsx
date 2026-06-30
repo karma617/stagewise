@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+﻿import type { ReactNode } from 'react';
 import {
   BrainIcon,
   SettingsIcon,
@@ -11,12 +11,14 @@ import {
   UserIcon,
   InfoIcon,
   PaletteIcon,
+  MailIcon,
+  UsersIcon,
 } from 'lucide-react';
 import type { SettingsSection, SettingsRoute } from '@shared/settings-route';
-import { SETTINGS_SECTION_LABELS } from '@shared/settings-route';
+import { SETTINGS_SECTION_LABEL_KEYS } from '@shared/settings-route';
 
 export type SettingsNavGroup = {
-  label: string;
+  labelKey: string;
   items: SettingsNavItem[];
 };
 
@@ -32,7 +34,7 @@ export type SettingsNavItem = {
 
 export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   {
-    label: 'Agent',
+    labelKey: 'settings.nav.group.agent',
     items: [
       {
         section: 'agent-general',
@@ -57,7 +59,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     ],
   },
   {
-    label: 'Personal',
+    labelKey: 'settings.nav.group.personal',
     items: [
       {
         section: 'personalization',
@@ -66,7 +68,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     ],
   },
   {
-    label: 'Browsing',
+    labelKey: 'settings.nav.group.browsing',
     items: [
       {
         section: 'browsing',
@@ -83,11 +85,23 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     ],
   },
   {
-    label: '',
+    labelKey: '',
     items: [
       {
         section: 'account',
         icon: <UserIcon className="size-4 shrink-0" />,
+      },
+      {
+        section: 'auto-register',
+        icon: <MailIcon className="size-4 shrink-0" />,
+      },
+      {
+        section: 'account-pool',
+        icon: <UsersIcon className="size-4 shrink-0" />,
+      },
+      {
+        section: 'proxy-pool',
+        icon: <GlobeIcon className="size-4 shrink-0" />,
       },
       {
         section: 'about',
@@ -97,8 +111,8 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   },
 ];
 
-export function getSettingsSectionLabel(section: SettingsSection): string {
-  return SETTINGS_SECTION_LABELS[section];
+export function getSettingsSectionLabelKey(section: SettingsSection): string {
+  return SETTINGS_SECTION_LABEL_KEYS[section];
 }
 
 export function isSectionActive(

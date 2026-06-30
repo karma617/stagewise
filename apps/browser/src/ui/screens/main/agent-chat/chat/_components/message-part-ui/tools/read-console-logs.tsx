@@ -14,6 +14,7 @@ import { CodeBlock } from '@ui/components/ui/code-block';
 import { cn } from '@ui/utils';
 import { useToolAutoExpand } from './shared/use-tool-auto-expand';
 import { useKartonState } from '@ui/hooks/use-karton';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const ReadConsoleLogsToolPart = ({
   part,
@@ -26,6 +27,7 @@ export const ReadConsoleLogsToolPart = ({
   disableShimmer?: boolean;
   isLastPart?: boolean;
 }) => {
+  const { t } = useI18n();
   const activeTabs = useKartonState((s) => s.contentTabs.tabs);
 
   const streaming = useMemo(() => {

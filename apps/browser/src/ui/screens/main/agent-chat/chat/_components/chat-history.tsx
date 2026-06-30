@@ -43,6 +43,7 @@ import {
   getWorkspaceMountsFromMessage,
   resolveBrowserContextFromMessages,
 } from '@shared/env-metadata';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 // Top inset reserved for titlebar-level chrome (sidebar toggle, future
 // top-right buttons). Sits as a sibling spacer ABOVE Virtuoso so items can
@@ -185,6 +186,7 @@ function isEventFromEditableTarget(event: KeyboardEvent) {
 }
 
 export const ChatHistory = () => {
+  const { t } = useI18n();
   const [containerHeight, setContainerHeight] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
   const scrollbarWidth = useScrollbarWidth();
@@ -1290,7 +1292,7 @@ export const ChatHistory = () => {
       <MountedPathsProvider value={resolvedMounts}>
         <AttachmentMetadataProvider messages={filteredMessages}>
           <section
-            aria-label="Agent message display"
+            aria-label={t('chat.history.agentMessageDisplay')}
             className={cn(
               'pointer-events-auto block h-max min-h-[inherit] text-foreground text-sm focus-within:outline-none focus:outline-none',
             )}

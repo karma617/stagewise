@@ -43,6 +43,7 @@ import {
 } from 'nucleo-ui-outline-18';
 import { FileIcon } from '@ui/components/file-icon';
 import { FileContextMenu } from '@ui/components/file-context-menu';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const SETUP_SCRIPT_TEMPLATES: Record<WorktreeSetupScriptVariant, string> = {
   posix: `#!/bin/sh
@@ -92,18 +93,24 @@ function buildScriptDrafts(
   };
 }
 
-function formatRelativeTime(timestamp: number | null): string {
-  if (timestamp === null) return 'Never used';
+function formatRelativeTime(
+  timestamp: number | null,
+  t: (key: string) => string,
+): string {
+  if (timestamp === null) return t('settings.worktree.time.never');
   const diffMs = Date.now() - timestamp;
   const diffMinutes = Math.max(1, Math.floor(diffMs / 60_000));
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffMinutes < 60)
+    return t('settings.worktree.time.minutes').replace('{n}', String(diffMinutes));
   const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24)
+    return t('settings.worktree.time.hours').replace('{n}', String(diffHours));
   const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
+  return t('settings.worktree.time.days').replace('{n}', String(diffDays));
 }
 
 export function WorktreeSetupSection() {
+  const { t } = useI18n();
   const listRepositories = useKartonProcedure(
     (p: KartonContract['serverProcedures']) =>
       p.toolbox.listWorktreeSetupRepositories,
@@ -244,15 +251,15 @@ export function WorktreeSetupSection() {
         updateRepository(result.repository);
         toast({
           id: `worktree-setup-save-${Date.now()}`,
-          title: 'Worktree setup script saved',
-          message: 'Your setup script was updated.',
+          title: t('settings.worktree.toast.saveSuccessTitle'),
+          message: t('settings.worktree.toast.saveSuccessMsg'),
           type: 'info',
           actions: [],
         });
       } else {
         toast({
           id: `worktree-setup-save-error-${Date.now()}`,
-          title: 'Failed to save setup script',
+          title: t('settings.worktree.toast.saveErrorTitle'),
           message: result.message,
           type: 'error',
           actions: [],
@@ -287,8 +294,8 @@ export function WorktreeSetupSection() {
           else await refreshRepositories();
           toast({
             id: `worktree-delete-${Date.now()}`,
-            title: 'Worktree deleted',
-            message: 'The local worktree checkout was removed.',
+            title: t('settings.worktree.toast.deleteSuccessTitle'),
+            message: t('settings.worktree.toast.deleteSuccessMsg'),
             type: 'info',
             actions: [],
           });
@@ -297,7 +304,7 @@ export function WorktreeSetupSection() {
 
         toast({
           id: `worktree-delete-error-${Date.now()}`,
-          title: 'Failed to delete worktree',
+          title: t('settings.worktree.toast.deleteErrorTitle'),
           message: result.message,
           type: 'error',
           actions: [],
@@ -317,9 +324,9 @@ export function WorktreeSetupSection() {
         <div className="mx-auto max-w-3xl space-y-8">
           {/* Header */}
           <div>
-            <h1 className="font-semibold text-foreground text-xl">Worktrees</h1>
+            <h1 className="font-semibold text-foreground text-xl">{t('settings.worktree.title')}</h1>
             <p className="text-muted-foreground text-sm">
-              Configure scripts and clean stagewise-managed Git worktrees.
+              {t('settings.worktree.description')}
             </p>
           </div>
 
@@ -348,8 +355,8 @@ export function WorktreeSetupSection() {
               <div className="flex min-h-80 items-center justify-center rounded-lg border border-derived-subtle">
                 <p className="text-muted-foreground text-sm">
                   {loading
-                    ? 'Loading repositories...'
-                    : 'No known Git repositories yet. Connect a Git workspace once to configure worktree setup here.'}
+                    ? t('settings.worktree.loading')
+                    : t('settings.worktree.empty')}
                 </p>
               </div>
             )}
@@ -369,18 +376,21 @@ function RepositoryList({
   selectedRepositoryId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <SettingsScrollTabs
       selectedId={selectedRepositoryId}
       onSelect={onSelect}
       items={repositories.map((repository) => {
         const worktreeCount = repository.managedWorktrees.length;
+        const subKey =
+          worktreeCount === 1
+            ? 'settings.worktree.subLabel.one'
+            : 'settings.worktree.subLabel.other';
         return {
           id: repository.id,
           label: repository.name,
-          subLabel: `${worktreeCount} ${
-            worktreeCount === 1 ? 'worktree' : 'worktrees'
-          } used`,
+          subLabel: t(subKey).replace('{count}', String(worktreeCount)),
         };
       })}
     />
@@ -412,19 +422,19 @@ function RepositoryDetails({
   onSave: () => void;
   onConfirmDelete: (worktree: WorktreeSetupManagedWorktree) => Promise<boolean>;
 }) {
+  const { t } = useI18n();
   const activeScript = repository.scripts[activeVariant];
   return (
     <div className="space-y-8">
       <section className="space-y-3">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="font-medium text-foreground text-sm">Script</h3>
+            <h3 className="font-medium text-foreground text-sm">{t('settings.worktree.script')}</h3>
             <SetupVariablesPopover />
           </div>
           <div className="flex items-center justify-between">
             <p className="text-muted-foreground text-xs">
-              Runs for new worktrees when the checked-out branch contains this
-              file. The variant for the worktree's platform is executed.
+              {t('settings.worktree.scriptHelp')}
             </p>
             <FileContextMenu
               relativePath={activeScript.path}
@@ -483,14 +493,14 @@ function RepositoryDetails({
         />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onReset} disabled={!dirty}>
-            Reset
+            {t('settings.worktree.reset')}
           </Button>
           <Button
             size="sm"
             onClick={() => void onSave()}
             disabled={!dirty || saving}
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('settings.worktree.saving') : t('settings.worktree.save')}
           </Button>
         </div>
       </section>
@@ -505,44 +515,45 @@ function RepositoryDetails({
 }
 
 function SetupVariablesPopover() {
+  const { t } = useI18n();
   return (
     <Popover>
       <PopoverTrigger>
         <button
           type="button"
           className="group/button relative box-border flex h-5 cursor-pointer flex-row items-center justify-center gap-1 rounded-md bg-transparent px-1.5 py-1 font-normal text-subtle-foreground text-xs outline-none transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary-solid/40 active:text-muted-foreground"
-          aria-label="Show setup script environment variables"
+          aria-label={t('settings.worktree.envVars.aria')}
         >
-          <span>Available variables</span>
+          <span>{t('settings.worktree.envVars.available')}</span>
           <IconCircleQuestionOutline18 className="size-3.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-80 gap-4 p-3">
-        <PopoverTitle>Setup script environment variables</PopoverTitle>
+        <PopoverTitle>{t('settings.worktree.envVars.title')}</PopoverTitle>
         <PopoverDescription>
-          These path variables are available when the worktree setup script
-          runs.
+          {t('settings.worktree.envVars.description')}
         </PopoverDescription>
         <PopoverClose />
         <div className="space-y-3">
           <SetupVariableItem
-            label="Source worktree path"
+            label={t('settings.worktree.envVars.sourceLabel')}
             value="STAGEWISE_SOURCE_WORKTREE_PATH"
           />
           <SetupVariableItem
-            label="Target worktree path"
+            label={t('settings.worktree.envVars.targetLabel')}
             value="STAGEWISE_TARGET_WORKTREE_PATH"
           />
           <SetupVariableItem
-            label="Main worktree path"
+            label={t('settings.worktree.envVars.mainLabel')}
             value="STAGEWISE_MAIN_WORKTREE_PATH"
           />
         </div>
         <PopoverFooter>
           <p className="text-muted-foreground text-xs">
-            In POSIX shell scripts, access these via{' '}
-            <code className="font-mono">$STAGEWISE_...</code>. In PowerShell,
-            use <code className="font-mono">$env:STAGEWISE_...</code>.
+            {t('settings.worktree.envVars.posixHint')}{' '}
+            <code className="font-mono">$STAGEWISE_...</code>
+            {t('settings.worktree.envVars.posixHintSuffix')}{' '}
+            <code className="font-mono">$env:STAGEWISE_...</code>.
           </p>
         </PopoverFooter>
       </PopoverContent>
@@ -551,6 +562,7 @@ function SetupVariablesPopover() {
 }
 
 function SetupVariableItem({ label, value }: { label: string; value: string }) {
+  const { t } = useI18n();
   const [hasCopied, setHasCopied] = useState(false);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -574,7 +586,7 @@ function SetupVariableItem({ label, value }: { label: string; value: string }) {
         type="button"
         onClick={handleCopy}
         className="group/variable flex w-full cursor-pointer items-center gap-2 rounded-md border border-derived-subtle bg-surface-1 px-2 py-1.5 text-left font-mono text-foreground text-xs outline-none transition-colors hover:bg-hover-derived focus-visible:ring-2 focus-visible:ring-primary-solid/40"
-        aria-label={`Copy ${value}`}
+        aria-label={t('settings.worktree.envVars.copyAria').replace('{value}', value)}
       >
         <code className="min-w-0 flex-1 truncate">{value}</code>
         {hasCopied ? (
@@ -596,6 +608,7 @@ function ManagedWorktreeList({
   deletingPath: string | null;
   onConfirmDelete: (worktree: WorktreeSetupManagedWorktree) => Promise<boolean>;
 }) {
+  const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewport, setViewport] = useState<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLElement | null>(null);
@@ -626,16 +639,16 @@ function ManagedWorktreeList({
     <section className="space-y-3">
       <div>
         <h3 className="font-medium text-foreground text-sm">
-          Managed worktrees
+          {t('settings.worktree.managed.title')}
         </h3>
         <p className="text-muted-foreground text-xs">
-          Stagewise-controlled worktree instances for this repository.
+          {t('settings.worktree.managed.description')}
         </p>
       </div>
 
       {worktrees.length > 0 ? (
         <Input
-          placeholder="Filter worktrees..."
+          placeholder={t('settings.worktree.managed.filterPlaceholder')}
           value={searchQuery}
           onValueChange={setSearchQuery}
           size="sm"
@@ -647,7 +660,7 @@ function ManagedWorktreeList({
       {worktrees.length === 0 ? (
         <div className="rounded-lg border border-derived-subtle p-4">
           <p className="text-center text-muted-foreground text-sm">
-            No stagewise-managed worktrees for this repository.
+            {t('settings.worktree.managed.empty')}
           </p>
         </div>
       ) : (
@@ -669,7 +682,7 @@ function ManagedWorktreeList({
           {noResults ? (
             <div className="rounded-lg border border-derived-subtle p-4">
               <p className="text-center text-muted-foreground text-sm">
-                No worktrees match your filter.
+                {t('settings.worktree.managed.noFilterMatch')}
               </p>
             </div>
           ) : null}
@@ -688,8 +701,9 @@ function WorktreeRow({
   deleting: boolean;
   onConfirmDelete: (worktree: WorktreeSetupManagedWorktree) => Promise<boolean>;
 }) {
+  const { t } = useI18n();
   const [deletePopoverOpen, setDeletePopoverOpen] = useState(false);
-  const timeAgo = formatRelativeTime(worktree.lastUsedAt);
+  const timeAgo = formatRelativeTime(worktree.lastUsedAt, t);
 
   const deleteButtonClassName =
     'absolute right-3 flex size-5 cursor-pointer items-center justify-center text-muted-foreground opacity-0 outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-primary-solid/40 disabled:cursor-not-allowed disabled:opacity-0 group-focus-within/worktree:opacity-100 group-hover/worktree:opacity-100 disabled:group-hover/worktree:opacity-40';
@@ -698,7 +712,7 @@ function WorktreeRow({
     <button
       type="button"
       disabled={!worktree.removable || deleting}
-      aria-label={`Delete ${worktree.name}`}
+      aria-label={t('settings.worktree.delete.aria').replace('{name}', worktree.name)}
       className={deleteButtonClassName}
     >
       <IconTrashOutline18 className="size-3.5" />
@@ -723,10 +737,9 @@ function WorktreeRow({
         <Popover open={deletePopoverOpen} onOpenChange={setDeletePopoverOpen}>
           <PopoverTrigger>{deleteButton}</PopoverTrigger>
           <PopoverContent side="top" align="end" className="w-72">
-            <PopoverTitle>Delete worktree?</PopoverTitle>
+            <PopoverTitle>{t('settings.worktree.delete.confirm')}</PopoverTitle>
             <PopoverDescription>
-              This removes the local worktree checkout. It does not delete the
-              branch.
+              {t('settings.worktree.delete.description')}
             </PopoverDescription>
             <PopoverClose />
             <PopoverFooter>
@@ -740,7 +753,7 @@ function WorktreeRow({
                 }}
                 autoFocus
               >
-                {deleting ? 'Deleting...' : 'Delete worktree'}
+                {deleting ? t('settings.worktree.deleting') : t('settings.worktree.deleteAction')}
               </Button>
               <Button
                 variant="ghost"
@@ -748,7 +761,7 @@ function WorktreeRow({
                 disabled={deleting}
                 onClick={() => setDeletePopoverOpen(false)}
               >
-                Cancel
+                {t('settings.worktree.cancel')}
               </Button>
             </PopoverFooter>
           </PopoverContent>
@@ -763,7 +776,7 @@ function WorktreeRow({
                 'cursor-not-allowed group-hover/worktree:opacity-40',
               )}
               aria-disabled="true"
-              aria-label={`Cannot delete ${worktree.name}`}
+              aria-label={t('settings.worktree.delete.cannotAria').replace('{name}', worktree.name)}
               onClick={(event) => event.preventDefault()}
             >
               <IconTrashOutline18 className="size-3.5" />

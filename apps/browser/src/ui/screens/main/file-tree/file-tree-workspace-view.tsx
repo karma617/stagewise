@@ -43,6 +43,7 @@ import {
   updateFileTreeSelection,
 } from './file-tree-selection';
 import { type FileTreeRow, useFileTreeEntries } from './use-file-tree-entries';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const getParentDirectory = (relativePath: string): string => {
   const slashIndex = relativePath.lastIndexOf('/');
@@ -90,7 +91,7 @@ const contextMenuItemClassName = cn(
 const isMac = getCurrentPlatform() === 'mac';
 
 function contextMenuShortcut(key: string): string {
-  if (isMac) return `\u2318${key}`;
+  if (isMac) return `⌘${key}`;
   return `Ctrl+${key}`;
 }
 
@@ -135,6 +136,7 @@ export function FileTreeWorkspaceView({
   workspaceKey,
   onPreviewTargetChange,
 }: FileTreeWorkspaceViewProps) {
+  const { t } = useI18n();
   const setDirectoryExpanded = useKartonProcedure(
     (p) => p.fileTree.setDirectoryExpanded,
   );
@@ -1016,7 +1018,7 @@ export function FileTreeWorkspaceView({
               }}
             >
               <PencilIcon className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">Rename</span>
+              <span className="min-w-0 flex-1 truncate">{t('common.rename')}</span>
               <ShortcutCombo
                 value="F2"
                 size="xs"
@@ -1032,7 +1034,7 @@ export function FileTreeWorkspaceView({
               }}
             >
               <CopyIcon className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">Copy</span>
+              <span className="min-w-0 flex-1 truncate">{t('common.copy')}</span>
               <ShortcutCombo
                 value={contextMenuShortcut('C')}
                 size="xs"
@@ -1062,7 +1064,7 @@ export function FileTreeWorkspaceView({
               onClick={() => handlePaste(contextPasteDirectory)}
             >
               <ClipboardPasteIcon className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">Paste</span>
+              <span className="min-w-0 flex-1 truncate">{t('common.paste')}</span>
               <ShortcutCombo
                 value={contextMenuShortcut('V')}
                 size="xs"
@@ -1078,7 +1080,7 @@ export function FileTreeWorkspaceView({
               }}
             >
               <Trash2Icon className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">Delete</span>
+              <span className="min-w-0 flex-1 truncate">{t('common.delete')}</span>
               <ShortcutCombo
                 value="Delete"
                 size="xs"
@@ -1095,7 +1097,7 @@ export function FileTreeWorkspaceView({
               }}
             >
               <ClipboardIcon className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">Copy path</span>
+              <span className="min-w-0 flex-1 truncate">{t('common.copyPath')}</span>
             </MenuBase.Item>
             <MenuBase.Separator className="my-0.5 h-px bg-border-subtle" />
             <MenuBase.Item

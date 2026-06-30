@@ -6,7 +6,7 @@ import * as buildConstants from './build-constants';
 export default defineConfig({
   build: {
     target: 'esnext',
-    sourcemap: 'hidden',
+    sourcemap: process.env.FAST_BUILD === '1' ? false : 'hidden',
     lib: {
       formats: ['es'],
       entry: 'src/backend/index.ts',
@@ -21,6 +21,7 @@ export default defineConfig({
         '@xterm/headless',
         'web-tree-sitter',
         '@vscode/tree-sitter-wasm',
+        'playwright',
       ],
       output: {
         // The ESM main bundle includes CJS dependencies (e.g.
@@ -56,6 +57,10 @@ export default defineConfig({
       UPDATE_SERVER_ORIGIN: process.env.UPDATE_SERVER_ORIGIN,
       SUPABASE_URL: process.env.SUPABASE_URL,
       SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY,
+      TURNSTILE_SITE_KEY:
+        process.env.VITE_TURNSTILE_SITE_KEY ??
+        process.env.TURNSTILE_SITE_KEY ??
+        '0x4AAAAAAC_nVTXG4QucHDTh',
     }),
     ...Object.fromEntries(
       Object.entries(buildConstants).map(([key, value]) => [

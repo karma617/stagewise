@@ -26,6 +26,18 @@ export interface WorkspaceMdStatusSectionProps {
   onShowFile: (workspacePath?: string) => void;
   onGenerate?: () => void;
   onStop?: () => void;
+  labels?: {
+    contextGenerationFailed: string;
+    dismiss: string;
+    done: string;
+    failedGenerateWorkspaceMd: string;
+    generated: string;
+    generatingContext: (workspace: string) => string;
+    showFile: string;
+    stop: string;
+    stopContextGeneration: string;
+    tryAgain: string;
+  };
 }
 
 function relativizePath(filePath: string | undefined): string | undefined {
@@ -131,6 +143,18 @@ export function WorkspaceMdStatusSection({
   onShowFile,
   onGenerate,
   onStop,
+  labels = {
+    contextGenerationFailed: 'Context generation failed:',
+    dismiss: 'Dismiss',
+    done: 'Done',
+    failedGenerateWorkspaceMd: 'Failed to generate .stagewise/WORKSPACE.md',
+    generated: 'generated',
+    generatingContext: (workspace) => `Generating context for ${workspace}...`,
+    showFile: 'Show file',
+    stop: 'Stop',
+    stopContextGeneration: 'Stop the context generation',
+    tryAgain: 'Try Again',
+  },
 }: WorkspaceMdStatusSectionProps): StatusCardSection | null {
   if (status === 'hidden') return null;
 
@@ -150,7 +174,7 @@ export function WorkspaceMdStatusSection({
                   <Loader2Icon className="size-3 animate-spin text-primary-foreground" />
                 </div>
                 <span className="shimmer-text-primary truncate font-normal">
-                  Generating context for {workspaceName}...
+                  {labels.generatingContext(workspaceName ?? '')}
                 </span>
               </div>
             </TooltipWrapper>
@@ -165,11 +189,11 @@ export function WorkspaceMdStatusSection({
                     onStop?.();
                   }}
                 >
-                  Stop
+                  {labels.stop}
                   <IconMediaStopFill18 className="size-2.5 shrink-0" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Stop the context generation</TooltipContent>
+              <TooltipContent>{labels.stopContextGeneration}</TooltipContent>
             </Tooltip>
           </div>
         ) : isError ? (
@@ -180,12 +204,12 @@ export function WorkspaceMdStatusSection({
             <Tooltip>
               <TooltipTrigger>
                 <span className="truncate font-normal text-muted-foreground">
-                  Context generation failed:{' '}
-                  {errorMessage || 'Failed to generate .stagewise/WORKSPACE.md'}
+                  {labels.contextGenerationFailed}{' '}
+                  {errorMessage || labels.failedGenerateWorkspaceMd}
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                {errorMessage || 'Failed to generate .stagewise/WORKSPACE.md'}
+                {errorMessage || labels.failedGenerateWorkspaceMd}
               </TooltipContent>
             </Tooltip>
             <div className="ml-auto flex shrink-0 flex-row items-center justify-start gap-1 pl-3">
@@ -198,7 +222,7 @@ export function WorkspaceMdStatusSection({
                   onDismiss();
                 }}
               >
-                Dismiss
+                {labels.dismiss}
               </Button>
               <Button
                 variant="secondary"
@@ -209,7 +233,7 @@ export function WorkspaceMdStatusSection({
                   onGenerate?.();
                 }}
               >
-                Try Again
+                {labels.tryAgain}
               </Button>
             </div>
           </div>
@@ -229,7 +253,7 @@ export function WorkspaceMdStatusSection({
                 <TooltipContent>.stagewise/WORKSPACE.md</TooltipContent>
               </Tooltip>
               <span className="truncate font-normal text-muted-foreground">
-                generated
+                {labels.generated}
               </span>
             </div>
             <div className="ml-auto flex shrink-0 flex-row items-center justify-start gap-1">
@@ -242,7 +266,7 @@ export function WorkspaceMdStatusSection({
                   onDismiss();
                 }}
               >
-                Done
+                {labels.done}
               </Button>
               <Button
                 variant="primary"
@@ -253,7 +277,7 @@ export function WorkspaceMdStatusSection({
                   onShowFile();
                 }}
               >
-                Show file
+                {labels.showFile}
               </Button>
             </div>
           </>

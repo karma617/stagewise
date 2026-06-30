@@ -1,0 +1,28 @@
+import type { Dict } from '../types';
+
+export const toolsDict: Dict = {
+  'tools.read.readLog': { 'zh-CN': '读取日志', en: 'Read log' },
+  'tools.read.readShellOutput': { 'zh-CN': '读取 Shell 输出', en: 'Read shell output' },
+  'tools.read.readMemory': { 'zh-CN': '读取记忆', en: 'Read memory' },
+  'tools.read.read': { 'zh-CN': '读取', en: 'Read' },
+  'tools.read.consoleLogs': { 'zh-CN': '已读取', en: 'Read' },
+  'tools.thinking.thought': { 'zh-CN': '已思考', en: 'Thought' },
+  'tools.thinking.thinking': { 'zh-CN': '思考中', en: 'Thinking' },
+  'tools.thinking.effort': { 'zh-CN': '强度', en: 'Effort' },
+  'tools.executeSandbox.script': { 'zh-CN': '脚本', en: 'Script' },
+  'tools.executeSandbox.error': { 'zh-CN': '错误', en: 'Error' },
+  'tools.executeSandbox.result': { 'zh-CN': '结果', en: 'Result' },
+  'tools.createPlan.creating': { 'zh-CN': '正在创建计划...', en: 'Creating plan…' },
+  'tools.createPlan.implement': { 'zh-CN': '开始实现', en: 'Implement' },
+  'tools.searchInLibraryDocs.readLatest': { 'zh-CN': '读取最新文档', en: 'Read latest docs' },
+  'tools.viewDiagram': { 'zh-CN': '查看图表', en: 'View diagram' },
+  'tools.sideBySide': { 'zh-CN': '并排显示', en: 'Side by side' },
+  'tools.editSource': { 'zh-CN': '编辑源码', en: 'Edit source' },
+  'tools.mermaid.loading': { 'zh-CN': '加载图表中...', en: 'Loading diagram...' },
+  'tools.mermaid.chart': { 'zh-CN': 'Mermaid 图表', en: 'Mermaid chart' },
+  'tools.streamdown.downloadImage': { 'zh-CN': '下载图片', en: 'Download image' },
+  'tools.streamdown.copyCsv': { 'zh-CN': '复制表格为 CSV', en: 'Copy table as CSV' },
+  'tools.streamdown.downloadCsv': { 'zh-CN': '下载为 CSV', en: 'Download as CSV' },
+  'tools.read.reading': { 'zh-CN': '正在读取 {path}...', en: 'Reading {path}...' },
+  'tools.read.readingFile': { 'zh-CN': '正在读取文件...', en: 'Reading file...' },
+};

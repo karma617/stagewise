@@ -12,6 +12,7 @@ import { Button } from '@stagewise/stage-ui/components/button';
 import { IconXmarkFill18 } from 'nucleo-ui-fill-18';
 import { useTutorial } from '@ui/contexts/tutorial';
 import { cn } from '@ui/utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 // How long to wait for a step's target element before skipping the step.
 // Guards against stale selectors locking the UI behind the click shield.
@@ -151,12 +152,16 @@ function getNodeText(children?: React.ReactNode): string {
 
 function getStrongTextColorClass(children?: React.ReactNode): string {
   switch (getNodeText(children).trim().toLowerCase()) {
+    case '绿色':
     case 'green':
       return 'text-success-foreground';
-    case 'yellow':
-      return 'text-warning-foreground';
+    case '蓝色':
     case 'blue':
       return 'text-primary-foreground';
+    case '黄色':
+    case 'yellow':
+      return 'text-warning-foreground';
+    case '红色':
     case 'red':
       return 'text-error-foreground';
     default:
@@ -213,6 +218,7 @@ function StepDescription({ children }: { children: string }) {
 }
 
 export function TutorialOverlay() {
+  const { t } = useI18n();
   const {
     activeTutorial,
     currentStep,
@@ -403,6 +409,10 @@ export function TutorialOverlay() {
 
   const isLastStep = currentStepIndex >= totalSteps - 1;
   const isSingleStepTutorial = totalSteps <= 1;
+  const currentStepTitle = currentStep ? t(currentStep.titleKey) : '';
+  const currentStepDescription = currentStep
+    ? t(currentStep.descriptionKey)
+    : '';
 
   const content = useMemo(() => {
     // While the target is missing, render nothing — no shield, no popover.
@@ -434,7 +444,7 @@ export function TutorialOverlay() {
             ref={popoverRef}
             role="dialog"
             aria-modal="true"
-            aria-label={currentStep.title}
+            aria-label={currentStepTitle}
             tabIndex={-1}
             className={cn(
               'pointer-events-auto absolute w-80 rounded-xl bg-background p-2.5 outline-none',
@@ -450,7 +460,7 @@ export function TutorialOverlay() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={dismissTutorial}
-                aria-label="Close tutorial"
+                aria-label={t('common.closeTutorial')}
                 className="absolute top-2 right-2 z-10"
               >
                 <IconXmarkFill18 className="size-4" />
@@ -459,12 +469,12 @@ export function TutorialOverlay() {
 
             {/* Title */}
             <h3 className="mb-2 font-semibold text-foreground text-sm">
-              {currentStep.title}
+              {currentStepTitle}
             </h3>
 
             {/* Description */}
             <div className="mb-3">
-              <StepDescription>{currentStep.description}</StepDescription>
+              <StepDescription>{currentStepDescription}</StepDescription>
             </div>
 
             {/* Footer */}
@@ -484,15 +494,15 @@ export function TutorialOverlay() {
                     disabled={currentStepIndex === 0}
                     onClick={goBack}
                   >
-                    Back
+                    {t('common.back')}
                   </Button>
                 )}
                 <Button variant="primary" size="sm" onClick={goNext}>
                   {isSingleStepTutorial
-                    ? 'Okay'
+                    ? t('common.okay')
                     : isLastStep
-                      ? 'Finish'
-                      : 'Next'}
+                      ? t('common.finish')
+                      : t('common.next')}
                 </Button>
               </div>
             </div>
@@ -503,11 +513,14 @@ export function TutorialOverlay() {
   }, [
     activeTutorial,
     currentStep,
+    currentStepTitle,
+    currentStepDescription,
     cutoutRect,
     popoverPos,
     currentStepIndex,
     totalSteps,
     isLastStep,
+    t,
     goNext,
     goBack,
     dismissTutorial,

@@ -16,6 +16,7 @@ import { useTrack } from '@ui/hooks/use-track';
 import { applyPersonalizationThemeToRoot } from '@ui/components/personalization-theme-syncer';
 import { produceWithPatches, enablePatches } from 'immer';
 import { NotificationsSetting } from './general-settings-section';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 enablePatches();
 
@@ -53,6 +54,7 @@ const THEME_BADGE_PATTERN_BY_THEME: Partial<
 };
 
 function UiSizeSetting() {
+  const { t } = useI18n();
   const preferences = useKartonState((s) => s.preferences);
   const updatePreferences = useKartonProcedure((p) => p.preferences.update);
   const uiZoomPercentage = preferences.general.uiZoomPercentage;
@@ -103,10 +105,12 @@ function UiSizeSetting() {
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
-        <h3 className="font-medium text-base text-foreground">UI size</h3>
-        <p className="text-muted-foreground text-sm">
-          Scale the stagewise interface independently from web page zoom.
-        </p>
+        <h3 className="font-medium text-base text-foreground">
+                  {t('settings.personalization.uiSize.title')}
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  {t('settings.personalization.uiSize.description')}
+                </p>
       </div>
 
       <div className="w-36 space-y-1">
@@ -115,15 +119,15 @@ function UiSizeSetting() {
           min={70}
           max={130}
           step={5}
-          ariaLabel="UI size"
+          ariaLabel={t('settings.personalization.uiSize.title')}
           thickness="default"
           onValueChange={setLocalUiZoomPercentage}
           onValueCommitted={commitUiSizeChange}
         />
         <div className="flex justify-between text-[11px] text-muted-foreground">
-          <span>Small</span>
-          <span>Default</span>
-          <span>Large</span>
+          <span>{t('settings.personalization.uiSize.small')}</span>
+                    <span>{t('settings.personalization.uiSize.default')}</span>
+                    <span>{t('settings.personalization.uiSize.large')}</span>
         </div>
       </div>
     </div>
@@ -277,10 +281,15 @@ const APP_COLOR_SCHEME_ITEMS: {
 ];
 
 function AppColorSchemeSetting() {
+  const { t } = useI18n();
   const appColorScheme = useKartonState(
     (s) => s.globalConfig.appColorScheme ?? 'system',
   );
   const setGlobalConfig = useKartonProcedure((p) => p.config.set);
+  const localizedColorSchemeItems = APP_COLOR_SCHEME_ITEMS.map((item) => ({
+    value: item.value,
+    label: t(`settings.personalization.appearance.${item.value}`),
+  }));
 
   const handleAppColorSchemeChange = async (value: AppColorScheme) => {
     await setGlobalConfig({ appColorScheme: value });
@@ -289,11 +298,12 @@ function AppColorSchemeSetting() {
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
-        <h3 className="font-medium text-base text-foreground">Appearance</h3>
-        <p className="text-muted-foreground text-sm">
-          Choose whether stagewise follows your system appearance or always uses
-          light or dark mode.
-        </p>
+        <h3 className="font-medium text-base text-foreground">
+                  {t('settings.personalization.appearance.title')}
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  {t('settings.personalization.appearance.description')}
+                </p>
       </div>
 
       <Select
@@ -301,7 +311,7 @@ function AppColorSchemeSetting() {
         onValueChange={(value) =>
           handleAppColorSchemeChange(value as AppColorScheme)
         }
-        items={APP_COLOR_SCHEME_ITEMS}
+        items={localizedColorSchemeItems}
         triggerVariant="secondary"
         size="xs"
         triggerClassName="w-auto min-w-32 px-2 py-3"
@@ -313,6 +323,7 @@ function AppColorSchemeSetting() {
 }
 
 function ThemeSetting() {
+  const { t } = useI18n();
   const persistedThemeId = useKartonState(
     (s) => s.globalConfig.personalizationThemeId,
   );
@@ -389,10 +400,12 @@ function ThemeSetting() {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="font-medium text-base text-foreground">Color scheme</h3>
-        <p className="text-muted-foreground text-sm">
-          Adapt the color style of your stagewise setup to your liking.
-        </p>
+        <h3 className="font-medium text-base text-foreground">
+                  {t('settings.personalization.colorScheme.title')}
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  {t('settings.personalization.colorScheme.description')}
+                </p>
       </div>
 
       <div className="flex flex-wrap gap-3" role="radiogroup">
@@ -405,13 +418,13 @@ function ThemeSetting() {
               className="group rounded-lg"
               onClick={() => handleThemeChange(theme.id)}
               aria-checked={active}
-              aria-label={`Use ${theme.name} theme`}
+              aria-label={t('settings.personalization.theme.useAria').replace('{name}', t(`settings.personalization.theme.${theme.id}`))}
               role="radio"
-              title={theme.name}
+              title={t(`settings.personalization.theme.${theme.id}`)}
             >
               <ThemeBadge
                 themeId={theme.id}
-                name={theme.name}
+                name={t(`settings.personalization.theme.${theme.id}`)}
                 active={active}
               />
             </button>
@@ -423,13 +436,14 @@ function ThemeSetting() {
 }
 
 export function PersonalizationSettingsSection() {
+  const { t } = useI18n();
   return (
     <div className="h-full w-full">
       <OverlayScrollbar className="h-full" contentClassName="px-6 pt-24 pb-24">
         <div className="mx-auto max-w-3xl space-y-8">
           <div>
             <h1 className="font-semibold text-foreground text-xl">
-              Personalization
+              {t('settings.personalization.title')}
             </h1>
           </div>
 

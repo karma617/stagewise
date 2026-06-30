@@ -3,6 +3,7 @@ import type { AgentToolUIPart } from '@shared/karton-contracts/ui/agent';
 import { ToolPartUINotCollapsible } from './shared/tool-part-ui-not-collapsible';
 import { IconFolderPlusOutline18 } from 'nucleo-ui-outline-18';
 import { stripMountPrefix } from '@ui/utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const MkdirToolPart = ({
   part,
@@ -13,6 +14,7 @@ export const MkdirToolPart = ({
   disableShimmer?: boolean;
   minimal?: boolean;
 }) => {
+  const { t } = useI18n();
   const dirPath = part.input?.path ?? '';
   const displayPath = dirPath ? stripMountPrefix(dirPath) : undefined;
 
@@ -27,7 +29,7 @@ export const MkdirToolPart = ({
     if (part.state !== 'output-available') return undefined;
     return (
       <span className="flex min-w-0 gap-1">
-        <span className="shrink-0 font-medium">Created</span>
+        <span className="shrink-0 font-medium">{t('common.created')}</span>
         <span className="truncate font-normal opacity-75">
           {displayPath ?? ''}
         </span>

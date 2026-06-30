@@ -24,7 +24,7 @@ export function stripMarkdown(text: string): string {
   );
 }
 
-/** Extract the first N words from a string, appending "\u2026" if truncated.
+/** Extract the first N words from a string, appending "…" if truncated.
  * Markdown formatting is stripped by default; pass `stripMd: false` for plain text. */
 export function firstWords(
   text: string,
@@ -35,7 +35,7 @@ export function firstWords(
   if (!trimmed) return '';
   const words = trimmed.split(/\s+/, count + 1);
   if (words.length <= count) return words.join(' ');
-  return `${words.slice(0, count).join(' ')}\u2026`;
+  return `${words.slice(0, count).join(' ')}…`;
 }
 
 /** Extract plain text from a TipTap JSON document string. */

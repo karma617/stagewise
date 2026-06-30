@@ -32,6 +32,15 @@ const windowsSignConfig = getWindowsSignConfig();
 console.log(
   `[forge.config] Release channel: ${buildConstants.__APP_RELEASE_CHANNEL__}`,
 );
+
+// FAST_BUILD=1: 本地快速打包模�?
+// - 跳过原生模块强制 rebuild
+// - �?vite.*.config.ts 读取以跳�?sourcemap 生成
+// CI 不设置此变量，行为完全不变�?
+const __FAST_BUILD__ = process.env.FAST_BUILD === '1';
+if (__FAST_BUILD__) {
+  console.log('[forge.config] FAST_BUILD=1: skip native rebuild force, skip sourcemaps');
+}
 const visualAssetChannel =
   buildConstants.__APP_RELEASE_CHANNEL__ === 'prerelease'
     ? 'nightly'
@@ -59,6 +68,32 @@ const nativeDependencies = [
   '@vscode/tree-sitter-wasm',
 ];
 
+
+// FAST_BUILD 模式下用硬链接代替递归 copy�?
+// Windows NTFS 同卷支持文件硬链接，Electron 打包阶段只读取这些原生模块，
+// 后续 pruneNonPlatformPrebuilds 删的是链接本身，不影响源文件�?
+// 同卷链接近乎�?IO，能把这一步从几十秒压到几秒�?
+const hardlinkRecursive = (src: string, dest: string): void => {
+  const stat = fs.statSync(src);
+  if (stat.isDirectory()) {
+    fs.mkdirSync(dest, { recursive: true });
+    for (const entry of fs.readdirSync(src)) {
+      hardlinkRecursive(path.join(src, entry), path.join(dest, entry));
+    }
+    return;
+  }
+  if (stat.isSymbolicLink()) {
+    // 软链接按原内�?copy，避免链�?monorepo 外部丢失目标
+    fs.cpSync(src, dest);
+    return;
+  }
+  try {
+    fs.linkSync(src, dest);
+  } catch {
+    // 跨卷或文件系统不支持硬链接时退回普�?copy
+    fs.copyFileSync(src, dest);
+  }
+};
 const copyNativeDependencies = (
   buildPath: string,
   _electronVersion: string,
@@ -70,7 +105,11 @@ const copyNativeDependencies = (
     const src = path.resolve(__dirname, `../../node_modules/${dependency}`);
     const dest = path.join(buildPath, 'node_modules', dependency);
     if (fs.existsSync(src)) {
-      fs.cpSync(src, dest, { recursive: true });
+      if (__FAST_BUILD__) {
+        hardlinkRecursive(src, dest);
+      } else {
+        fs.cpSync(src, dest, { recursive: true });
+      }
     } else {
       throw new Error(`Missing native dependency ${dependency}`);
     }
@@ -84,7 +123,7 @@ const copyNativeDependencies = (
  * node-pty ships prebuilds for every OS (darwin-arm64, darwin-x64, linux-x64,
  * win32-x64, etc.). When Electron Forge unpacks native modules from the ASAR,
  * ALL prebuilds end up on disk. On Windows, signtool then tries to sign the
- * macOS Mach-O .node files — which fails because signtool only handles PE
+ * macOS Mach-O .node files �?which fails because signtool only handles PE
  * binaries. Removing non-target prebuilds before packaging avoids this and
  * also shrinks the final bundle.
  */
@@ -130,7 +169,7 @@ const pruneNonPlatformPrebuilds = (
  * (VCRuntime.CefSharp.140, authored and signed by Microsoft) and copies the
  * x64 DLLs next to the packaged executable.
  *
- * Runs as an afterComplete hook — buildPath is the final output directory
+ * Runs as an afterComplete hook �?buildPath is the final output directory
  * (e.g. out/stagewise-win32-x64/) containing the .exe.
  *
  * Using NuGet guarantees the correct architecture and the latest patch-level
@@ -222,11 +261,30 @@ const copyVcRedist = (
       );
       callback();
     } catch (err) {
-      callback(err instanceof Error ? err : new Error(String(err)));
+      // Fallback: copy DLLs from local System32 (available on any Windows with VC++ redist)
+      console.warn(`[forge.config] NuGet download failed (${err instanceof Error ? err.message : String(err)}), falling back to System32`);
+      const sys32 = `C:\\Windows\\System32`;
+      const missing2: string[] = [];
+      const copied2: string[] = [];
+      for (const dll of VC_REQUIRED_DLLS) {
+        const src = path.join(sys32, dll);
+        if (fs.existsSync(src)) {
+          fs.copyFileSync(src, path.join(buildPath, dll));
+          copied2.push(dll);
+        } else if (VC_HARD_REQUIRED.includes(dll)) {
+          missing2.push(dll);
+        }
+      }
+      if (missing2.length > 0) {
+        callback(new Error(`[forge.config] Required VC++ DLLs not found in System32: ${missing2.join(", ")}`));
+      } else {
+        console.log(`[forge.config] Copied ${copied2.length} VC++ DLL(s) from System32: ${copied2.join(", ")}`);
+        callback();
+      }
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-  })();
+  })().catch((err) => callback(err instanceof Error ? err : new Error(String(err))));
 };
 
 /**
@@ -308,7 +366,7 @@ const config: ForgeConfig = {
       './assets/sounds',
       `./assets/icons/${visualAssetChannel}/icon.png`,
     ],
-    prune: true,
+    prune: !__FAST_BUILD__,
     afterCopy: [
       copyNativeDependencies,
       pruneNonPlatformPrebuilds,
@@ -356,7 +414,7 @@ const config: ForgeConfig = {
     ...(windowsSignConfig ? { windowsSign: windowsSignConfig } : {}),
   },
   rebuildConfig: {
-    force: true,
+    force: !__FAST_BUILD__,
   },
   makers: [
     new MakerSquirrel((arch) => ({

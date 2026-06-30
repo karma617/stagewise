@@ -17,9 +17,16 @@ import type { AgentCommandItem } from '../command-center-model';
 import { filterAndRankCommandCenterItems } from '../command-center-search';
 import { getToolActivityLabel } from '../../sidebar/agents-list/_utils/tool-label';
 import { extractTipTapText, firstWords } from '@ui/utils/text-utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const AGENT_HISTORY_LIMIT = 30;
 const AGENT_HISTORY_QUERY_DEBOUNCE_MS = 150;
+
+type ActivityLabels = {
+  thinking: string;
+  waitingForResponse: string;
+  working: string;
+};
 
 function stringArraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
@@ -50,6 +57,7 @@ function agentHistoryEntriesEqual(
 function deriveActivityText(
   history: { role: string; parts: { type: string; text?: string }[] }[],
   inputState: string,
+  labels: ActivityLabels,
 ): { text: string; isUserInput: boolean } {
   for (let i = history.length - 1; i >= 0; i--) {
     const msg = history[i]!;
@@ -58,7 +66,7 @@ function deriveActivityText(
     for (let j = msg.parts.length - 1; j >= 0; j--) {
       const part = msg.parts[j]!;
       if (part.type === 'reasoning')
-        return { text: 'Thinking…', isUserInput: false };
+        return { text: labels.thinking, isUserInput: false };
       if (part.type === 'text') {
         const snippet = firstWords(part.text ?? '', 10);
         if (snippet) return { text: snippet, isUserInput: false };
@@ -112,6 +120,17 @@ export function useAgentCommandItems(
     enabled?: boolean;
   } = {},
 ) {
+  const { t } = useI18n();
+  const labels = useMemo(
+    () => ({
+      thinking: t('commandCenter.agent.thinking'),
+      waitingForResponse: t('commandCenter.agent.waitingForResponse'),
+      working: t('commandCenter.agent.working'),
+      untitled: t('commandCenter.agent.untitled'),
+      messages: t('commandCenter.agent.messages'),
+    }),
+    [t],
+  );
   const getAgentsHistoryList = useKartonProcedure(
     (p) => p.agents.getAgentsHistoryList,
   );
@@ -151,17 +170,18 @@ export function useAgentCommandItems(
               return false;
             })();
             const rawActivity = hasPendingQuestion
-              ? { text: 'Waiting for response...', isUserInput: false }
+              ? { text: labels.waitingForResponse, isUserInput: false }
               : deriveActivityText(
                   history as {
                     role: string;
                     parts: { type: string; text?: string }[];
                   }[],
                   agent.state.inputState,
+                  labels,
                 );
             const activity =
               agent.state.isWorking && rawActivity.isUserInput
-                ? { text: 'Working…', isUserInput: false }
+                ? { text: labels.working, isUserInput: false }
                 : rawActivity;
 
             return {
@@ -269,10 +289,10 @@ export function useAgentCommandItems(
       Object.fromEntries(
         mergedAgents.map((agent) => [
           agent.id,
-          agent.title || 'Untitled Agent',
+          agent.title || labels.untitled,
         ]),
       ),
-    [mergedAgents],
+    [labels.untitled, mergedAgents],
   );
 
   const items = useMemo<AgentCommandItem[]>(() => {
@@ -289,8 +309,10 @@ export function useAgentCommandItems(
           title:
             optimisticAgentTitles?.[agent.id] ??
             agent.title ??
-            'Untitled Agent',
-          subtitle: agent.activityText || `${agent.messageCount} messages`,
+            labels.untitled,
+          subtitle:
+            agent.activityText ||
+            labels.messages.replace('{count}', String(agent.messageCount)),
           keywords: ['agent', agent.isLive ? 'active' : 'history'],
           agentId: agent.id,
           isLive: agent.isLive,
@@ -311,6 +333,8 @@ export function useAgentCommandItems(
     pendingRemovalAgentIds,
     pinnedAgentIds,
     query,
+    labels.messages,
+    labels.untitled,
   ]);
 
   return { items, isLoading, rawAgentTitles, refreshHistoryList };

@@ -4,6 +4,7 @@ import { Checkbox } from '@stagewise/stage-ui/components/checkbox';
 import { OverlayScrollbar } from '@stagewise/stage-ui/components/overlay-scrollbar';
 import { useKartonProcedure } from '@ui/hooks/use-karton';
 import { Loader2Icon } from 'lucide-react';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 type DataType =
   | 'history'
@@ -23,60 +24,26 @@ interface DataOption {
   description: string;
 }
 
-const dataOptions: DataOption[] = [
-  {
-    id: 'history',
-    label: 'Browsing history',
-    description: 'URLs, visits, and search terms',
-  },
-  {
-    id: 'downloads',
-    label: 'Download history',
-    description: 'List of downloaded files (not the files themselves)',
-  },
-  {
-    id: 'cookies',
-    label: 'Cookies',
-    description: 'Site cookies and login sessions',
-  },
-  {
-    id: 'cache',
-    label: 'Cached images and files',
-    description: 'HTTP cache for faster page loading',
-  },
-  {
-    id: 'storage',
-    label: 'Local storage',
-    description: 'localStorage and sessionStorage data',
-  },
-  {
-    id: 'indexedDB',
-    label: 'IndexedDB',
-    description: 'Structured data stored by websites',
-  },
-  {
-    id: 'cacheStorage',
-    label: 'Cache Storage',
-    description: 'Cache API storage used by web apps',
-  },
-  {
-    id: 'serviceWorkers',
-    label: 'Service Workers',
-    description: 'Background scripts that power offline functionality',
-  },
-  {
-    id: 'favicons',
-    label: 'Cached favicons',
-    description: 'Site icons and images',
-  },
-  {
-    id: 'permissionExceptions',
-    label: 'Site permission settings',
-    description: 'Saved Allow/Block choices for camera, location, etc.',
-  },
+const dataOptionIds: DataType[] = [
+  'history',
+  'downloads',
+  'cookies',
+  'cache',
+  'storage',
+  'indexedDB',
+  'cacheStorage',
+  'serviceWorkers',
+  'favicons',
+  'permissionExceptions',
 ];
 
 export function ClearDataSection() {
+  const { t } = useI18n();
+  const dataOptions: DataOption[] = dataOptionIds.map((id) => ({
+    id,
+    label: t(`settings.clearData.option.${id}.label`),
+    description: t(`settings.clearData.option.${id}.description`),
+  }));
   const [selectedTypes, setSelectedTypes] = useState<Set<DataType>>(
     new Set([
       'history',
@@ -116,7 +83,7 @@ export function ClearDataSection() {
     if (selectedTypes.size === 0) {
       setResult({
         success: false,
-        message: 'Please select at least one data type to clear',
+        message: t('settings.clearData.error.selectAtLeastOne'),
       });
       return;
     }
@@ -153,46 +120,46 @@ export function ClearDataSection() {
         const clearedItems: string[] = [];
         if (response.historyEntriesCleared) {
           clearedItems.push(
-            `${response.historyEntriesCleared} history ${response.historyEntriesCleared === 1 ? 'entry' : 'entries'}`,
+            t(response.historyEntriesCleared === 1 ? 'settings.clearData.summary.historyEntry' : 'settings.clearData.summary.historyEntries').replace('{n}', String(response.historyEntriesCleared)),
           );
         }
         if (response.downloadsCleared === true) {
-          clearedItems.push('downloads');
+          clearedItems.push(t('settings.clearData.summary.downloads'));
         }
         if (response.faviconsCleared) {
-          clearedItems.push(`${response.faviconsCleared} favicons`);
+          clearedItems.push(t('settings.clearData.summary.favicons').replace('{n}', String(response.faviconsCleared)));
         }
         if (response.cookiesCleared) {
-          clearedItems.push('cookies');
+          clearedItems.push(t('settings.clearData.summary.cookies'));
         }
         if (response.cacheCleared) {
-          clearedItems.push('cache');
+          clearedItems.push(t('settings.clearData.summary.cache'));
         }
         if (response.storageCleared) {
-          clearedItems.push('storage');
+          clearedItems.push(t('settings.clearData.summary.storage'));
         }
         if (response.permissionExceptionsCleared) {
-          clearedItems.push('site permission settings');
+          clearedItems.push(t('settings.clearData.summary.sitePermissions'));
         }
 
         setResult({
           success: true,
           message:
             clearedItems.length > 0
-              ? `Successfully cleared ${clearedItems.join(', ')}`
-              : 'Data cleared successfully',
+              ? t('settings.clearData.success.cleared').replace('{items}', clearedItems.join(', '))
+              : t('settings.clearData.success.fallback'),
         });
       } else {
         setResult({
           success: false,
-          message: response.error || 'Failed to clear data',
+          message: response.error || t('settings.clearData.error.clearFailed'),
         });
       }
     } catch (error) {
       setResult({
         success: false,
         message:
-          error instanceof Error ? error.message : 'Failed to clear data',
+          error instanceof Error ? error.message : t('settings.clearData.error.clearFailed'),
       });
     } finally {
       setIsClearing(false);
@@ -207,14 +174,14 @@ export function ClearDataSection() {
           {/* Header */}
           <div>
             <h1 className="font-semibold text-foreground text-xl">
-              Clear Data
+              {t('settings.clearData.title')}
             </h1>
           </div>
           {/* Data Selection Section */}
           <section className="space-y-4">
             <div>
               <h2 className="font-medium text-foreground text-lg">
-                Select data to clear
+                {t('settings.clearData.selectHeader')}
               </h2>
             </div>
 
@@ -256,10 +223,10 @@ export function ClearDataSection() {
                 {isClearing ? (
                   <>
                     <Loader2Icon className="mr-2 size-4 animate-spin" />
-                    Clearing...
+                    {t('settings.clearData.button.clearing')}
                   </>
                 ) : (
-                  'Clear last 24 hours'
+                  t('settings.clearData.button.clearLast24h')
                 )}
               </Button>
 
@@ -272,10 +239,10 @@ export function ClearDataSection() {
                 {isClearing ? (
                   <>
                     <Loader2Icon className="mr-2 size-4 animate-spin" />
-                    Clearing...
+                    {t('settings.clearData.button.clearing')}
                   </>
                 ) : (
-                  'Clear all time'
+                  t('settings.clearData.button.clearAllTime')
                 )}
               </Button>
             </div>

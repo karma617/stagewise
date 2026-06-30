@@ -28,6 +28,7 @@ import {
   IconChevronRightOutline18,
 } from 'nucleo-ui-outline-18';
 import type { StepValidityCallback } from '../index';
+import { useI18n } from '@ui/hooks/use-i18n';
 import type {
   ModelProvider,
   TelemetryLevel,
@@ -83,6 +84,7 @@ export function StepAuth({
   onValidityChange?: StepValidityCallback;
   onAuthCompleted?: (completion: OnboardingAuthCompletion) => void;
 }) {
+  const { t } = useI18n();
   const sendOtp = useKartonProcedure((p) => p.userAccount.sendOtp);
   const verifyOtp = useKartonProcedure((p) => p.userAccount.verifyOtp);
   // Auth handoff procedures wait for OS callbacks (system browser → OAuth/OTP
@@ -239,7 +241,7 @@ export function StepAuth({
     if (isActive) {
       onValidityChange?.(
         isValid,
-        isValid ? undefined : 'Sign in or provide at least one provider key',
+        isValid ? undefined : t('onboarding.auth.blocked'),
       );
     }
   }, [isActive, isValid, onValidityChange]);
@@ -322,7 +324,7 @@ export function StepAuth({
       <div className="flex flex-1 flex-col items-center justify-center gap-2.5">
         <div className="flex flex-col items-center gap-2">
           <h1 className="font-medium text-foreground text-xl">
-            You&apos;re signed in as{' '}
+            {t('onboarding.auth.signedInAs.prefix')}
             <span className="text-foreground">{userEmail}</span>
           </h1>
           <Button
@@ -332,7 +334,7 @@ export function StepAuth({
               setPhase('form-input');
             }}
           >
-            Use a different email
+            {t('onboarding.auth.useDifferentEmail')}
           </Button>
         </div>
         <div className="app-no-drag mt-2 flex items-center gap-2">
@@ -355,12 +357,11 @@ export function StepAuth({
             htmlFor="telemetry-full-checkbox"
             className="text-muted-foreground text-xs"
           >
-            Share identifiable chat and usage data with stagewise.
+            {t('onboarding.auth.telemetryFull')}
           </label>
         </div>
         <p className="mt-1 max-w-sm text-center text-[11px] text-muted-foreground/80">
-          Basic telemetry is enabled by default and can be configured in
-          settings.
+          {t('onboarding.auth.telemetryHint')}
         </p>
       </div>
     );
@@ -372,17 +373,16 @@ export function StepAuth({
         mode !== 'stagewise' && (
           <div className="flex flex-col items-center gap-2 pb-2">
             <h1 className="font-medium text-foreground text-xl">
-              Authenticate
+              {t('onboarding.auth.title')}
             </h1>
             {mode === 'api-keys' && (
               <p className="text-muted-foreground text-sm">
-                Enter at least one provider key to authenticate.
+                {t('onboarding.auth.apiKeysHint')}
               </p>
             )}
             {mode === 'coding-plan' && (
               <p className="text-muted-foreground text-sm">
-                Connect a GLM, Kimi, Qwen, MiniMax Token Plan, or MiMo
-                subscription to authenticate.
+                {t('onboarding.auth.codingPlanHint')}
               </p>
             )}
           </div>
@@ -466,7 +466,7 @@ export function StepAuth({
               <>
                 <ApiKeyRow
                   provider="moonshotai"
-                  label="Moonshot AI"
+                  label={t('onboarding.auth.providerLabel.moonshotai')}
                   placeholder="sk-..."
                   config={
                     preferences.providerConfigs?.moonshotai ?? {
@@ -485,7 +485,7 @@ export function StepAuth({
                 />
                 <ApiKeyRow
                   provider="alibaba"
-                  label="Alibaba Cloud"
+                  label={t('onboarding.auth.providerLabel.alibaba')}
                   placeholder="sk-..."
                   config={
                     preferences.providerConfigs?.alibaba ?? {
@@ -552,7 +552,7 @@ export function StepAuth({
                 setSelectedCodingPlanId(null);
               }}
             >
-              Back to login
+              {t('onboarding.auth.backToLogin')}
             </Button>
             <Button
               variant="ghost"
@@ -567,7 +567,7 @@ export function StepAuth({
                 });
               }}
             >
-              {showMoreProviders ? 'Show less' : 'Show 4 more providers'}
+              {showMoreProviders ? t('onboarding.auth.showLess') : t('onboarding.auth.showMore')}
             </Button>
           </div>
         </div>
@@ -588,8 +588,12 @@ export function StepAuth({
                 <CodingPlanGridCard
                   key={plan.id}
                   provider={plan.provider}
-                  displayName={plan.displayName}
-                  tagline={plan.tagline}
+                  displayName={
+                    plan.displayNameKey
+                      ? t(plan.displayNameKey)
+                      : plan.displayName
+                  }
+                  tagline={plan.taglineKey ? t(plan.taglineKey) : plan.tagline}
                   isConnected={isConnected}
                   onClick={() => {
                     void track('onboarding-auth-coding-plan-opened', {
@@ -611,7 +615,7 @@ export function StepAuth({
                 setSelectedCodingPlanId(null);
               }}
             >
-              Back to login
+              {t('onboarding.auth.backToLogin')}
             </Button>
           </div>
         </div>
@@ -640,10 +644,14 @@ export function StepAuth({
                     className="size-5 text-foreground"
                   />
                   <h2 className="font-medium text-foreground text-sm">
-                    {plan.displayName}
+                    {plan.displayNameKey
+                      ? t(plan.displayNameKey)
+                      : plan.displayName}
                   </h2>
                 </div>
-                <p className="text-muted-foreground text-xs">{plan.tagline}</p>
+                <p className="text-muted-foreground text-xs">
+                  {plan.taglineKey ? t(plan.taglineKey) : plan.tagline}
+                </p>
               </div>
               <CodingPlanCard
                 plan={plan}
@@ -688,6 +696,7 @@ function ApiKeyRow({
   onGetApiKey: (url: string) => void;
   onFocusProvider?: (provider: ProviderKey) => void;
 }) {
+  const { t } = useI18n();
   const isConnected = !!config.encryptedApiKey && config.mode === 'official';
   const [localInput, setLocalInput] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -732,7 +741,7 @@ function ApiKeyRow({
         setLocalError(res.error);
       }
     } catch {
-      setLocalError('Connection failed. Please try again.');
+      setLocalError(t('onboarding.auth.connectFailed'));
     } finally {
       connectInFlightRef.current = false;
       setIsConnecting(false);
@@ -750,7 +759,7 @@ function ApiKeyRow({
       setLocalError(
         err instanceof Error
           ? err.message
-          : 'Disconnection failed. Please try again.',
+          : t('onboarding.auth.disconnectFailed'),
       );
     } finally {
       disconnectInFlightRef.current = false;
@@ -783,7 +792,7 @@ function ApiKeyRow({
                 className="text-primary-foreground text-xs transition-colors hover:cursor-pointer hover:text-hover-derived"
                 onClick={() => onGetApiKey(apiKeyUrl)}
               >
-                Create key
+                {t('onboarding.auth.createKey')}
               </button>
             </TooltipTrigger>
             <TooltipContent>{apiKeyUrl}</TooltipContent>
@@ -849,7 +858,7 @@ function ApiKeyRow({
             onClick={() => void handleDisconnect()}
             disabled={isDisconnecting}
           >
-            {isDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+            {isDisconnecting ? t('onboarding.auth.disconnecting') : t('onboarding.auth.disconnect')}
           </Button>
         ) : (
           localInput.trim() && (
@@ -859,7 +868,7 @@ function ApiKeyRow({
               onClick={() => void handleConnect()}
               disabled={isConnecting}
             >
-              {isConnecting ? 'Connecting…' : 'Connect'}
+              {isConnecting ? t('onboarding.auth.connecting') : t('onboarding.auth.connect')}
             </Button>
           )
         )}
@@ -882,6 +891,7 @@ function CodingPlanGridCard({
   isConnected: boolean;
   onClick: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <button
       type="button"
@@ -899,7 +909,7 @@ function CodingPlanGridCard({
       </div>
       {isConnected ? (
         <span className="shrink-0 self-end font-medium text-[11px] text-success-foreground">
-          Connected
+          {t('onboarding.auth.connected')}
         </span>
       ) : (
         <IconChevronRightOutline18 className="size-3.5 shrink-0 text-muted-foreground" />

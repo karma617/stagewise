@@ -9,22 +9,35 @@ export type CommandCenterRenderRow =
   | { type: 'item'; item: CommandCenterItem; itemIndex: number };
 
 type AgentGroupLabel =
-  | 'Today'
-  | 'Yesterday'
-  | 'Last 7 days'
-  | 'Last 30 days'
-  | 'Older';
+  | 'today'
+  | 'yesterday'
+  | 'last7Days'
+  | 'last30Days'
+  | 'older';
 
 const AGENT_GROUP_ORDER: AgentGroupLabel[] = [
-  'Today',
-  'Yesterday',
-  'Last 7 days',
-  'Last 30 days',
-  'Older',
+  'today',
+  'yesterday',
+  'last7Days',
+  'last30Days',
+  'older',
 ];
 
+export type CommandCenterGroupLabels = {
+  actions: string;
+  agents: string;
+  browser: string;
+  files: string;
+  last30Days: string;
+  last7Days: string;
+  older: string;
+  settings: string;
+  today: string;
+  yesterday: string;
+};
+
 function getAgentGroupLabel(timestamp: number): AgentGroupLabel {
-  if (!timestamp) return 'Today';
+  if (!timestamp) return 'today';
 
   const now = new Date();
   const ts = new Date(timestamp);
@@ -40,12 +53,12 @@ function getAgentGroupLabel(timestamp: number): AgentGroupLabel {
   ).getTime();
   const diffDays = Math.round((nowMidnight - tsMidnight) / 86_400_000);
 
-  if (diffDays < 0) return 'Today';
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays <= 7) return 'Last 7 days';
-  if (diffDays <= 30) return 'Last 30 days';
-  return 'Older';
+  if (diffDays < 0) return 'today';
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays <= 7) return 'last7Days';
+  if (diffDays <= 30) return 'last30Days';
+  return 'older';
 }
 
 function pushSection(
@@ -64,40 +77,46 @@ function pushSection(
   );
 }
 
-function buildGlobalRows(items: CommandCenterItem[]): CommandCenterRenderRow[] {
+function buildGlobalRows(
+  items: CommandCenterItem[],
+  labels: CommandCenterGroupLabels,
+): CommandCenterRenderRow[] {
   const indexedItems = items.map((item, itemIndex) => ({ item, itemIndex }));
   const rows: CommandCenterRenderRow[] = [];
 
   pushSection(
     rows,
-    'Agents',
+    labels.agents,
     indexedItems.filter(({ item }) => item.kind === 'agent'),
   );
   pushSection(
     rows,
-    'Browser',
+    labels.browser,
     indexedItems.filter(({ item }) => item.kind === 'tab'),
   );
   pushSection(
     rows,
-    'Files',
+    labels.files,
     indexedItems.filter(({ item }) => item.kind === 'file'),
   );
   pushSection(
     rows,
-    'Settings',
+    labels.settings,
     indexedItems.filter(({ item }) => item.kind === 'setting'),
   );
   pushSection(
     rows,
-    'Actions',
+    labels.actions,
     indexedItems.filter(({ item }) => item.kind === 'action'),
   );
 
   return rows;
 }
 
-function buildAgentRows(items: CommandCenterItem[]): CommandCenterRenderRow[] {
+function buildAgentRows(
+  items: CommandCenterItem[],
+  labels: CommandCenterGroupLabels,
+): CommandCenterRenderRow[] {
   const groupedItems = new Map<
     AgentGroupLabel,
     { item: CommandCenterItem; itemIndex: number }[]
@@ -115,7 +134,11 @@ function buildAgentRows(items: CommandCenterItem[]): CommandCenterRenderRow[] {
     if (!groupItems?.length) return [];
 
     return [
-      { type: 'header' as const, key: `header:agents:${group}`, label: group },
+      {
+        type: 'header' as const,
+        key: `header:agents:${group}`,
+        label: labels[group],
+      },
       ...groupItems.map(({ item, itemIndex }) => ({
         type: 'item' as const,
         item,
@@ -128,17 +151,17 @@ function buildAgentRows(items: CommandCenterItem[]): CommandCenterRenderRow[] {
 export function buildGroupedRows(
   items: CommandCenterItem[],
   mode: CommandCenterMode,
-  options?: { filesLabel?: string },
+  options: { filesLabel?: string; labels: CommandCenterGroupLabels },
 ): CommandCenterRenderRow[] {
-  if (mode === 'global') return buildGlobalRows(items);
-  if (mode === 'agents') return buildAgentRows(items);
+  if (mode === 'global') return buildGlobalRows(items, options.labels);
+  if (mode === 'agents') return buildAgentRows(items, options.labels);
 
   const label =
     mode === 'browser'
-      ? 'Browser'
+      ? options.labels.browser
       : mode === 'files'
-        ? (options?.filesLabel ?? 'Files')
-        : 'Settings';
+        ? (options.filesLabel ?? options.labels.files)
+        : options.labels.settings;
 
   return [
     {

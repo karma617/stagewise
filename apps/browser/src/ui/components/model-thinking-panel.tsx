@@ -15,6 +15,7 @@ import {
   getModelThinkingOptions,
   type ModelThinkingDefaultOptions,
 } from '@ui/utils/model-thinking';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export function ModelThinkingPanel({
   model,
@@ -33,6 +34,7 @@ export function ModelThinkingPanel({
   onValueChange: (value: string) => void;
   onReset: () => void;
 }) {
+  const { t } = useI18n();
   const labelId = useId();
   const display = getModelThinkingDisplayState(model, override, defaultOptions);
   if (!display) return null;
@@ -45,7 +47,7 @@ export function ModelThinkingPanel({
     <>
       <div className="flex items-start justify-between gap-2 border-derived-subtle border-b px-2.5 py-2">
         <div className="min-w-0">
-          <h4 className="truncate font-semibold text-foreground">Thinking</h4>
+          <h4 className="truncate font-semibold text-foreground">{t('tools.thinking.thinking')}</h4>
           <p className="truncate text-muted-foreground">
             {model.modelDisplayName}
           </p>
@@ -58,7 +60,7 @@ export function ModelThinkingPanel({
             className="h-5 px-1.5"
             onClick={onClose}
           >
-            Close
+            {t('common.close')}
           </Button>
         )}
       </div>
@@ -71,9 +73,11 @@ export function ModelThinkingPanel({
             onClick={() => onEnabledChange(!display.enabled)}
           >
             <p id={labelId} className="font-medium text-foreground">
-              Enable thinking
+              {t('common.enableThinking')}
             </p>
-            <p className="text-muted-foreground">Current: {display.label}</p>
+            <p className="text-muted-foreground">
+              {t('common.currentValue').replace('{value}', display.label)}
+            </p>
           </button>
           <Switch
             checked={display.enabled}
@@ -90,9 +94,12 @@ export function ModelThinkingPanel({
           )}
         >
           <div>
-            <p className="font-medium text-foreground">Effort</p>
+            <p className="font-medium text-foreground">{t('tools.thinking.effort')}</p>
             <p className="text-muted-foreground">
-              Default: {defaultOption.label}
+              {t('common.defaultValue').replace(
+                '{value}',
+                defaultOption.label,
+              )}
             </p>
           </div>
           <RadioGroup
@@ -108,7 +115,7 @@ export function ModelThinkingPanel({
                 <Radio value={option.value} size="xs" />
                 <span>{option.label}</span>
                 {option.value === defaultOption.value && (
-                  <span className="text-muted-foreground">Default</span>
+                  <span className="text-muted-foreground">{t('common.default')}</span>
                 )}
               </RadioLabel>
             ))}
@@ -125,7 +132,7 @@ export function ModelThinkingPanel({
           disabled={!hasOverride}
           onClick={onReset}
         >
-          Reset to default
+          {t('common.resetToDefault')}
         </Button>
       </div>
     </>

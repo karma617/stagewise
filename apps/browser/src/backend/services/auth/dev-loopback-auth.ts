@@ -1,6 +1,5 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { app } from 'electron';
 import { AUTH_CALLBACK_SCHEME } from './callback-scheme';
 
 const LOOPBACK_HOST = '127.0.0.1';
@@ -82,8 +81,9 @@ function fragmentRelayPage(): string {
 export async function createDevLoopbackAuthServer(
   onCallback: (url: string) => Promise<boolean>,
 ): Promise<DevLoopbackAuthServer | null> {
-  if (app.isPackaged) return null;
-
+  // Loopback auth is available in both dev and packaged builds. The
+  // server binds to 127.0.0.1 on an ephemeral port; if the bind fails we
+  // fall back to null and the caller uses the custom-scheme callback.
   const loopbackState = createLoopbackState();
   let timeout: NodeJS.Timeout | null = null;
   let disposed = false;

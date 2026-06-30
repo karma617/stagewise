@@ -13,6 +13,7 @@ import { getBaseName } from '@shared/path-utils';
 import type { WorkspaceGitSetupRun } from '@shared/karton-contracts/ui';
 import { IconTriangleWarningOutline18 } from 'nucleo-ui-outline-18';
 import { Loader2Icon } from 'lucide-react';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 function formatSetupDuration(ms: number): string {
   const seconds = Math.max(0, Math.round(ms / 1000));
@@ -40,6 +41,7 @@ export function WorkspaceSetupStatusIndicator({
   setupRun?: WorkspaceGitSetupRun;
   failedClassName?: string;
 }) {
+  const { t } = useI18n();
   if (!setupRun) return null;
 
   if (setupRun.status === 'running') {
@@ -78,6 +80,7 @@ export function SetupRunSidePanel({
 }: {
   setupRun: WorkspaceGitSetupRun;
 }) {
+  const { t } = useI18n();
   const [scrollViewport, setScrollViewport] = useState<HTMLElement | null>(
     null,
   );
@@ -157,7 +160,7 @@ export function SetupRunSidePanel({
           </Tooltip>
           {setupRun.exitCode !== null && (
             <>
-              <span className="text-subtle-foreground leading-none">Exit</span>
+              <span className="text-subtle-foreground leading-none">{t('common.exit')}</span>
               <span className="font-mono text-muted-foreground leading-none">
                 {setupRun.exitCode}
               </span>

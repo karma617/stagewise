@@ -21,6 +21,7 @@ import {
   getWorktreeSelectItems,
   getWorktreeSelectItemsFromGit,
 } from './worktree-utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 import {
   IconCheckFill18,
   IconChevronDownFill18,
@@ -130,6 +131,7 @@ const WorkspaceBadge = memo(function WorkspaceBadge({
   onUnmount: (prefix: string) => void;
   agentInstanceId: string;
 }) {
+  const { t } = useI18n();
   const display = getWorkspaceDisplayInfo(mount);
   const gitRef = mount.git ? formatGitRef(mount.git) : null;
   const setupRun = useKartonState(
@@ -417,7 +419,7 @@ const WorkspaceBadge = memo(function WorkspaceBadge({
           <IconXmarkFill18 className="absolute size-3 text-muted-foreground opacity-0 group-hover/unmount:text-foreground group-hover/workspace:opacity-100 group-focus-visible/workspace:opacity-100" />
         </span>
       </TooltipTrigger>
-      <TooltipContent>Disconnect workspace</TooltipContent>
+      <TooltipContent>{t('chat.workspaceSelect.disconnect')}</TooltipContent>
     </Tooltip>
   );
 
@@ -564,6 +566,7 @@ function MdSidePanelContent({
   onViewportRef: (el: HTMLElement | null) => void;
   isIncludedInAgentContext: boolean;
 }) {
+  const { t } = useI18n();
   const openFileTab = useKartonProcedure((p) => p.fileTree.openFileTab);
   const filePath =
     sidePanelContent.type === 'workspaceMd'
@@ -614,7 +617,7 @@ function MdSidePanelContent({
           className="absolute right-0 bottom-0 flex h-6 items-center gap-1 rounded-tl-lg border-derived border-t border-l bg-background px-2 py-1 text-muted-foreground text-xs hover:bg-muted hover:text-foreground dark:bg-surface-1"
         >
           <IconArrowUpRightOutline18 className="size-3" />
-          <span>Open in file view</span>
+          <span>{t('chat.workspace.openInFileView')}</span>
         </button>
       </div>
     </>
@@ -643,6 +646,7 @@ function ContextFilesSidePanel({
   isGeneratingWorkspaceMd: boolean;
   onGenerateWorkspaceMd: () => void;
 }) {
+  const { t } = useI18n();
   const agentsMdDisabled = mount.agentsMdContent === null;
   const [hoveredContextFile, setHoveredContextFile] = useState<Extract<
     SidePanelContent,
@@ -687,7 +691,7 @@ function ContextFilesSidePanel({
   return (
     <>
       <div className="border-derived-subtle border-b px-2.5 py-2">
-        <span className="font-semibold">Context files</span>
+        <span className="font-semibold">{t('chat.workspace.contextFiles')}</span>
       </div>
       <div
         className="relative flex flex-col gap-1 px-2.5 py-2"
@@ -843,6 +847,7 @@ function SkillsListSidePanel({
   disabledSkills: string[];
   onToggleSkill: (skillName: string, enabled: boolean) => void;
 }) {
+  const { t } = useI18n();
   const sortedSkills = useMemo(
     () => [...skills].sort((a, b) => a.name.localeCompare(b.name)),
     [skills],
@@ -894,7 +899,7 @@ function SkillsListSidePanel({
   return (
     <>
       <div className="border-derived-subtle border-b px-2.5 py-2">
-        <span className="font-semibold">Skills</span>
+        <span className="font-semibold">{t('chat.workspaceSelect.skills')}</span>
       </div>
       <div className="relative">
         <OverlayScrollbar
@@ -997,6 +1002,7 @@ function WorkspacePreviewCardContent({
   onItemLeave: () => void;
   activeRow: 'contextFiles' | 'skillsList' | 'setupRun' | null;
 }) {
+  const { t } = useI18n();
   const hasSkills = mount.skills.length > 0;
   const gitRef = mount.git ? formatGitRef(mount.git) : null;
   const gitStatus = mount.git ? formatGitStatus(mount.git.status) : null;
@@ -1129,7 +1135,7 @@ function WorkspacePreviewCardContent({
         onMouseEnter={(e) => onItemHover({ type: 'contextFiles' }, e)}
         onMouseLeave={onItemLeave}
       >
-        <span className="font-medium text-xs">Context files</span>
+        <span className="font-medium text-xs">{t('chat.workspace.contextFiles')}</span>
         <IconChevronRightOutline18 className="ml-auto size-3 shrink-0" />
       </div>
 
@@ -1144,7 +1150,7 @@ function WorkspacePreviewCardContent({
           onMouseEnter={(e) => onItemHover({ type: 'skillsList' }, e)}
           onMouseLeave={onItemLeave}
         >
-          <span className="font-medium text-xs">Skills</span>
+          <span className="font-medium text-xs">{t('chat.workspaceSelect.skills')}</span>
           <IconChevronRightOutline18 className="ml-auto size-3 shrink-0" />
         </div>
       )}
@@ -1156,14 +1162,14 @@ function WorkspacePreviewCardContent({
               type="button"
               variant="ghost"
               size="icon-2xs"
-              aria-label="Open terminal"
+              aria-label={t('chat.workspace.openTerminal')}
               onClick={handleOpenTerminal}
               className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
             >
               <IconSquareTerminalOutline18 className="size-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Open terminal</TooltipContent>
+          <TooltipContent>{t('chat.workspace.openTerminal')}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger>
@@ -1186,14 +1192,14 @@ function WorkspacePreviewCardContent({
               type="button"
               variant="ghost"
               size="icon-2xs"
-              aria-label="Copy path"
+              aria-label={t('chat.workspace.copyPath')}
               onClick={handleCopyPath}
               className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
             >
               <IconCopyOutline18 className="size-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Copy path</TooltipContent>
+          <TooltipContent>{t('chat.workspace.copyPath')}</TooltipContent>
         </Tooltip>
       </div>
     </div>
@@ -1580,6 +1586,7 @@ function getWorkspaceActionValidationError(
   sourceBranchItems: SelectItem<string>[],
   checkoutBranchItems: SelectItem<string>[],
   worktreeItems: SelectItem<string>[],
+  t: (key: string) => string,
 ): string | null {
   const existingBranches = new Set(sourceBranchItems.map((item) => item.value));
   const existingWorktreeNames = new Set<string>();
@@ -1596,7 +1603,7 @@ function getWorkspaceActionValidationError(
   switch (config.selectedAction) {
     case 'create-worktree':
       if (config.worktreeNameLabel.trim().length === 0) {
-        return 'Worktree name is required.';
+        return t('chat.workspace.error.worktreeNameRequired');
       }
       if (existingBranches.has(config.worktreeNameLabel)) {
         return 'A branch with this name already exists.';
@@ -1607,7 +1614,7 @@ function getWorkspaceActionValidationError(
       return null;
     case 'create-branch':
       if (config.branchNameLabel.trim().length === 0) {
-        return 'Branch name is required.';
+        return t('chat.workspace.error.branchNameRequired');
       }
       if (existingBranches.has(config.branchNameLabel)) {
         return 'A branch with this name already exists.';
@@ -1617,8 +1624,8 @@ function getWorkspaceActionValidationError(
       const target = checkoutBranchItems.find(
         (item) => item.value === config.switchBranchTarget,
       );
-      if (!target) return 'Branch is unavailable.';
-      if (target.disabled) return 'Branch is checked out in another worktree.';
+      if (!target) return t('chat.workspace.error.branchUnavailable');
+      if (target.disabled) return t('chat.workspace.error.branchInUse');
       return null;
     }
     case 'switch-worktree':
@@ -1627,7 +1634,7 @@ function getWorkspaceActionValidationError(
           (item) => item.value === config.switchWorktreeTarget,
         )
       ) {
-        return 'Worktree is unavailable.';
+        return t('chat.workspace.error.worktreeUnavailable');
       }
       return null;
   }
@@ -1642,11 +1649,13 @@ function WorkspaceActionPickerContent({
   onCommit,
   onUpdateAction,
 }: WorkspaceActionPickerContentProps) {
+  const { t } = useI18n();
   const validationError = getWorkspaceActionValidationError(
     config,
     sourceBranchItems,
     checkoutBranchItems,
     worktreeItems,
+    t,
   );
 
   return (
@@ -1658,7 +1667,7 @@ function WorkspaceActionPickerContent({
         onSelect={() => onCommit('create-worktree')}
         tutorialId="action-create-worktree"
       >
-        <span className="shrink-0 text-xs">Create worktree</span>
+        <span className="shrink-0 text-xs">{t('chat.workspace.createWorktree')}</span>
         <NameChip
           name={config.worktreeNameLabel}
           onCommit={(next) =>
@@ -1684,7 +1693,7 @@ function WorkspaceActionPickerContent({
         onSelect={() => onCommit('switch-worktree')}
         tutorialId="action-switch-worktree"
       >
-        <span className="shrink-0 text-xs">Use existing worktree</span>
+        <span className="shrink-0 text-xs">{t('chat.workspace.useExistingWorktree')}</span>
         <ActionBranchSelect
           items={worktreeItems}
           value={config.switchWorktreeTarget}
@@ -1703,7 +1712,7 @@ function WorkspaceActionPickerContent({
         onSelect={() => onCommit('create-branch')}
         tutorialId="action-create-branch"
       >
-        <span className="shrink-0 text-xs">Create branch</span>
+        <span className="shrink-0 text-xs">{t('chat.workspace.createBranch')}</span>
         <NameChip
           name={config.branchNameLabel}
           onCommit={(next) =>
@@ -1729,7 +1738,7 @@ function WorkspaceActionPickerContent({
         onSelect={() => onCommit('switch-branch')}
         tutorialId="action-switch-branch"
       >
-        <span className="shrink-0 text-xs">Use existing branch</span>
+        <span className="shrink-0 text-xs">{t('chat.workspace.useExistingBranch')}</span>
         <ActionBranchSelect
           items={checkoutBranchItems}
           value={config.switchBranchTarget}
@@ -1767,6 +1776,7 @@ const WorkspaceActionSelect = memo(function WorkspaceActionSelect({
   onOpenChange?: (mountPrefix: string, open: boolean) => void;
   agentInstanceId: string;
 }) {
+  const { t } = useI18n();
   const track = useTrack();
   const display = getWorkspaceDisplayInfo(mount);
   const gitRef = useMemo(
@@ -2116,6 +2126,7 @@ const WorkspaceActionSelect = memo(function WorkspaceActionSelect({
         sourceBranchItems,
         checkoutBranchItems,
         worktreeItems,
+        t,
       );
       if (validationError) {
         setActionError(validationError);
@@ -2231,30 +2242,32 @@ const WorkspaceActionSelect = memo(function WorkspaceActionSelect({
       case 'create-worktree':
         return (
           <>
-            create worktree{' '}
-            <SummaryHighlight>{config.worktreeNameLabel}</SummaryHighlight> from{' '}
+            {t('chat.workspace.summary.createWorktree')}{' '}
+            <SummaryHighlight>{config.worktreeNameLabel}</SummaryHighlight>{' '}
+            {t('chat.workspace.summary.from')}{' '}
             <SummaryHighlight>{config.createWorktreeFrom}</SummaryHighlight>
           </>
         );
       case 'create-branch':
         return (
           <>
-            create branch{' '}
-            <SummaryHighlight>{config.branchNameLabel}</SummaryHighlight> from{' '}
+            {t('chat.workspace.summary.createBranch')}{' '}
+            <SummaryHighlight>{config.branchNameLabel}</SummaryHighlight>{' '}
+            {t('chat.workspace.summary.from')}{' '}
             <SummaryHighlight>{config.createBranchFrom}</SummaryHighlight>
           </>
         );
       case 'switch-branch':
         return (
           <>
-            use existing branch{' '}
+            {t('chat.workspace.summary.useExistingBranch')}{' '}
             <SummaryHighlight>{config.switchBranchTarget}</SummaryHighlight>
           </>
         );
       case 'switch-worktree':
         return (
           <>
-            use existing worktree{' '}
+            {t('chat.workspace.summary.useExistingWorktree')}{' '}
             <SummaryHighlight>
               {getSelectItemDisplayText(
                 worktreeItems,
@@ -2264,7 +2277,7 @@ const WorkspaceActionSelect = memo(function WorkspaceActionSelect({
           </>
         );
     }
-  }, [config, worktreeItems]);
+  }, [config, t, worktreeItems]);
 
   const resolveAbsolute = useCallback((p: string) => p, []);
 
@@ -2302,7 +2315,7 @@ const WorkspaceActionSelect = memo(function WorkspaceActionSelect({
                 <IconXmarkFill18 className="absolute size-3 text-muted-foreground opacity-0 group-hover/unmount:text-foreground group-hover/workspace:opacity-100" />
               </span>
             </TooltipTrigger>
-            <TooltipContent>Disconnect workspace</TooltipContent>
+            <TooltipContent>{t('chat.workspace.disconnect')}</TooltipContent>
           </Tooltip>
           <span className="shrink-0 truncate text-muted-foreground">
             {display.title}
@@ -2527,7 +2540,7 @@ function NameChip({
         aria-hidden
         className="invisible col-start-1 row-start-1 whitespace-pre rounded px-1.5 py-0 font-normal text-xs leading-none"
       >
-        {draft || '\u00A0'}
+        {draft || ' '}
       </span>
       <input
         type="text"
@@ -2625,6 +2638,7 @@ function ActionBranchSelect({
   onPopupMouseLeave?: () => void;
   onPopupOpenChange?: (open: boolean) => void;
 }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -2712,7 +2726,7 @@ function ActionBranchSelect({
               <div className="mb-1 rounded-md">
                 <ComboboxInput
                   size="xs"
-                  placeholder="Search…"
+                  placeholder={t('chat.workspace.search')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -2797,15 +2811,16 @@ const CONNECT_NEW_KEY = '__new__';
 const GIT_OPTIONS_STALE_MS = 60_000;
 
 function ConnectActionSummary({ state }: { state: ConnectActionState }) {
+  const { t } = useI18n();
   switch (state.selectedAction) {
     case 'create-worktree':
-      return <>Create new worktree</>;
+      return <>{t('chat.workspace.actionCreateWorktree')}</>;
     case 'switch-worktree':
-      return <>Use worktree</>;
+      return <>{t('chat.workspace.actionUseWorktree')}</>;
     case 'create-branch':
-      return <>Create new branch</>;
+      return <>{t('chat.workspace.actionCreateBranch')}</>;
     case 'switch-branch':
-      return <>Use branch</>;
+      return <>{t('chat.workspace.actionUseBranch')}</>;
   }
 }
 
@@ -2836,6 +2851,7 @@ function ConnectInlineActionSelect({
   onOpen,
   onUpdate,
 }: ConnectInlineActionSelectProps) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
 
@@ -2950,6 +2966,7 @@ const ConnectWorkspaceSelect = memo(function ConnectWorkspaceSelectInner({
   recentPaths,
   onMount,
 }: ConnectWorkspaceSelectProps) {
+  const { t } = useI18n();
   const track = useTrack();
   const listGitBranchesByPath = useKartonProcedure(
     (p: KartonProcedures) => p.toolbox.listGitBranchesByPath,
@@ -3460,7 +3477,7 @@ const ConnectWorkspaceSelect = memo(function ConnectWorkspaceSelectInner({
           <Button
             variant="ghost"
             size="xs"
-            aria-label="Connect workspace"
+            aria-label={t('chat.workspace.connect')}
             data-tutorial="connect-workspace"
             className="h-6 shrink-0 px-0 text-muted-foreground hover:text-foreground"
           >
@@ -3475,7 +3492,7 @@ const ConnectWorkspaceSelect = memo(function ConnectWorkspaceSelectInner({
             className="h-6 shrink-0 px-0 text-muted-foreground hover:text-foreground"
           >
             <IconFolder5Outline18 className="size-3 shrink-0" />
-            <span>Connect workspace</span>
+            <span>{t('chat.workspaceSelect.connect')}</span>
             <IconPlusFill18 className="size-3 shrink-0" />
           </Button>
         )}
@@ -3636,7 +3653,7 @@ const ConnectWorkspaceSelect = memo(function ConnectWorkspaceSelectInner({
               )}
             >
               <IconPlusFill18 className="size-3.5 shrink-0" />
-              <span>Connect new workspace</span>
+              <span>{t('chat.workspace.connectNew')}</span>
             </button>
           </PopoverBase.Popup>
         </PopoverBase.Positioner>
@@ -3670,6 +3687,7 @@ export const WorkspaceSelect = memo(function WorkspaceSelect({
   workspaceActionConfigs,
   onWorkspaceActionConfigChange,
 }: WorkspaceSelectProps) {
+  const { t } = useI18n();
   const [openAgent] = useOpenAgent();
   const [openWorkspaceActionPrefixes, setOpenWorkspaceActionPrefixes] =
     useState<Set<string>>(() => new Set());
@@ -3761,12 +3779,12 @@ export const WorkspaceSelect = memo(function WorkspaceSelect({
       path: string | undefined,
       config: WorkspaceActionConfig | null,
     ): Promise<ConnectMountResult> => {
-      if (!openAgent) return { ok: false, message: 'No active agent.' };
+      if (!openAgent) return { ok: false, message: t('chat.workspace.error.noActiveAgent') };
       // Guard against mounting an already-mounted recent. The connect
       // popover already filters mounted paths out, but a stale
       // pathStates entry could conceivably reference one.
       if (path !== undefined && mountedPaths.has(path)) {
-        return { ok: false, message: 'Workspace is already connected.' };
+        return { ok: false, message: t('chat.workspace.error.alreadyConnected') };
       }
 
       track('workspace-connect-started');
@@ -3780,7 +3798,7 @@ export const WorkspaceSelect = memo(function WorkspaceSelect({
       // below-input selector once the picked workspace mounts.
       if (path === undefined) {
         if (!config)
-          return { ok: false, message: 'No workspace action selected.' };
+          return { ok: false, message: t('chat.workspace.error.noWorkspaceAction') };
         const pendingId = ++pendingConnectActionIdRef.current;
         pendingConnectActionConfigsRef.current.push({
           id: pendingId,
@@ -3845,7 +3863,7 @@ export const WorkspaceSelect = memo(function WorkspaceSelect({
             message:
               error instanceof Error
                 ? error.message
-                : 'Failed to connect workspace.',
+                : t('chat.workspace.error.connectFailed'),
           };
         }
       }

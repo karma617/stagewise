@@ -5,6 +5,7 @@ import type {
   FileSearchFilterState,
   FileSearchWorkspaceOption,
 } from '../sources/use-file-command-items';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export function CommandCenterFileFilter({
   workspaceOptions,
@@ -15,6 +16,7 @@ export function CommandCenterFileFilter({
   filterState: FileSearchFilterState;
   onFilterChange: (state: FileSearchFilterState) => void;
 }) {
+  const { t } = useI18n();
   // An empty selection means "all workspaces". Toggling collapses back to the
   // empty set once every workspace is selected, keeping a single source of
   // truth for the "all" state.
@@ -82,12 +84,15 @@ export function CommandCenterFileFilter({
     <div className="flex items-center gap-2 border-border-subtle border-b py-1.5 pr-3 pl-2.5">
       {singleWorkspace ? (
         <span className="min-w-0 flex-1 truncate text-subtle-foreground text-xs">
-          Showing results for {singleWorkspace.label}
+          {t('commandCenter.fileFilter.showingResultsFor').replace(
+            '{workspace}',
+            singleWorkspace.label,
+          )}
         </span>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <span className="shrink-0 whitespace-nowrap text-subtle-foreground text-xs">
-            Show results for
+            {t('commandCenter.fileFilter.showResultsFor')}
           </span>
           {workspaceOptions.map((workspace) => {
             const selected =
@@ -123,7 +128,7 @@ export function CommandCenterFileFilter({
             onCheckedChange={(checked) => setSearchInContent(checked === true)}
             tabIndex={-1}
           />
-          <span>Search in content</span>
+          <span>{t('fileTree.searchInContent')}</span>
         </button>
         {searchedIsGit && (
           <button
@@ -137,7 +142,7 @@ export function CommandCenterFileFilter({
               onCheckedChange={(checked) => setGitignored(checked === true)}
               tabIndex={-1}
             />
-            <span>Include gitignored</span>
+            <span>{t('fileTree.includeGitignored')}</span>
           </button>
         )}
       </div>

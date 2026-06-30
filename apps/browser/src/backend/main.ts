@@ -378,22 +378,27 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
   const syncAvailableSoundPacks = async (
     selectedPack?: string,
   ): Promise<void> => {
+    const cfg = globalConfigService.get();
     const packs = notificationSoundsService.listPacks();
     const displayNames = notificationSoundsService.getPackDisplayNames();
+    const packsChanged =
+      cfg.availableSoundPacks.length !== packs.length ||
+      !cfg.availableSoundPacks.every((p, i) => p === packs[i]);
+    const namesChanged =
+      Object.keys(cfg.packDisplayNames).length !==
+        Object.keys(displayNames).length ||
+      Object.entries(displayNames).some(
+        ([id, name]) => cfg.packDisplayNames[id] !== name,
+      );
 
-    uiKarton.setState((draft) => {
-      draft.notificationSoundPacks = {
-        available: packs,
-        displayNames,
-      };
+    if (!packsChanged && !namesChanged && !selectedPack) return;
+
+    await globalConfigService.set({
+      ...cfg,
+      availableSoundPacks: packs,
+      packDisplayNames: displayNames,
+      ...(selectedPack ? { notificationSoundPack: selectedPack } : {}),
     });
-
-    if (selectedPack) {
-      await globalConfigService.set({
-        ...globalConfigService.get(),
-        notificationSoundPack: selectedPack,
-      });
-    }
   };
 
   void syncAvailableSoundPacks().catch((err) => {
@@ -476,6 +481,21 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
     logger,
   );
 
+  // Inject a Turnstile solver that delegates to the UI renderer's
+  // __solveTurnstile(). Cloudflare Turnstile rejects challenges inside
+  // hidden Electron webContents, but works in the visible UI renderer.
+  authService.setTurnstileSolver(async (): Promise<string | null> => {
+    const uiWc = windowLayoutService.getUIWebContents();
+    if (!uiWc || uiWc.isDestroyed()) return null;
+    try {
+      return await uiWc.executeJavaScript(
+        'window.__solveTurnstile ? window.__solveTurnstile() : Promise.resolve(null)',
+      );
+    } catch {
+      return null;
+    }
+  });
+
   // Wire auth callback handler so social sign-in / protocol URLs are
   // routed to AuthService instead of opened as browser tabs.
   registerAuthCallbackHandler((url) => authService.handleAuthCallbackUrl(url));
@@ -485,8 +505,6 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
     uiKarton,
     telemetryService,
     gitService,
-    () => persistence.agentDb.getOldestAgentCreatedAt(),
-    () => persistence.agentDb.getAgentCount(),
   );
 
   const credentialsService = await CredentialsService.create(logger);
@@ -554,6 +572,7 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
   const _appMenuService = new AppMenuService(
     logger,
     authService,
+    globalConfigService,
     windowLayoutService,
   );
 

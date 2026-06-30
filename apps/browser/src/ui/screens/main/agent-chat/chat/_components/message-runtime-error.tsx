@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { cn } from '@ui/utils';
 import { IconTriangleWarning } from 'nucleo-micro-bold';
 import { IconLockKeyOutline18 } from 'nucleo-ui-outline-18';
@@ -20,6 +20,7 @@ import { useOpenAgent } from '@ui/hooks/use-open-chat';
 import { getAvailableModel } from '@shared/available-models';
 import type { ModelProvider } from '@shared/karton-contracts/ui/shared-types';
 import type { AgentRuntimeError } from '@shared/karton-contracts/ui/agent';
+import { useI18n } from '@ui/hooks/use-i18n';
 import { useCmdEnterTarget } from '@ui/hooks/use-cmd-enter-target';
 import { CmdEnterPriority } from '@ui/utils/cmd-enter-registry';
 import { HotkeyCombo } from '@ui/components/hotkey-combo';
@@ -34,6 +35,9 @@ const consoleUrl =
   import.meta.env.VITE_STAGEWISE_CONSOLE_URL || 'https://console.stagewise.io';
 
 type GenericRuntimeError = Extract<AgentRuntimeError, { kind?: undefined }>;
+
+const AUTO_SWITCH_MAX_ATTEMPTS = 3;
+const AUTO_SWITCH_RETRY_DELAY_MS = 800;
 
 /** Check if an error message indicates an API authorization failure */
 function isAuthorizationError(error: GenericRuntimeError): boolean {
@@ -56,17 +60,31 @@ function isAuthorizationError(error: GenericRuntimeError): boolean {
   );
 }
 
-function formatRelativeTime(isoDate: string): string {
+function formatRelativeTime(isoDate: string, t: (key: string) => string): string {
   const diff = new Date(isoDate).getTime() - Date.now();
-  if (diff <= 0) return 'shortly';
+  if (diff <= 0) return t('chat.runtimeError.shortly');
   const minutes = Math.ceil(diff / 60_000);
-  if (minutes < 60) return `in ${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  if (minutes < 60) {
+    return t('chat.runtimeError.inMinutes')
+      .replace('{count}', String(minutes))
+      .replace('{plural}', minutes !== 1 ? 's' : '');
+  }
 
   const hours = Math.ceil(minutes / 60);
-  if (hours < 24) return `in ${hours} hour${hours !== 1 ? 's' : ''}`;
+  if (hours < 24) {
+    return t('chat.runtimeError.inHours')
+      .replace('{count}', String(hours))
+      .replace('{plural}', hours !== 1 ? 's' : '');
+  }
 
   const days = Math.ceil(hours / 24);
-  return `in ${days} day${days !== 1 ? 's' : ''}`;
+  return t('chat.runtimeError.inDays')
+    .replace('{count}', String(days))
+    .replace('{plural}', days !== 1 ? 's' : '');
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function MessageRuntimeError({
@@ -85,11 +103,22 @@ export function MessageRuntimeError({
   isWorking?: boolean;
 }) {
   const canShowRetry = canRetry || !isWorking;
+  const continueAfterError = useKartonProcedure(
+    (p) => p.agents.continueAfterError,
+  );
+  const retryAction =
+    error.kind === 'plan-limit-exceeded'
+      ? () => {
+          void continueAfterError(agentInstanceId).catch(() => {
+            onRetry();
+          });
+        }
+      : onRetry;
 
   const { setRef: retryRef, isWinner: retryIsWinner } = useCmdEnterTarget({
     id: `message-runtime-error-retry-${agentInstanceId}`,
     priority: CmdEnterPriority.ERROR_RETRY,
-    action: onRetry,
+    action: retryAction,
     enabled: canShowRetry,
   });
   const retryProps: RetryActionProps = {
@@ -102,7 +131,7 @@ export function MessageRuntimeError({
       <UpstreamOverloadError
         error={error}
         isWorking={isWorking}
-        onRetry={onRetry}
+        onRetry={retryAction}
         {...retryProps}
       />
     );
@@ -113,7 +142,7 @@ export function MessageRuntimeError({
       <PlanLimitExceededError
         error={error}
         canRetry={canShowRetry}
-        onRetry={onRetry}
+        onRetry={retryAction}
         {...retryProps}
       />
     );
@@ -124,7 +153,7 @@ export function MessageRuntimeError({
       <ModelRestrictedError
         error={error}
         canRetry={canShowRetry}
-        onRetry={onRetry}
+        onRetry={retryAction}
         {...retryProps}
       />
     );
@@ -135,7 +164,7 @@ export function MessageRuntimeError({
       <WaitingForConnectionError
         error={error}
         canRetry={canShowRetry}
-        onRetry={onRetry}
+        onRetry={retryAction}
         {...retryProps}
       />
     );
@@ -146,7 +175,7 @@ export function MessageRuntimeError({
       agentInstanceId={agentInstanceId}
       error={error}
       canRetry={canShowRetry}
-      onRetry={onRetry}
+      onRetry={retryAction}
       {...retryProps}
     />
   );
@@ -163,54 +192,139 @@ function PlanLimitExceededError({
   canRetry: boolean;
   onRetry: () => void;
 } & RetryActionProps) {
+  const { t } = useI18n();
   const subscription = useKartonState((s) => s.userAccount.subscription);
-  const openSettings = useKartonProcedure((p) => p.appScreen.openSettings);
-  const openExternalUrl = useKartonProcedure((p) => p.openExternalUrl);
+  const currentEmail = useKartonState((s) => s.userAccount.user?.email);
+  const switchToAvailablePoolAccount = useKartonProcedure(
+    (p) => p.userAccount.switchToAvailablePoolAccount,
+  );
   const plan = subscription?.plan;
+  const switchToAvailablePoolAccountRef = useRef(switchToAvailablePoolAccount);
+  switchToAvailablePoolAccountRef.current = switchToAvailablePoolAccount;
+  const onRetryRef = useRef(onRetry);
+  onRetryRef.current = onRetry;
+
+  const [autoSwitching, setAutoSwitching] = useState(false);
+  const [autoSwitchMsg, setAutoSwitchMsg] = useState<string | null>(null);
+  const didAutoSwitch = useRef(false);
+
+  useEffect(() => {
+    if (didAutoSwitch.current) return;
+    didAutoSwitch.current = true;
+    setAutoSwitching(true);
+    setAutoSwitchMsg(
+      '当前帐号已达上限，正在校验候选帐号并切换可用帐号…',
+    );
+    const throttledResetsAt =
+      error.exceededWindows.find((w) => w.type === 'monthly')?.resetsAt ??
+      error.exceededWindows.find((w) => w.type === 'weekly')?.resetsAt ??
+      error.exceededWindows.find((w) => w.type === 'daily')?.resetsAt;
+    const run = async () => {
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= AUTO_SWITCH_MAX_ATTEMPTS; attempt++) {
+        try {
+          if (attempt > 1) {
+            setAutoSwitchMsg(
+              `自动切换异常，正在重试 ${attempt}/${AUTO_SWITCH_MAX_ATTEMPTS}…`,
+            );
+          }
+          return await switchToAvailablePoolAccountRef.current(
+            currentEmail,
+            throttledResetsAt,
+          );
+        } catch (error) {
+          lastError = error;
+          if (attempt < AUTO_SWITCH_MAX_ATTEMPTS) {
+            await wait(AUTO_SWITCH_RETRY_DELAY_MS);
+          }
+        }
+      }
+      throw lastError;
+    };
+    void run()
+      .then((result) => {
+        if (result.error) {
+          setAutoSwitchMsg(
+            `\u81ea\u52a8\u5207\u6362\u5931\u8d25\uff1a${result.error}`,
+          );
+        } else {
+          setAutoSwitchMsg(
+            '\u5df2\u5207\u6362\u5230 ' +
+              (result.email ?? '') +
+              '\uff0c\u91cd\u8bd5\u4e2d\u2026',
+          );
+          setTimeout(() => onRetryRef.current(), 800);
+        }
+      })
+      .catch((e: unknown) => {
+        setAutoSwitchMsg(
+          `\u81ea\u52a8\u5207\u6362\u5f02\u5e38\uff1a${String(e)}`,
+        );
+      })
+      .finally(() => {
+        setAutoSwitching(false);
+      });
+  }, [currentEmail, error.exceededWindows]);
 
   const resetsAt = error.exceededWindows[0]?.resetsAt;
-  const resetLabel = resetsAt ? formatRelativeTime(resetsAt) : null;
+  const resetLabel = resetsAt ? formatRelativeTime(resetsAt, t) : null;
 
-  const { heading, description, ctaLabel, ctaHref } = useMemo(() => {
-    const resetSuffix = resetLabel ? ` Your limit resets ${resetLabel}.` : '';
+  const { heading, description } = useMemo(() => {
+    const resetSuffix = resetLabel
+      ? t('chat.runtimeError.limitResetSuffix').replace('{time}', resetLabel)
+      : '';
 
     switch (plan) {
       case 'ultra':
         return {
-          heading: 'Usage limit reached',
-          description: `You've used all your included credits.${resetSuffix}`,
-          ctaLabel: 'Buy credits in console',
-          ctaHref: consoleUrl,
+          heading: t('chat.runtimeError.usageLimitReached'),
+          description: t('chat.runtimeError.limitUltra').replace(
+            '{suffix}',
+            resetSuffix,
+          ),
         };
       case 'pro':
         return {
-          heading: 'Usage limit reached',
-          description: `You've reached your Pro plan limit.${resetSuffix}`,
-          ctaLabel: 'Buy credits in console',
-          ctaHref: consoleUrl,
+          heading: t('chat.runtimeError.usageLimitReached'),
+          description: t('chat.runtimeError.limitPro').replace(
+            '{suffix}',
+            resetSuffix,
+          ),
         };
       default:
         return {
-          heading: 'Usage limit reached',
-          description: `You've reached your free plan limit.${resetSuffix}`,
-          ctaLabel: 'Buy credits in console',
-          ctaHref: consoleUrl,
+          heading: t('chat.runtimeError.usageLimitReached'),
+          description: t('chat.runtimeError.limitFree').replace(
+            '{suffix}',
+            resetSuffix,
+          ),
         };
     }
-  }, [plan, resetLabel]);
+  }, [plan, resetLabel, t]);
 
   return (
     <div className="mt-6 flex w-full flex-col gap-1.5 rounded-lg border border-derived-strong p-2 text-sm">
       <span className="font-medium text-foreground">{heading}</span>
 
       <div className="text-foreground">{description}</div>
+      {autoSwitchMsg && (
+        <div
+          className={
+            autoSwitching
+              ? 'text-muted-foreground text-xs'
+              : 'text-green-600 text-xs dark:text-green-400'
+          }
+        >
+          {autoSwitchMsg}
+        </div>
+      )}
 
       <div className="flex flex-row items-center justify-between gap-2 pt-1">
         <div>
           {canRetry && (
             <Button ref={retryRef} variant="ghost" size="xs" onClick={onRetry}>
               <RefreshCcwIcon className="size-3" />
-              Retry
+              {t('chat.runtimeError.retry')}
               {showRetryHotkey && (
                 <HotkeyCombo
                   action={HotkeyActions.CMD_ENTER}
@@ -221,23 +335,6 @@ function PlanLimitExceededError({
               )}
             </Button>
           )}
-        </div>
-        <div className="flex flex-row justify-end gap-2">
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => void openSettings({ section: 'models-providers' })}
-          >
-            Configure other API keys
-          </Button>
-          <Button
-            variant="primary"
-            size="xs"
-            onClick={() => void openExternalUrl(ctaHref)}
-          >
-            {ctaLabel}
-            <ArrowUpRightIcon className="size-3" />
-          </Button>
         </div>
       </div>
     </div>
@@ -260,6 +357,7 @@ function ModelRestrictedError({
   canRetry: boolean;
   onRetry: () => void;
 } & RetryActionProps) {
+  const { t } = useI18n();
   const openSettings = useKartonProcedure((p) => p.appScreen.openSettings);
   const openExternalUrl = useKartonProcedure((p) => p.openExternalUrl);
 
@@ -275,16 +373,17 @@ function ModelRestrictedError({
 
   const planLabel = error.plan ?? 'free';
   const heading = modelName
-    ? `${modelName} is not available on the ${planLabel} plan`
-    : `Model not available on the ${planLabel} plan`;
+    ? t('chat.runtimeError.modelRestrictedWithModel')
+        .replace('{model}', modelName)
+        .replace('{plan}', planLabel)
+    : t('chat.runtimeError.modelRestricted').replace('{plan}', planLabel);
 
   return (
     <div className="mt-6 flex w-full flex-col gap-1.5 rounded-lg border border-derived-strong p-2 text-sm">
       <span className="font-medium text-foreground">{heading}</span>
 
       <div className="text-foreground">
-        This model is only accessible via BYOK or a Pro plan. Get your plan or
-        configure your own API key.
+        {t('chat.runtimeError.modelRestrictedDescription')}
       </div>
 
       <div className="flex flex-row items-center justify-between gap-2 pt-1">
@@ -292,7 +391,7 @@ function ModelRestrictedError({
           {canRetry && (
             <Button ref={retryRef} variant="ghost" size="xs" onClick={onRetry}>
               <RefreshCcwIcon className="size-3" />
-              Retry
+              {t('chat.runtimeError.retry')}
               {showRetryHotkey && (
                 <HotkeyCombo
                   action={HotkeyActions.CMD_ENTER}
@@ -310,14 +409,14 @@ function ModelRestrictedError({
             size="xs"
             onClick={() => void openSettings({ section: 'models-providers' })}
           >
-            Configure other API keys
+            {t('chat.runtimeError.configureOtherApiKeys')}
           </Button>
           <Button
             variant="primary"
             size="xs"
             onClick={() => void openExternalUrl(consoleUrl)}
           >
-            Upgrade plan
+            {t('chat.runtimeError.upgradePlan')}
             <ArrowUpRightIcon className="size-3" />
           </Button>
         </div>
@@ -348,8 +447,8 @@ function UpstreamOverloadError({
   isWorking: boolean;
   onRetry: () => void;
 } & RetryActionProps) {
-  const description =
-    'The upstream AI provider is temporarily at capacity. Please switch to another model or try again.';
+  const { t } = useI18n();
+  const description = t('chat.runtimeError.upstreamOverloadDescription');
 
   // Read the name from the error snapshot (not live state) so that switching
   // the active model while the card is visible does not mislabel the heading.
@@ -359,8 +458,11 @@ function UpstreamOverloadError({
     return m?.modelDisplayName ?? null;
   }, [error.modelId]);
   const heading = modelName
-    ? `${modelName} is temporarily unavailable`
-    : 'Model is temporarily unavailable';
+    ? t('chat.runtimeError.modelUnavailableWithName').replace(
+        '{model}',
+        modelName,
+      )
+    : t('chat.runtimeError.modelUnavailable');
 
   return (
     <div className="mt-6 flex w-full flex-col gap-2 rounded-lg border border-derived bg-surface-1 p-3 text-sm">
@@ -372,7 +474,7 @@ function UpstreamOverloadError({
         <div className="flex flex-row items-center justify-end gap-2 pt-2">
           <Button ref={retryRef} variant="primary" size="xs" onClick={onRetry}>
             <RefreshCcwIcon className="size-3" />
-            Retry
+            {t('chat.runtimeError.retry')}
             {showRetryHotkey && (
               <HotkeyCombo
                 action={HotkeyActions.CMD_ENTER}
@@ -399,29 +501,32 @@ function WaitingForConnectionError({
   canRetry: boolean;
   onRetry: () => void;
 } & RetryActionProps) {
+  const { t } = useI18n();
   return (
     <div className="mt-6 flex w-full flex-col gap-1.5 rounded-lg border border-warning-solid/30 bg-warning-background p-2 text-sm">
       <div className="flex flex-row items-center gap-1.5">
         <IconTriangleWarning className="size-3.5 shrink-0 text-warning-foreground" />
         <span className="font-medium text-warning-foreground">
-          Waiting for connection...
+          {t('chat.runtimeError.waitingForConnection')}
         </span>
       </div>
 
       <div className="text-foreground">
-        Your device appears to be offline. The agent will retry automatically
-        once internet access is available again.
+        {t('chat.runtimeError.offlineDescription')}
       </div>
 
       <div className="text-muted-foreground text-xs">
-        Last network error: {error.originalMessage}
+        {t('chat.runtimeError.lastNetworkError').replace(
+          '{error}',
+          error.originalMessage,
+        )}
       </div>
 
       {canRetry && (
         <div className="flex flex-row justify-end pt-1">
           <Button ref={retryRef} variant="primary" size="xs" onClick={onRetry}>
             <RefreshCcwIcon className="size-3" />
-            Retry
+            {t('chat.runtimeError.retry')}
             {showRetryHotkey && (
               <HotkeyCombo
                 action={HotkeyActions.CMD_ENTER}
@@ -450,6 +555,7 @@ function GenericError({
   canRetry: boolean;
   onRetry: () => void;
 } & RetryActionProps) {
+  const { t } = useI18n();
   const [helpExpanded, setHelpExpanded] = useState(false);
   const openExternalUrl = useKartonProcedure((p) => p.openExternalUrl);
   const [hasCopied, setHasCopied] = useState(false);
@@ -479,12 +585,13 @@ function GenericError({
       <div className="mt-6 flex w-full flex-col gap-1.5 rounded-lg border border-derived-strong p-2 text-sm">
         <div className="flex flex-row items-center gap-1.5">
           <IconLockKeyOutline18 className="size-3.5 shrink-0 text-foreground" />
-          <span className="font-medium text-foreground">Not logged in</span>
+          <span className="font-medium text-foreground">
+            {t('chat.runtimeError.notLoggedIn')}
+          </span>
         </div>
 
         <div className="text-foreground">
-          You aren&apos;t signed in to stagewise, and you haven&apos;t
-          configured any other method for AI model access.
+          {t('chat.runtimeError.notLoggedInDescription')}
         </div>
 
         <div className="flex flex-row items-center justify-between gap-2 pt-1">
@@ -497,7 +604,7 @@ function GenericError({
                 onClick={onRetry}
               >
                 <RefreshCcwIcon className="size-3" />
-                Retry
+                {t('chat.runtimeError.retry')}
                 {showRetryHotkey && (
                   <HotkeyCombo
                     action={HotkeyActions.CMD_ENTER}
@@ -515,14 +622,14 @@ function GenericError({
               size="xs"
               onClick={() => void openSettings({ section: 'models-providers' })}
             >
-              Configure other API keys
+              {t('chat.runtimeError.configureOtherApiKeys')}
             </Button>
             <Button
               variant="primary"
               size="xs"
               onClick={() => void openSettings({ section: 'account' })}
             >
-              Log in to stagewise
+              {t('chat.runtimeError.logInToStagewise')}
             </Button>
           </div>
         </div>
@@ -543,7 +650,9 @@ function GenericError({
     <div className="mt-6 flex w-full flex-col gap-1.5 rounded-lg border border-derived-strong p-2 text-sm">
       <div className="flex flex-row items-center gap-1.5">
         <IconTriangleWarning className="size-3.5 shrink-0 text-error-foreground" />
-        <span className="font-medium text-error-foreground">Error</span>
+        <span className="font-medium text-error-foreground">
+          {t('chat.runtimeError.error')}
+        </span>
         <Button
           variant="ghost"
           size="icon-2xs"
@@ -572,7 +681,7 @@ function GenericError({
           size="condensed"
           className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between gap-2 py-0.5"
         >
-          <span className="text-xs">What to do if the issue persists?</span>
+          <span className="text-xs">{t('chat.runtimeError.whatToDo')}</span>
           <ChevronDownIcon
             className={cn(
               'size-3 transition-transform',
@@ -582,7 +691,7 @@ function GenericError({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="mt-0.5 text-muted-foreground text-xs">
-            If this error continues to occur, you can{' '}
+            {t('chat.runtimeError.reportPrefix')}{' '}
             <a
               href={reportIssueUrl}
               rel="noopener noreferrer"
@@ -592,10 +701,9 @@ function GenericError({
               }}
               className="text-primary-foreground underline hover:text-primary-foreground/80"
             >
-              report it on GitHub
+              {t('chat.runtimeError.reportLink')}
             </a>
-            . Please include the error message and stack trace (if available) to
-            help us diagnose the issue.
+            {t('chat.runtimeError.reportSuffix')}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -604,7 +712,7 @@ function GenericError({
         <div className="flex flex-row justify-end pt-1">
           <Button ref={retryRef} variant="primary" size="xs" onClick={onRetry}>
             <RefreshCcwIcon className="size-3" />
-            Retry
+            {t('chat.runtimeError.retry')}
             {showRetryHotkey && (
               <HotkeyCombo
                 action={HotkeyActions.CMD_ENTER}

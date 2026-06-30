@@ -19,13 +19,16 @@ export type CodingPlan = {
   /** Built-in provider this plan maps to. One plan = one provider. */
   provider: ModelProvider;
   displayName: string;
+  displayNameKey?: string;
   tagline: string;
+  taglineKey?: string;
   /** Public page to purchase/upgrade the subscription. */
   subscribeUrl: string;
   /** Deep link to the provider dashboard where the user copies the key. */
   apiKeyUrl: string;
   /** Short help text rendered below the API-key input. */
   helpText: string;
+  helpTextKey?: string;
   /** Optional regex the UI uses for clipboard auto-detection. */
   apiKeyPattern?: string;
   /** Dedicated runtime base URL for subscription-plan tokens. */
@@ -36,8 +39,10 @@ export type CodingPlan = {
   validationModelId?: string;
   /** Additional endpoint note rendered in plan UI. */
   endpointHelpText?: string;
+  endpointHelpTextKey?: string;
   /** Optional disclaimer rendered below the help text (e.g. unofficial status). */
   disclaimer?: string;
+  disclaimerKey?: string;
   /** Featured model IDs (must exist in availableModels) — for card copy. */
   featuredModelIds: string[];
 };
@@ -47,27 +52,35 @@ export const CODING_PLANS: Record<CodingPlanId, CodingPlan> = {
     id: 'glm-coding-plan',
     provider: 'z-ai',
     displayName: 'GLM Coding Plan',
+    displayNameKey: 'settings.models.plan.glm.displayName',
     tagline: 'GLM-5.2, 5.1, 5V-Turbo via Z.ai subscription',
+    taglineKey: 'settings.models.plan.glm.tagline',
     subscribeUrl: 'https://z.ai/subscribe',
     apiKeyUrl: 'https://z.ai/manage-apikey/apikey-list',
     helpText: 'Get your key at z.ai → Manage API keys',
+    helpTextKey: 'settings.models.plan.glm.helpText',
     apiKeyPattern: '^[0-9a-f]{32}\\.[A-Za-z0-9]+$',
     baseUrl: 'https://api.z.ai/api/coding/paas/v4',
     validationBaseUrl: 'https://api.z.ai/api/coding/paas/v4',
     validationModelId: 'glm-5.2',
     endpointHelpText: 'Routed through api.z.ai/api/coding/paas/v4.',
+    endpointHelpTextKey: 'settings.models.plan.glm.endpointHelpText',
     disclaimer:
       'stagewise is not yet an officially supported tool for the GLM Coding Plan. We are working with Z.ai on a partnership.',
+    disclaimerKey: 'settings.models.plan.glm.disclaimer',
     featuredModelIds: ['glm-5.2', 'glm-5.1', 'glm-5v-turbo'],
   },
   'kimi-plan': {
     id: 'kimi-plan',
     provider: 'moonshotai',
     displayName: 'Kimi',
+    displayNameKey: 'settings.models.plan.kimi.displayName',
     tagline: 'Kimi K2-series via Moonshot platform',
+    taglineKey: 'settings.models.plan.kimi.tagline',
     subscribeUrl: 'https://platform.moonshot.ai/pricing',
     apiKeyUrl: 'https://platform.moonshot.ai/console/api-keys',
     helpText: 'Create one at platform.moonshot.ai → Console → API keys',
+    helpTextKey: 'settings.models.plan.kimi.helpText',
     apiKeyPattern: '^sk-[A-Za-z0-9]{48}$',
     featuredModelIds: ['kimi-k2.7-code', 'kimi-k2.6', 'kimi-k2.5'],
   },
@@ -75,42 +88,48 @@ export const CODING_PLANS: Record<CodingPlanId, CodingPlan> = {
     id: 'qwen-plan',
     provider: 'alibaba',
     displayName: 'Qwen Coding Plan',
+    displayNameKey: 'settings.models.plan.qwen.displayName',
     tagline: 'Qwen3-Coder via Alibaba DashScope',
+    taglineKey: 'settings.models.plan.qwen.tagline',
     subscribeUrl: 'https://www.alibabacloud.com/product/modelstudio',
     apiKeyUrl: 'https://dashscope.console.aliyun.com/apiKey',
     helpText: 'Create one at dashscope.console.aliyun.com → API-KEY',
+    helpTextKey: 'settings.models.plan.qwen.helpText',
     apiKeyPattern: '^sk-[a-f0-9]{32}$',
     featuredModelIds: ['qwen3-coder-30b-a3b-instruct', 'qwen3-32b'],
   },
   'minimax-plan': {
     id: 'minimax-plan',
     provider: 'minimax',
-    displayName: 'MiniMax Token Plan',
-    tagline: 'MiniMax M-series via Token Plan subscription',
+    displayName: 'MiniMax',
+    displayNameKey: 'settings.models.plan.minimax.displayName',
+    tagline: 'MiniMax M-series via platform.minimax.io',
+    taglineKey: 'settings.models.plan.minimax.tagline',
     subscribeUrl: 'https://platform.minimax.io/subscribe/token-plan',
     apiKeyUrl:
       'https://platform.minimax.io/user-center/basic-information/interface-key',
-    helpText:
-      'Token Plan keys start with sk-cp-. Subscribe at platform.minimax.io → Token Plan.',
-    apiKeyPattern: '^sk-cp-',
-    endpointHelpText:
-      'Token Plan keys are validated against the /v1/token_plan/remains endpoint.',
+    helpText: 'Create one at platform.minimax.io → User Center → Interface key',
+    helpTextKey: 'settings.models.plan.minimax.helpText',
     featuredModelIds: ['minimax-m3', 'minimax-m2.7'],
   },
   'mimo-plan': {
     id: 'mimo-plan',
     provider: 'xiaomi-mimo',
     displayName: 'Xiaomi MiMo',
+    displayNameKey: 'settings.models.plan.mimo.displayName',
     tagline: 'MiMo V2.5-series via platform.xiaomimimo.com',
+    taglineKey: 'settings.models.plan.mimo.tagline',
     subscribeUrl: 'https://platform.xiaomimimo.com/#/token-plan',
     apiKeyUrl: 'https://platform.xiaomimimo.com/#/console/plan-manage',
     helpText: 'Get your tp- key at platform.xiaomimimo.com → Subscription',
+    helpTextKey: 'settings.models.plan.mimo.helpText',
     apiKeyPattern: '^tp-[A-Za-z0-9]+$',
     baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
     validationBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
     validationModelId: 'mimo-v2.5',
     endpointHelpText:
       'MiMo Token Plan keys (tp-xxxxx) are routed through https://token-plan-cn.xiaomimimo.com/v1. Singapore and Europe clusters are also available (token-plan-sgp / token-plan-ams).',
+    endpointHelpTextKey: 'settings.models.plan.mimo.endpointHelpText',
     featuredModelIds: ['mimo-v2.5-pro', 'mimo-v2.5'],
   },
 };

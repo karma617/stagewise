@@ -5,6 +5,7 @@ import { BrainIcon } from 'lucide-react';
 import { Streamdown } from '@ui/components/streamdown';
 import { ToolPartUI } from './tools/shared/tool-part-ui';
 import { useToolAutoExpand } from './tools/shared/use-tool-auto-expand';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const ThinkingPart = ({
   part,
@@ -19,6 +20,7 @@ export const ThinkingPart = ({
   isLastPart?: boolean;
   capMaxHeight?: boolean;
 }) => {
+  const { t } = useI18n();
   const isStreaming = part.state === 'streaming';
 
   // Use the unified auto-expand hook
@@ -56,13 +58,13 @@ export const ThinkingPart = ({
               'Thinking...'
             ) : part.state === 'done' && formattedThinkingDuration ? (
               <>
-                <span className="shrink-0 truncate font-medium">Thought </span>
+                <span className="shrink-0 truncate font-medium">{t('tools.thinking.thought')} </span>
                 <span className={'font-normal opacity-75'}>
                   for {formattedThinkingDuration}
                 </span>
               </>
             ) : (
-              <span className="shrink-0 truncate font-medium">Thought</span>
+              <span className="shrink-0 truncate font-medium">{t('tools.thinking.thought')}</span>
             )}
           </span>
         </>

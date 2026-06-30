@@ -15,6 +15,10 @@ export interface LogChannelDisplayEntry {
 export interface LogChannelSectionProps {
   channels: LogChannelDisplayEntry[];
   onClear?: (filename: string) => void;
+  labels?: {
+    clearLog: string;
+    entryCount: (count: number) => string;
+  };
 }
 
 /**
@@ -60,6 +64,10 @@ function extractMessage(obj: Record<string, unknown>, rawLine: string): string {
 export function buildLogChannelSections({
   channels,
   onClear,
+  labels = {
+    clearLog: 'Clear log',
+    entryCount: (count) => `${count} ${count === 1 ? 'entry' : 'entries'}`,
+  },
 }: LogChannelSectionProps): StatusCardSection[] {
   return channels.map((channel) => {
     const channelName = channel.filename.replace(/\.jsonl$/, '');
@@ -112,8 +120,7 @@ export function buildLogChannelSections({
             <IconBugOutline18 className="size-3 shrink-0" />
             <span className="truncate">{channelName}</span>
             <span className="shrink-0 text-subtle-foreground">
-              {channel.lineCount}{' '}
-              {channel.lineCount === 1 ? 'entry' : 'entries'}
+              {labels.entryCount(channel.lineCount)}
             </span>
           </div>
           {onClear && channel.lineCount > 0 && (
@@ -127,7 +134,7 @@ export function buildLogChannelSections({
                   onClear(channel.filename);
                 }}
               >
-                Clear log
+                {labels.clearLog}
               </Button>
             </div>
           )}

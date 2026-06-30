@@ -1,10 +1,10 @@
 export interface TutorialStep {
   /** CSS selector for the DOM element to highlight */
   targetSelector: string;
-  /** Step title shown in the popover */
-  title: string;
-  /** Step description in markdown format */
-  description: string;
+  /** i18n key for the step title shown in the popover */
+  titleKey: string;
+  /** i18n key for the step description in markdown format */
+  descriptionKey: string;
 }
 
 export interface TutorialDefinition {

@@ -30,6 +30,7 @@ import type { ElementAttachmentAttrs } from '../types';
 import type { InlineNodeViewProps } from '../../shared/types';
 import { truncateLabel, InlineBadge, InlineBadgeWrapper } from '../../shared';
 import type { SelectedElement } from '@shared/selected-elements';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const displayedAttributes = [
   'id',
@@ -71,6 +72,7 @@ function ScreenshotThumbnail({
   src: string;
   className?: string;
 }) {
+  const { t } = useI18n();
   const [retry, setRetry] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -101,7 +103,7 @@ function ScreenshotThumbnail({
       {!gaveUp && (
         <img
           src={cacheBustedSrc}
-          alt="Element screenshot"
+          alt={t('chat.attachments.elementScreenshot')}
           className={`absolute inset-0 size-full object-cover ${
             loaded ? '' : 'invisible'
           }`}
@@ -134,6 +136,7 @@ function ElementPreviewContent({
   effectiveTagName?: string;
   blobData: SwDomBlobData | null;
 }) {
+  const { t } = useI18n();
   const tabs = useKartonState((s) => s.contentTabs.tabs);
   const switchTab = useKartonProcedure((p) => p.browser.switchTab);
   const scrollToElement = useKartonProcedure((p) => p.browser.scrollToElement);
@@ -326,7 +329,7 @@ function ElementPreviewContent({
         {screenshotUrl && (
           <img
             src={screenshotUrl}
-            alt="Element screenshot"
+            alt={t('chat.attachments.elementScreenshot')}
             className="max-h-40 w-full rounded object-contain"
           />
         )}
@@ -334,7 +337,7 @@ function ElementPreviewContent({
         {/* Node type + size + inner text summary */}
         {tagLabel && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Node type</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.nodeType')}</p>
             <div className="w-full font-mono text-2xs text-muted-foreground leading-tight">
               {tagLabel}
             </div>
@@ -342,7 +345,7 @@ function ElementPreviewContent({
         )}
         {elementSize && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Size</p>
+            <p className="font-medium text-foreground text-xs">{t('common.size')}</p>
             <div className="w-full font-mono text-2xs text-muted-foreground leading-tight">
               {elementSize.width} × {elementSize.height}px
             </div>
@@ -350,7 +353,7 @@ function ElementPreviewContent({
         )}
         {innerTextPreview && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Text</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.text')}</p>
             <div className="line-clamp-3 w-full text-2xs text-muted-foreground leading-tight">
               {innerTextPreview}
             </div>
@@ -359,7 +362,7 @@ function ElementPreviewContent({
 
         {xpath && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">XPath</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.xpath')}</p>
             <div className="w-full break-all font-mono text-2xs text-muted-foreground leading-tight">
               {xpath}
             </div>
@@ -367,7 +370,7 @@ function ElementPreviewContent({
         )}
         {pageUrl && !selectedElement && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Page</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.page')}</p>
             <div className="w-full break-all font-mono text-2xs text-muted-foreground leading-tight">
               {pageUrl}
             </div>
@@ -390,7 +393,7 @@ function ElementPreviewContent({
         )}
         {selectedElement?.frameTitle && (
           <div className="flex flex-col items-stretch justify-start">
-            <p className="font-medium text-foreground text-xs">Frame Title</p>
+            <p className="font-medium text-foreground text-xs">{t('chat.attachments.frameTitle')}</p>
             <div className="w-full break-all font-mono text-2xs text-muted-foreground leading-tight">
               {selectedElement.frameTitle}
             </div>
@@ -541,6 +544,7 @@ interface SwDomBlobData {
 }
 
 export function ElementAttachmentView(props: InlineNodeViewProps) {
+  const { t } = useI18n();
   const attrs = props.node.attrs as ElementAttachmentAttrs;
   const isEditable = !('viewOnly' in props);
   const [openAgent] = useOpenAgent();

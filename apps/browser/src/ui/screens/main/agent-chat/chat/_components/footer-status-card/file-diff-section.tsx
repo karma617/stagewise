@@ -38,6 +38,11 @@ export interface FileDiffSectionProps {
   onRejectAll: (hunkIds: string[]) => void;
   onAcceptAll: (hunkIds: string[]) => void;
   onOpenDiffReview: (fileId: string) => void;
+  labels?: {
+    acceptAll: string;
+    editCount: (count: number) => string;
+    reject: string;
+  };
 }
 
 export function formatFileDiff(fileDiff: FileDiff): FormattedFileDiff {
@@ -268,9 +273,11 @@ function FileDiffList({
 function AcceptAllButton({
   hunkIds,
   onAcceptAll,
+  label,
 }: {
   hunkIds: string[];
   onAcceptAll: (hunkIds: string[]) => void;
+  label: string;
 }) {
   const { setRef, isWinner } = useCmdEnterTarget({
     id: 'file-diff-accept-all',
@@ -289,7 +296,7 @@ function AcceptAllButton({
         onAcceptAll(hunkIds);
       }}
     >
-      Accept all
+      {label}
       {isWinner && (
         <HotkeyCombo
           action={HotkeyActions.CMD_ENTER}
@@ -314,6 +321,11 @@ export function FileDiffSection(
     onRejectAll,
     onAcceptAll,
     onOpenDiffReview,
+    labels = {
+      acceptAll: 'Accept all',
+      editCount: (count) => `${count} Edit${count > 1 ? 's' : ''}`,
+      reject: 'Reject',
+    },
   } = props;
 
   // Filter out noops from summary (rejected edits with no actual changes)
@@ -336,14 +348,9 @@ export function FileDiffSection(
             isOpen && 'rotate-180',
           )}
         />
-        {pendingDiffs?.length > 0 ? (
-          `${pendingDiffs.length} Edit${pendingDiffs.length > 1 ? 's' : ''}`
-        ) : (
-          <span>
-            {filteredSummary.length} Edit
-            {filteredSummary.length > 1 ? 's' : ''}
-          </span>
-        )}
+        {pendingDiffs?.length > 0
+          ? labels.editCount(pendingDiffs.length)
+          : labels.editCount(filteredSummary.length)}
 
         {pendingDiffs?.length > 0 && isOpen ? (
           <div className="ml-auto flex flex-row items-center justify-start gap-1">
@@ -358,11 +365,12 @@ export function FileDiffSection(
                 );
               }}
             >
-              Reject
+              {labels.reject}
             </Button>
             <AcceptAllButton
               hunkIds={pendingDiffs?.flatMap((diff) => getHunkIds(diff)) ?? []}
               onAcceptAll={onAcceptAll}
+              label={labels.acceptAll}
             />
           </div>
         ) : (

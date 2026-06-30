@@ -3,6 +3,7 @@ import { Select, type SelectItem } from '@stagewise/stage-ui/components/select';
 import { IdeLogo } from '@ui/components/ide-logo';
 import { IDE_SELECTION_ITEMS } from '@ui/utils';
 import type { OpenFilesInIde } from '@shared/karton-contracts/ui/shared-types';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export function IdePickerPopover({
   children,
@@ -11,21 +12,22 @@ export function IdePickerPopover({
   children: ReactElement;
   onSelect: (ide: OpenFilesInIde) => void;
 }) {
+  const { t } = useI18n();
   const items: SelectItem<OpenFilesInIde>[] = useMemo(
     () => [
-      { value: 'cursor', label: 'Cursor', group: 'Open files in:' },
-      { value: 'vscode', label: 'VS Code', group: 'Open files in:' },
-      { value: 'zed', label: 'Zed', group: 'Open files in:' },
-      { value: 'kiro', label: 'Kiro', group: 'Open files in:' },
-      { value: 'windsurf', label: 'Windsurf', group: 'Open files in:' },
-      { value: 'trae', label: 'Trae', group: 'Open files in:' },
+      { value: 'cursor', label: 'Cursor', group: t('fileTree.openFilesIn') },
+      { value: 'vscode', label: 'VS Code', group: t('fileTree.openFilesIn') },
+      { value: 'zed', label: 'Zed', group: t('fileTree.openFilesIn') },
+      { value: 'kiro', label: 'Kiro', group: t('fileTree.openFilesIn') },
+      { value: 'windsurf', label: 'Windsurf', group: t('fileTree.openFilesIn') },
+      { value: 'trae', label: 'Trae', group: t('fileTree.openFilesIn') },
       {
         value: 'other',
         label: IDE_SELECTION_ITEMS.other,
-        group: 'Open files in:',
+        group: t('fileTree.openFilesIn'),
       },
     ],
-    [],
+    [t],
   );
 
   const itemsWithIcons: SelectItem<OpenFilesInIde>[] = useMemo(
@@ -41,7 +43,7 @@ export function IdePickerPopover({
     <Select<OpenFilesInIde>
       items={itemsWithIcons}
       onValueChange={(value) => onSelect(value)}
-      placeholder="Open files in…"
+      placeholder={t('common.openFilesIn')}
       size="xs"
       side="top"
       sideOffset={6}

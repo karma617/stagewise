@@ -3,6 +3,7 @@ import type { MermaidConfig } from 'mermaid';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@ui/utils';
 import { getMermaidCache } from '@ui/hooks/use-mermaid-cache';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const initializeMermaid = async (customConfig?: MermaidConfig) => {
   const defaultConfig: MermaidConfig = {
@@ -32,6 +33,7 @@ type MermaidProps = {
 };
 
 export const Mermaid = ({ chart, className, config }: MermaidProps) => {
+  const { t } = useI18n();
   const cachedEntry = mermaidCache.get(chart, config);
 
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +113,7 @@ export const Mermaid = ({ chart, className, config }: MermaidProps) => {
       <div className={cn('my-4 flex justify-center p-4', className)}>
         <div className="flex items-center space-x-2 text-muted-foreground">
           <div className="h-4 w-4 animate-spin rounded-full border-current border-b-2" />
-          <span className="text-sm">Loading diagram...</span>
+          <span className="text-sm">{t('tools.mermaid.loading')}</span>
         </div>
       </div>
     );
@@ -142,7 +144,7 @@ export const Mermaid = ({ chart, className, config }: MermaidProps) => {
 
   return (
     <div
-      aria-label="Mermaid chart"
+      aria-label={t('tools.mermaid.chart')}
       className={cn('my-4 flex justify-center', className)}
       dangerouslySetInnerHTML={{ __html: displaySvg }}
       role="img"

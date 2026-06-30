@@ -13,13 +13,15 @@ import {
   IconHotDrinkOutline18,
   IconOpenRectArrowInOutline18,
 } from 'nucleo-ui-outline-18';
+import { useI18n } from '@ui/hooks/use-i18n';
 
-function getPlanLabel(plan: string | undefined): string {
-  if (!plan) return 'Free';
+function getPlanLabel(plan: string | undefined, freeLabel: string): string {
+  if (!plan) return freeLabel;
   return plan.charAt(0).toUpperCase() + plan.slice(1).toLowerCase();
 }
 
 export function SidebarAuthFooter() {
+  const { t } = useI18n();
   const track = useTrack();
   const openSettings = useKartonProcedure((p) => p.appScreen.openSettings);
   const closeSettings = useKartonProcedure((p) => p.appScreen.closeSettings);
@@ -83,10 +85,10 @@ export function SidebarAuthFooter() {
             </div>
             <div className="flex w-full min-w-0 flex-col items-start gap-px overflow-hidden">
               <span className="truncate font-medium text-foreground text-sm leading-tight">
-                {getPlanLabel(plan)}
+                {getPlanLabel(plan, t('sidebarAuth.plan.free'))}
               </span>
               <span className="truncate text-muted-foreground text-xs leading-tight">
-                {email ?? 'Unknown'}
+                {email ?? t('sidebarAuth.unknownUser')}
               </span>
             </div>
           </button>
@@ -99,7 +101,7 @@ export function SidebarAuthFooter() {
             <div className="flex min-w-0 flex-row items-center gap-2">
               <IconOpenRectArrowInOutline18 className="size-5 text-foreground" />
               <span className="font-medium text-foreground text-sm leading-tight">
-                Not signed in
+                {t('sidebarAuth.notSignedIn')}
               </span>
             </div>
           </button>
@@ -114,8 +116,8 @@ export function SidebarAuthFooter() {
                   size="icon-sm"
                   aria-label={
                     closedLidSleep.isSleepDisabled
-                      ? 'Re-enable sleep on closed lid'
-                      : 'Prevent sleep on closed lid'
+                      ? t('sidebarAuth.closedLidSleep.enable')
+                      : t('sidebarAuth.closedLidSleep.disable')
                   }
                   className="app-no-drag shrink-0"
                   aria-disabled={closedLidSleep.isChanging}
@@ -135,8 +137,8 @@ export function SidebarAuthFooter() {
                 <div className="flex max-w-64 flex-col gap-1">
                   <span>
                     {closedLidSleep.isSleepDisabled
-                      ? 'Re-enable sleep on closed lid'
-                      : 'Prevent sleep on closed lid'}
+                      ? t('sidebarAuth.closedLidSleep.enable')
+                      : t('sidebarAuth.closedLidSleep.disable')}
                   </span>
                   {closedLidSleep.persistenceWarning && (
                     <span className="text-muted-foreground text-xs">
@@ -153,7 +155,11 @@ export function SidebarAuthFooter() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label={isSettingsOpen ? 'Close settings' : 'Settings'}
+                aria-label={
+                  isSettingsOpen
+                    ? t('sidebarAuth.settings.close')
+                    : t('sidebarAuth.settings.open')
+                }
                 className="app-no-drag shrink-0"
                 onClick={handleToggleSettings}
                 aria-pressed={isSettingsOpen}
@@ -167,7 +173,9 @@ export function SidebarAuthFooter() {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              {isSettingsOpen ? 'Close settings' : 'Settings'}
+              {isSettingsOpen
+                ? t('sidebarAuth.settings.close')
+                : t('sidebarAuth.settings.open')}
             </TooltipContent>
           </Tooltip>
         </div>

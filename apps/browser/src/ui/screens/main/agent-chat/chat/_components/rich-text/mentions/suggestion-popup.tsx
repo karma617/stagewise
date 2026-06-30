@@ -25,6 +25,7 @@ import { MentionIcon } from './mention-icon';
 import { FilePathTree } from './file-path-tree';
 import { WorkspacePreviewSummary } from './workspace-preview-summary';
 import { getWorkspaceDisplayLabel } from '@ui/utils/workspace-display';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 type SidePanelContent =
   | {
@@ -210,6 +211,7 @@ export function SuggestionPopup({
   tabs,
   mounts,
 }: SuggestionPopupProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<number, HTMLButtonElement | null>>(new Map());
   const sidePanelRef = useRef<HTMLDivElement>(null);

@@ -31,6 +31,7 @@ import {
 import { ShortcutCombo } from '@stagewise/stage-ui/components/shortcut-key';
 import { HotkeyCombo } from '@ui/components/hotkey-combo';
 import { Tutorial } from '@ui/components/tutorial';
+import { useI18n } from '@ui/hooks/use-i18n';
 import {
   configureAttachmentExtensions,
   ALL_ATTACHMENT_NODE_NAMES,
@@ -118,7 +119,7 @@ function getSlashCycleItems(): SlashCycleItem[] {
 
 function isZeroWidthTextNode(node: ProseMirrorNode) {
   if (!node.isText) return false;
-  return (node.text ?? '').replaceAll('\u200B', '').length === 0;
+  return (node.text ?? '').replaceAll('​', '').length === 0;
 }
 
 function findLeadingSlashNode(doc: ProseMirrorNode): LeadingSlashNode | null {
@@ -302,11 +303,15 @@ export const ChatInput = memo(function ChatInput({
   className,
   ref,
 }: ChatInputProps) {
+  const { t } = useI18n();
   const shownPlaceholder = useRef('');
   useEffect(() => {
     shownPlaceholder.current =
       placeholder ??
-      `Use / to plan and run commands. Use @ for context. ${hasQueuedMessages ? 'Press ↵ to send now' : ''}`;
+      t('chat.input.placeholder').replace(
+        '{queued}',
+        hasQueuedMessages ? t('chat.input.queuedHint') : '',
+      );
   }, [placeholder, hasQueuedMessages]);
   const staticPlaceholderRef = useRef(() => shownPlaceholder.current);
 
@@ -591,7 +596,7 @@ export const ChatInput = memo(function ChatInput({
   // element children rather than inside a text node, causing the browser's Selection API to
   // return a zero rect - resulting in a mispositioned, oversized cursor.
   //
-  // This MutationObserver injects zero-width space text nodes (\u200B) at positions where
+  // This MutationObserver injects zero-width space text nodes (​) at positions where
   // the cursor would otherwise be at an element boundary with no text node to anchor to.
   useEffect(() => {
     const editorElement = editor?.view?.dom;
@@ -614,7 +619,7 @@ export const ChatInput = memo(function ChatInput({
           // Fix BEFORE badge: ensure a text node exists so the cursor can anchor to it
           const prev = renderer.previousSibling;
           if (!prev || prev.nodeType !== 3) {
-            const textNode = document.createTextNode('\u200B');
+            const textNode = document.createTextNode('​');
             renderer.parentNode?.insertBefore(textNode, renderer);
           }
 
@@ -632,7 +637,7 @@ export const ChatInput = memo(function ChatInput({
                 (next as Element).classList?.contains(`node-${name}`),
               );
             if (isProblematic) {
-              const textNode = document.createTextNode('\u200B');
+              const textNode = document.createTextNode('​');
               renderer.parentNode?.insertBefore(textNode, next);
             }
           }
@@ -895,6 +900,7 @@ export const ChatInputActions = memo(function ChatInputActions({
   canSendMessage,
   onSubmit,
 }: ChatInputActionsProps) {
+  const { t } = useI18n();
   // Always show the send button; show stop button alongside it when agent is working
   const showStopButton = isAgentWorking && !hasPendingQuestion && !!onStop;
   const showSendButton = true;
@@ -919,7 +925,7 @@ export const ChatInputActions = memo(function ChatInputActions({
                   e.stopPropagation();
                   onToggleElementSelection?.();
                 }}
-                aria-label="Select context elements"
+                aria-label={t('chat.input.selectContext')}
               >
                 <SquareDashedMousePointerIcon className="size-3.5 stroke-[2.5px]" />
               </Button>
@@ -928,8 +934,8 @@ export const ChatInputActions = memo(function ChatInputActions({
               <span className="flex items-center gap-1.5">
                 <span>
                   {elementSelectionActive
-                    ? 'Stop selecting elements'
-                    : 'Add reference elements'}
+                    ? t('chat.input.stopSelecting')
+                    : t('chat.input.addReference')}
                 </span>
                 {elementSelectionActive ? (
                   <ShortcutCombo value="Esc" size="xs" />
@@ -957,7 +963,7 @@ export const ChatInputActions = memo(function ChatInputActions({
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="Attach file"
+                aria-label={t('chat.input.attachFile')}
                 className="mb-1 shrink-0"
                 onClick={() => {
                   const input = document.getElementById(
@@ -977,7 +983,7 @@ export const ChatInputActions = memo(function ChatInputActions({
                 <IconPaperclip2Outline18 className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Attach file</TooltipContent>
+            <TooltipContent>{t('chat.input.attachFile')}</TooltipContent>
           </Tooltip>
         </>
       )}
@@ -988,7 +994,7 @@ export const ChatInputActions = memo(function ChatInputActions({
             <TooltipTrigger>
               <Button
                 onClick={onStop}
-                aria-label="Stop agent"
+                aria-label={t('chat.input.stopAgent')}
                 variant="secondary"
                 className="group z-10 size-8 shrink-0 cursor-pointer rounded-full p-1 opacity-100! shadow-md"
               >
@@ -997,7 +1003,7 @@ export const ChatInputActions = memo(function ChatInputActions({
             </TooltipTrigger>
             <TooltipContent>
               <span className="flex items-center gap-1.5">
-                <span>Stop agent</span>
+                <span>{t('chat.input.stopAgent')}</span>
                 <HotkeyCombo action={HotkeyActions.STOP_AGENT} size="xs" />
                 <ShortcutCombo value="Esc" size="xs" />
               </span>
@@ -1010,14 +1016,14 @@ export const ChatInputActions = memo(function ChatInputActions({
               <Button
                 disabled={!canSendMessage}
                 onClick={onSubmit}
-                aria-label="Send message"
+                aria-label={t('chat.input.sendMessage')}
                 variant="primary"
                 className="z-10 size-8 shrink-0 cursor-pointer rounded-full p-1 shadow-md transition-all disabled:opacity-50"
               >
                 <ArrowUpIcon className="size-4 stroke-3" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Send message</TooltipContent>
+            <TooltipContent>{t('chat.input.sendMessage')}</TooltipContent>
           </Tooltip>
         )}
       </div>

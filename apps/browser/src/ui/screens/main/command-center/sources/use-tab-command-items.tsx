@@ -4,6 +4,7 @@ import type { TabState } from '@shared/karton-contracts/ui';
 import { CommandCenterTabFavicon } from '../_components/command-center-tab-favicon';
 import type { TabCommandItem } from '../command-center-model';
 import { filterAndRankCommandCenterItems } from '../command-center-search';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 function tabsEqual(a: TabCommandItem[], b: TabCommandItem[]) {
   if (a.length !== b.length) return false;
@@ -27,13 +28,15 @@ function tabsEqual(a: TabCommandItem[], b: TabCommandItem[]) {
   return true;
 }
 
-function tabTitle(tab: TabState) {
+function tabTitle(tab: TabState, untitledTab: string) {
   if (tab.title.trim()) return tab.title;
   if (tab.url.trim()) return tab.url;
-  return 'Untitled Tab';
+  return untitledTab;
 }
 
 export function useTabCommandItems(query: string) {
+  const { t } = useI18n();
+  const untitledTab = t('commandCenter.tab.untitled');
   const tabs = useKartonState(
     useComparingSelector((s): TabCommandItem[] => {
       const activeTabId = s.contentTabs.activeTabId;
@@ -43,7 +46,7 @@ export function useTabCommandItems(query: string) {
           // search/switching will be added later as its own command source.
           .filter((tab) => tab.type === undefined || tab.type === 'browser')
           .map((tab) => {
-            const title = tabTitle(tab);
+            const title = tabTitle(tab, untitledTab);
 
             return {
               id: `tab:${tab.id}`,

@@ -18,6 +18,7 @@ import {
 } from '@shared/credential-types';
 import type { CredentialTypeId } from '@shared/credential-types';
 import type { z } from 'zod';
+import { useI18n } from '@ui/hooks/use-i18n';
 import {
   IconPuzzlePieceOutline18,
   IconChevronRightOutline18,
@@ -56,18 +57,19 @@ function PluginCard({
   isEnabled: boolean;
   onOpenDetails: () => void;
 }) {
+  const { t } = useI18n();
   const pluginMetaText = useMemo(() => {
     let text = '';
     if (plugin.skills.length > 0)
-      text += `${plugin.skills.length} ${plugin.skills.length === 1 ? 'skill' : 'skills'}`;
+      text += t(plugin.skills.length === 1 ? 'settings.plugins.meta.skillsSingular' : 'settings.plugins.meta.skillsPlural').replace('{n}', String(plugin.skills.length));
 
     if (plugin.requiredCredentials?.length > 0) {
       if (text.length > 0) text += ', ';
-      text += 'credentials';
+      text += t('settings.plugins.meta.credentials');
     }
 
     return text;
-  }, [plugin.requiredCredentials, plugin.skills]);
+  }, [plugin.requiredCredentials, plugin.skills, t]);
   return (
     <div
       className={cn(
@@ -168,7 +170,8 @@ function CredentialFieldInput({
   onSave: (typeId: string, data: Record<string, string>) => Promise<void>;
   onDelete: (typeId: string) => Promise<void>;
 }) {
-  const DOTS = '\u2022'.repeat(32);
+  const { t } = useI18n();
+  const DOTS = '•'.repeat(32);
   const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -209,11 +212,9 @@ function CredentialFieldInput({
           ref={inputRef}
           type="password"
           value={showDots ? DOTS : inputValue}
-          placeholder={
-            isConfigured ? undefined : `Enter ${label.toLowerCase()}...`
-          }
+          placeholder={isConfigured ? undefined : t('settings.plugins.credential.enterPlaceholder').replace('{label}', label.toLowerCase())}
           onValueChange={(v) => {
-            const newValue = v.replaceAll('\u2022', '');
+            const newValue = v.replaceAll('•', '');
             setInputValue(newValue);
             setSaved(false);
           }}
@@ -245,11 +246,11 @@ function CredentialFieldInput({
             onClick={() => void handleSave()}
             disabled={isSaving}
           >
-            Save
+            {t('settings.plugins.credential.save')}
           </Button>
         ) : isConfigured ? (
           <Button variant="ghost" size="sm" onClick={handleDelete}>
-            Clear
+            {t('settings.plugins.credential.clear')}
           </Button>
         ) : null}
       </div>
@@ -268,7 +269,7 @@ function CredentialFieldInput({
                       buttonVariants({ variant: 'link', size: 'xs' }),
                     )}
                   >
-                    (Learn more)
+                    {t('settings.plugins.credential.learnMore')}
                   </a>
                 </TooltipTrigger>
                 <TooltipContent>{metadata.helpUrl}</TooltipContent>
@@ -303,6 +304,7 @@ function PluginDetailView({
   ) => Promise<void>;
   deleteCredential: (typeId: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const userVisibleCredentials = useMemo(
     () => plugin.requiredCredentials.filter((id) => id !== 'stagewise-auth'),
     [plugin.requiredCredentials],
@@ -312,14 +314,14 @@ function PluginDetailView({
     const parts: string[] = [];
     if (plugin.skills.length > 0)
       parts.push(
-        `${plugin.skills.length} ${plugin.skills.length === 1 ? 'skill' : 'skills'}`,
+        t(plugin.skills.length === 1 ? 'settings.plugins.meta.skillsSingular' : 'settings.plugins.meta.skillsPlural').replace('{n}', String(plugin.skills.length)),
       );
     if (userVisibleCredentials.length > 0)
       parts.push(
-        `${userVisibleCredentials.length} ${userVisibleCredentials.length === 1 ? 'credential' : 'credentials'}`,
+        t(userVisibleCredentials.length === 1 ? 'settings.plugins.meta.credentialSingular' : 'settings.plugins.meta.credentialPlural').replace('{n}', String(userVisibleCredentials.length)),
       );
     return parts.join(', ');
-  }, [plugin.skills, userVisibleCredentials]);
+  }, [plugin.skills, userVisibleCredentials, t]);
 
   return (
     <div className="h-full w-full">
@@ -389,6 +391,7 @@ function PluginDetailView({
 }
 
 export function PluginsSection() {
+  const { t } = useI18n();
   const preferences = useKartonState((s) => s.preferences);
   const updatePreferences = useKartonProcedure((p) => p.preferences.update);
   const getConfiguredCredentialIds = useKartonProcedure(
@@ -478,16 +481,15 @@ export function PluginsSection() {
         <div className="mx-auto max-w-3xl space-y-8">
           {/* Header */}
           <div>
-            <h1 className="font-semibold text-foreground text-xl">Plugins</h1>
+            <h1 className="font-semibold text-foreground text-xl">{t('settings.plugins.title')}</h1>
             <p className="text-muted-foreground text-sm">
-              Enable or disable plugins to extend the agent's capabilities with
-              additional skills.
+              {t('settings.plugins.description')}
             </p>
           </div>
           {enabledPlugins.length > 0 && (
             <>
               <div className="pb-1.5 text-muted-foreground text-xs">
-                Enabled
+                {t('settings.plugins.enabled')}
               </div>
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {enabledPlugins.map((plugin) => (
@@ -504,7 +506,7 @@ export function PluginsSection() {
           {disabledPlugins.length > 0 && (
             <>
               <div className="mt-6 pb-1.5 text-subtle-foreground text-xs">
-                Disabled
+                {t('settings.plugins.disabled')}
               </div>
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {disabledPlugins.map((plugin) => (

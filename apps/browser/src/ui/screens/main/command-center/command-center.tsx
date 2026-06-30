@@ -40,6 +40,7 @@ import { CommandCenterOverlay } from './_components/command-center-overlay';
 import { CommandCenterPanel } from './_components/command-center-panel';
 import { CommandCenterResults } from './_components/command-center-results';
 import type { FileSearchFilterState } from './sources/use-file-command-items';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 function stringArraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
@@ -58,6 +59,7 @@ function hasActiveInputSelection(input: HTMLInputElement | null): boolean {
 const commandCenterModalActiveAttribute = 'data-command-center-modal-active';
 
 export function CommandCenter() {
+  const { t } = useI18n();
   const {
     isOpen,
     query,
@@ -194,7 +196,24 @@ export function CommandCenter() {
   } | null>(null);
   const [renamingAgentId, setRenamingAgentId] = useState<string | null>(null);
   const [hasInputSelection, setHasInputSelection] = useState(false);
-  const filesSectionLabel = fileIsRecent ? 'Last changed' : 'Files';
+  const groupLabels = useMemo(
+    () => ({
+      actions: t('commandCenter.group.actions'),
+      agents: t('commandCenter.group.agents'),
+      browser: t('commandCenter.group.browser'),
+      files: t('commandCenter.group.files'),
+      last30Days: t('commandCenter.group.last30Days'),
+      last7Days: t('commandCenter.group.last7Days'),
+      older: t('commandCenter.group.older'),
+      settings: t('commandCenter.group.settings'),
+      today: t('commandCenter.group.today'),
+      yesterday: t('commandCenter.group.yesterday'),
+    }),
+    [t],
+  );
+  const filesSectionLabel = fileIsRecent
+    ? t('commandCenter.group.lastChanged')
+    : groupLabels.files;
   // The gitignored toggle is only meaningful when a currently-searched
   // workspace is a git repository / worktree.
   const canToggleGitignored = useMemo(() => {
@@ -207,8 +226,12 @@ export function CommandCenter() {
     );
   }, [workspaceOptions, effectiveFileSearchFilter.selectedWorkspaceKeys]);
   const rows = useMemo(
-    () => buildGroupedRows(items, mode, { filesLabel: filesSectionLabel }),
-    [items, mode, filesSectionLabel],
+    () =>
+      buildGroupedRows(items, mode, {
+        filesLabel: filesSectionLabel,
+        labels: groupLabels,
+      }),
+    [items, mode, filesSectionLabel, groupLabels],
   );
   const visibleItemIndexes = useMemo(
     () => rows.filter((row) => row.type === 'item').map((row) => row.itemIndex),
@@ -882,6 +905,7 @@ export function CommandCenter() {
             items={items}
             mode={mode}
             filesLabel={filesSectionLabel}
+            groupLabels={groupLabels}
             selectedIndex={selectedIndex}
             isLoading={isLoading}
             renamingAgentId={renamingAgentId}

@@ -8,6 +8,7 @@ import {
   PopoverClose,
 } from '@stagewise/stage-ui/components/popover';
 import { Button } from '@stagewise/stage-ui/components/button';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 /**
  * Shared confirmation popover for file revert actions.
@@ -23,13 +24,14 @@ export function RevertConfirmPopover({
   onOpenChange: (open: boolean) => void;
   onConfirm: (undoToolCalls: boolean) => void;
 }) {
+  const { t } = useI18n();
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger nativeButton={false}>
         <span className="pointer-events-none absolute right-0 bottom-0 size-0" />
       </PopoverTrigger>
       <PopoverContent>
-        <PopoverTitle>Keep or revert files?</PopoverTitle>
+        <PopoverTitle>{t('dialogs.revertConfirm.title')}</PopoverTitle>
         <PopoverDescription>
           Do you want to revert file changes made after this message?
         </PopoverDescription>

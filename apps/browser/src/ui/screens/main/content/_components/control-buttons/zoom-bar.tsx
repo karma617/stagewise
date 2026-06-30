@@ -12,12 +12,15 @@ import {
 } from '@stagewise/stage-ui/components/tooltip';
 import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { HotkeyActions } from '@shared/hotkeys';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 interface ZoomBarProps {
   tabId: string;
 }
 
-export function ZoomBar({ tabId }: ZoomBarProps) {
+export function ZoomBar({
+  tabId }: ZoomBarProps) {
+  const { t } = useI18n();
   const zoomPercentage = useKartonState(
     (s) => s.contentTabs.tabs[tabId]?.zoomPercentage ?? 100,
   );
@@ -121,7 +124,7 @@ export function ZoomBar({ tabId }: ZoomBarProps) {
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="Zoom out"
+              aria-label={t('common.zoomOut')}
               onClick={zoomOut}
             >
               <IconMagnifierMinusOutline18 className="size-4" />
@@ -129,7 +132,7 @@ export function ZoomBar({ tabId }: ZoomBarProps) {
           </TooltipTrigger>
           <TooltipContent>
             <span className="flex items-center gap-1.5">
-              <span>Zoom out</span>
+              <span>{t('common.zoomOut')}</span>
               <HotkeyCombo action={HotkeyActions.ZOOM_OUT} size="xs" />
             </span>
           </TooltipContent>
@@ -142,7 +145,7 @@ export function ZoomBar({ tabId }: ZoomBarProps) {
           </TooltipTrigger>
           <TooltipContent>
             <span className="flex items-center gap-1.5">
-              <span>Reset zoom</span>
+              <span>{t('common.resetZoom')}</span>
               <HotkeyCombo action={HotkeyActions.ZOOM_RESET} size="xs" />
             </span>
           </TooltipContent>
@@ -152,7 +155,7 @@ export function ZoomBar({ tabId }: ZoomBarProps) {
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="Zoom in"
+              aria-label={t('common.zoomIn')}
               onClick={zoomIn}
             >
               <IconMagnifierPlusOutline18 className="size-4" />
@@ -160,7 +163,7 @@ export function ZoomBar({ tabId }: ZoomBarProps) {
           </TooltipTrigger>
           <TooltipContent>
             <span className="flex items-center gap-1.5">
-              <span>Zoom in</span>
+              <span>{t('common.zoomIn')}</span>
               <HotkeyCombo action={HotkeyActions.ZOOM_IN} size="xs" />
             </span>
           </TooltipContent>

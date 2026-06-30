@@ -4,8 +4,10 @@ import { ToolPartUINotCollapsible } from '../shared/tool-part-ui-not-collapsible
 import { IconBugOutline18 } from 'nucleo-ui-outline-18';
 import { stripMountPrefix } from '@ui/utils';
 import { LOGS_PREFIX } from '@stagewise/agent-core/logs';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const CreateLogToolPart = ({ part }: { part: WritePart }) => {
+  const { t } = useI18n();
   const channelName = useMemo(() => {
     const raw = stripMountPrefix(part.input?.path ?? '');
     return raw
@@ -18,7 +20,7 @@ export const CreateLogToolPart = ({ part }: { part: WritePart }) => {
   const finishedText =
     part.state === 'output-available' ? (
       <span className="flex min-w-0 gap-1">
-        <span className="shrink-0 font-medium">Enabled</span>
+        <span className="shrink-0 font-medium">{t('common.enabled')}</span>
         <span className="truncate font-normal opacity-75">
           {channelName} log
         </span>

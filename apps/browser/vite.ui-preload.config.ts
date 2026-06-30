@@ -4,7 +4,7 @@ import * as buildConstants from './build-constants';
 // https://vitejs.dev/config
 export default defineConfig({
   build: {
-    sourcemap: 'hidden',
+    sourcemap: process.env.FAST_BUILD === '1' ? false : 'hidden',
     rollupOptions: {
       output: {
         dir: '.vite/build/ui-preload',

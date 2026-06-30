@@ -1,6 +1,7 @@
 import { OverlayScrollbar } from '@stagewise/stage-ui/components/overlay-scrollbar';
 import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { useTrack } from '@ui/hooks/use-track';
+import { useI18n } from '@ui/hooks/use-i18n';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 import type {
@@ -43,7 +44,7 @@ const API_SPEC_OPTIONS: { value: ApiSpec; label: string; group: string }[] = [
   {
     value: 'openai-chat-completions',
     label: 'OpenAI (Chat Completions)',
-    group: 'Generic',
+    group: 'generic',
   },
   { value: 'openai-responses', label: 'OpenAI (Responses)', group: 'Generic' },
   { value: 'anthropic', label: 'Anthropic', group: 'Generic' },
@@ -210,6 +211,7 @@ function BedrockFields({
    */
   detectedRegion: string | undefined;
 }) {
+  const { t } = useI18n();
   // Build the dropdown items. When the saved profile is no longer in
   // the ini files (e.g. user removed it in another tool), keep it as a
   // selectable stale entry so the form doesn't silently drop it.
@@ -222,7 +224,10 @@ function BedrockFields({
     ) {
       items.unshift({
         value: awsProfileName,
-        label: `${awsProfileName} (not found)`,
+        label: t('settings.customProviders.dialog.profileNotFound').replace(
+          '{name}',
+          awsProfileName,
+        ),
       });
     }
     return items;
@@ -232,10 +237,10 @@ function BedrockFields({
     <>
       <div className="space-y-1.5">
         <p className="font-medium text-foreground text-xs">
-          AWS Region{' '}
+          {t('settings.customProviders.dialog.region')}{' '}
           {awsAuthMode !== 'access-keys' && (
             <span className="font-normal text-muted-foreground">
-              (optional override)
+              {t('settings.customProviders.dialog.regionOverride')}
             </span>
           )}
         </p>
@@ -245,7 +250,7 @@ function BedrockFields({
               ? 'us-east-1'
               : detectedRegion
                 ? detectedRegion
-                : 'from profile / AWS_REGION'
+                : t('settings.customProviders.dialog.regionFromProfile')
           }
           value={region}
           onValueChange={setRegion}
@@ -253,9 +258,9 @@ function BedrockFields({
         />
         {awsAuthMode !== 'access-keys' && detectedRegion && !region && (
           <p className="text-muted-foreground text-xs">
-            Detected region: <code className="font-mono">{detectedRegion}</code>
+            {t('settings.customProviders.dialog.detectedRegion')} <code className="font-mono">{detectedRegion}</code>
             {awsAuthMode === 'default-chain' && envRegion === detectedRegion
-              ? ' (from AWS_REGION)'
+              ? ` ${t('settings.customProviders.dialog.fromAwsRegion')}`
               : ''}
           </p>
         )}
@@ -263,14 +268,22 @@ function BedrockFields({
 
       <div className="space-y-1.5">
         <p className="font-medium text-foreground text-xs">
-          Authentication Method
+          {t('settings.customProviders.dialog.authenticationMethod')}
         </p>
         <Select
           value={awsAuthMode}
           onValueChange={(val) =>
             setAwsAuthMode(val as 'access-keys' | 'profile' | 'default-chain')
           }
-          items={AWS_AUTH_MODE_OPTIONS}
+          items={AWS_AUTH_MODE_OPTIONS.map((o) => ({
+            ...o,
+            label:
+              o.value === 'access-keys'
+                ? t('settings.customProviders.auth.accessKeys')
+                : o.value === 'profile'
+                  ? t('settings.customProviders.auth.namedProfile')
+                  : t('settings.customProviders.auth.defaultChain'),
+          }))}
           size="md"
           triggerClassName="w-full"
         />
@@ -279,7 +292,7 @@ function BedrockFields({
       {awsAuthMode === 'access-keys' && (
         <>
           <div className="space-y-1.5">
-            <p className="font-medium text-foreground text-xs">Access Key ID</p>
+            <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.accessKeyId')}</p>
             <Input
               type="password"
               placeholder={keyPlaceholder}
@@ -290,14 +303,14 @@ function BedrockFields({
           </div>
           <div className="space-y-1.5">
             <p className="font-medium text-foreground text-xs">
-              Secret Access Key
+              {t('settings.customProviders.dialog.secretAccessKey')}
             </p>
             <Input
               type="password"
               placeholder={
                 endpoint?.encryptedSecretKey
-                  ? 'Leave blank to keep current key'
-                  : 'Enter secret access key...'
+                  ? t('settings.customProviders.dialog.keepKeyBlank')
+                  : t('settings.customProviders.dialog.secretKeyPlaceholder')
               }
               value={secretKey}
               onValueChange={setSecretKey}
@@ -309,19 +322,23 @@ function BedrockFields({
 
       {awsAuthMode === 'profile' && (
         <div className="space-y-1.5">
-          <p className="font-medium text-foreground text-xs">AWS Profile</p>
+          <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.awsProfile')}</p>
           {profileItems.length > 0 ? (
             <Select<string>
               value={awsProfileName || ''}
               onValueChange={(val) => setAwsProfileName(val ?? '')}
               items={profileItems}
-              placeholder="Select a profile..."
+              placeholder={t('settings.customProviders.dialog.awsProfilePlaceholder')}
               size="md"
               triggerClassName="w-full"
             />
           ) : (
             <Input
-              placeholder={profilesLoading ? 'Loading profiles…' : 'default'}
+              placeholder={
+                profilesLoading
+                  ? t('settings.customProviders.dialog.loadingProfiles')
+                  : 'default'
+              }
               value={awsProfileName}
               onValueChange={setAwsProfileName}
               size="sm"
@@ -332,26 +349,22 @@ function BedrockFields({
           )}
           {!profilesError && !profilesLoading && profiles.length === 0 && (
             <p className="text-muted-foreground text-xs">
-              No profiles found in ~/.aws/config or ~/.aws/credentials. Type a
-              name manually if needed.
+              {t('settings.customProviders.dialog.noProfiles')}
             </p>
           )}
           <p className="text-muted-foreground text-xs">
-            SSO profiles require an active session. If requests fail with an
-            expired-token error, run{' '}
+            {t('settings.customProviders.dialog.ssoHintPrefix')}{' '}
             <code className="font-mono">
               aws sso login --profile &lt;name&gt;
             </code>{' '}
-            in your terminal.
+            {t('settings.customProviders.dialog.ssoHintSuffix')}
           </p>
         </div>
       )}
 
       {awsAuthMode === 'default-chain' && (
         <p className="text-muted-foreground text-xs">
-          Credentials will be resolved from the standard AWS provider chain:
-          environment variables, shared credentials file, ECS/EC2 instance
-          metadata, and SSO.
+          {t('settings.customProviders.dialog.defaultChainDescription')}
         </p>
       )}
     </>
@@ -420,10 +433,11 @@ function ProviderSpecificFields({
   awsEnvRegion: string | undefined;
   bedrockDetectedRegion: string | undefined;
 }) {
+  const { t } = useI18n();
   const hasKey = !!endpoint?.encryptedApiKey;
   const keyPlaceholder = hasKey
-    ? 'Leave blank to keep current key'
-    : 'Enter API key...';
+    ? t('settings.customProviders.dialog.keepKeyBlank')
+    : t('settings.customProviders.dialog.apiKeyPlaceholder');
 
   switch (apiSpec) {
     case 'azure':
@@ -431,13 +445,13 @@ function ProviderSpecificFields({
         <>
           <div className="space-y-1.5">
             <p className="font-medium text-foreground text-xs">
-              Resource Name{' '}
+              {t('settings.customProviders.dialog.resourceName')}{' '}
               <span className="font-normal text-muted-foreground">
-                (or use Base URL)
+                {t('settings.customProviders.dialog.orBaseUrl')}
               </span>
             </p>
             <Input
-              placeholder="my-azure-resource"
+              placeholder={t('settings.customProviders.dialog.resourceNamePlaceholder')}
               value={resourceName}
               onValueChange={setResourceName}
               size="sm"
@@ -445,29 +459,29 @@ function ProviderSpecificFields({
           </div>
           <div className="space-y-1.5">
             <p className="font-medium text-foreground text-xs">
-              Base URL{' '}
+              {t('settings.customProviders.dialog.baseUrl')}{' '}
               <span className="font-normal text-muted-foreground">
-                (overrides Resource Name)
+                {t('settings.customProviders.dialog.resourceOverride')}
               </span>
             </p>
             <Input
-              placeholder="https://my-resource.openai.azure.com/openai"
+              placeholder={t('settings.customProviders.dialog.azurePlaceholder')}
               value={baseUrl}
               onValueChange={setBaseUrl}
               size="sm"
             />
           </div>
           <div className="space-y-1.5">
-            <p className="font-medium text-foreground text-xs">API Version</p>
+            <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.apiVersion')}</p>
             <Input
-              placeholder="v1"
+              placeholder={t('settings.customProviders.dialog.apiVersionPlaceholder')}
               value={apiVersion}
               onValueChange={setApiVersion}
               size="sm"
             />
           </div>
           <div className="space-y-1.5">
-            <p className="font-medium text-foreground text-xs">API Key</p>
+            <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.apiKey')}</p>
             <Input
               type="password"
               placeholder={keyPlaceholder}
@@ -506,18 +520,18 @@ function ProviderSpecificFields({
       return (
         <>
           <div className="space-y-1.5">
-            <p className="font-medium text-foreground text-xs">Project ID</p>
+            <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.projectId')}</p>
             <Input
-              placeholder="my-gcp-project"
+              placeholder={t('settings.customProviders.dialog.projectIdPlaceholder')}
               value={projectId}
               onValueChange={setProjectId}
               size="sm"
             />
           </div>
           <div className="space-y-1.5">
-            <p className="font-medium text-foreground text-xs">Location</p>
+            <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.location')}</p>
             <Input
-              placeholder="us-central1"
+              placeholder={t('settings.customProviders.dialog.locationPlaceholder')}
               value={location}
               onValueChange={setLocation}
               size="sm"
@@ -525,14 +539,14 @@ function ProviderSpecificFields({
           </div>
           <div className="space-y-1.5">
             <p className="font-medium text-foreground text-xs">
-              Service Account Credentials (JSON)
+              {t('settings.customProviders.dialog.serviceAccountJson')}
             </p>
             <textarea
               className="w-full rounded-lg border border-derived p-2 font-mono text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-muted-foreground/35"
               rows={4}
               placeholder={
                 endpoint?.encryptedGoogleCredentials
-                  ? 'Leave blank to keep current credentials'
+                  ? t('settings.customProviders.dialog.keepCredsBlank')
                   : '{"type": "service_account", ...}'
               }
               value={googleCredentials}
@@ -546,9 +560,9 @@ function ProviderSpecificFields({
       return (
         <>
           <div className="space-y-1.5">
-            <p className="font-medium text-foreground text-xs">Base URL</p>
+            <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.baseUrl')}</p>
             <Input
-              placeholder="https://your-endpoint.example.com/v1"
+              placeholder={t('settings.customProviders.dialog.baseUrlPlaceholder')}
               value={baseUrl}
               onValueChange={setBaseUrl}
               size="sm"
@@ -556,9 +570,9 @@ function ProviderSpecificFields({
           </div>
           <div className="space-y-1.5">
             <p className="font-medium text-foreground text-xs">
-              API Key{' '}
+              {t('settings.customProviders.dialog.apiKey')}{' '}
               <span className="font-normal text-muted-foreground">
-                (optional)
+                {t('settings.customProviders.dialog.regionOptional')}
               </span>
             </p>
             <Input
@@ -585,6 +599,7 @@ function CustomEndpointDialog({
   onOpenChange: (open: boolean) => void;
   onSave: (data: EndpointSaveData) => void;
 }) {
+  const { t } = useI18n();
   // Pages run under a different preload than the sidebar UI, so we cannot
   // import `@ui/hooks/use-track` here (it reaches for `window.electron`).
   // `useTrack` from the pages hooks routes through the pages-API
@@ -595,9 +610,7 @@ function CustomEndpointDialog({
   // `full` the user has consented to detailed analytics; at `basic` we
   // keep the event but redact the URL; at `off` the backend drops the
   // event entirely and this check is moot.
-  const telemetryLevel = useKartonState(
-    (s) => s.preferences.privacy.telemetryLevel,
-  );
+  const telemetryLevel = useKartonState((s) => s.globalConfig.telemetryLevel);
   const isAddMode = !endpoint;
   // Set to true when onSave() fires; distinguishes a save-initiated close
   // from a cancel/dismiss close inside the shared `handleDialogOpenChange`.
@@ -687,7 +700,7 @@ function CustomEndpointDialog({
         setAwsProfiles([]);
         setAwsEnvRegion(undefined);
         setAwsProfilesError(
-          err instanceof Error ? err.message : 'Failed to load AWS profiles',
+          err instanceof Error ? err.message : t('settings.customProviders.dialog.profilesLoadFailed'),
         );
       })
       .finally(() => {
@@ -866,18 +879,18 @@ function CustomEndpointDialog({
         <DialogClose />
         <DialogHeader>
           <DialogTitle>
-            {endpoint ? 'Edit Provider' : 'Add Custom Provider'}
+            {endpoint ? t('settings.customProviders.edit') : t('settings.customProviders.addCustom')}
           </DialogTitle>
           <DialogDescription>
-            Configure a custom API endpoint for LLM services.
+            {t('settings.customProviders.dialog.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <p className="font-medium text-foreground text-xs">Name</p>
+            <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.name')}</p>
             <Input
-              placeholder="My Azure OpenAI"
+              placeholder={t('settings.customProviders.dialog.namePlaceholder')}
               value={name}
               onValueChange={setName}
               size="sm"
@@ -885,11 +898,14 @@ function CustomEndpointDialog({
           </div>
 
           <div className="space-y-1.5">
-            <p className="font-medium text-foreground text-xs">Provider Type</p>
+            <p className="font-medium text-foreground text-xs">{t('settings.customProviders.dialog.providerType')}</p>
             <Select
               value={apiSpec}
               onValueChange={(val) => setApiSpec(val as ApiSpec)}
-              items={API_SPEC_OPTIONS}
+              items={API_SPEC_OPTIONS.map((o) => ({
+                ...o,
+                group: o.group === 'cloud' ? t('settings.customProviders.group.cloud') : t('settings.customProviders.group.generic'),
+              }))}
               size="md"
               triggerClassName="w-full"
             />
@@ -932,7 +948,7 @@ function CustomEndpointDialog({
               <p className="font-medium text-foreground text-xs">
                 Model ID Mapping{' '}
                 <span className="font-normal text-muted-foreground">
-                  (optional)
+                  {t('settings.customProviders.dialog.modelMappingOptional')}
                 </span>
               </p>
               {apiSpec === 'amazon-bedrock' && (
@@ -959,22 +975,23 @@ function CustomEndpointDialog({
                         }
                         onClick={(e) => e.stopPropagation()}
                       />
-                      Suggested mapping
+                      {t('settings.customProviders.dialog.modelMapping')}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top" align="end">
                     <p className="max-w-xs text-xs leading-relaxed">
-                      Map the built-in Claude models to the matching Bedrock
-                      cross-region inference profiles for your region. Turn off
-                      to edit the mapping manually.
+                      {t(
+                        'settings.customProviders.dialog.modelMappingTooltip',
+                      )}
                     </p>
                   </TooltipContent>
                 </Tooltip>
               )}
             </div>
             <p className="text-muted-foreground text-xs">
-              Map built-in model IDs to the IDs this endpoint expects, e.g. when
-              the provider uses different naming.
+              {t(
+                'settings.customProviders.dialog.modelMappingDescription',
+              )}
             </p>
             <textarea
               className="scrollbar-subtle w-full resize-y rounded-lg border border-derived p-2 font-mono text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-muted-foreground/35"
@@ -1009,7 +1026,7 @@ function CustomEndpointDialog({
                 try {
                   modelIdMapping = JSON.parse(modelIdMappingJson);
                 } catch {
-                  setMappingError('Invalid JSON');
+                  setMappingError(t('settings.customProviders.dialog.invalidJson'));
                   return;
                 }
               }
@@ -1040,14 +1057,14 @@ function CustomEndpointDialog({
               onOpenChange(false);
             }}
           >
-            {endpoint ? 'Save Changes' : 'Add Provider'}
+            {endpoint ? t('settings.customProviders.save') : t('settings.customProviders.add')}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => handleDialogOpenChange(false)}
           >
-            Cancel
+            {t('settings.customProviders.cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1064,6 +1081,7 @@ function CustomEndpointCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useI18n();
   const specLabel =
     API_SPEC_OPTIONS.find((o) => o.value === endpoint.apiSpec)?.label ??
     endpoint.apiSpec;
@@ -1095,12 +1113,12 @@ function CustomEndpointCard({
 
   const subtitle =
     endpoint.apiSpec === 'amazon-bedrock'
-      ? `${specLabel} \u00b7 ${bedrockModeLabel} \u00b7 ${bedrockRegionLabel}`
+      ? `${specLabel} · ${bedrockModeLabel} · ${bedrockRegionLabel}`
       : endpoint.apiSpec === 'google-vertex'
-        ? `${specLabel} \u00b7 ${endpoint.projectId || 'no project'} \u00b7 ${endpoint.location || 'us-central1'}`
+        ? `${specLabel} · ${endpoint.projectId || 'no project'} · ${endpoint.location || 'us-central1'}`
         : endpoint.apiSpec === 'azure'
-          ? `${specLabel} \u00b7 ${endpoint.resourceName || endpoint.baseUrl || 'not configured'}`
-          : `${specLabel} \u00b7 ${endpoint.baseUrl || 'No URL set'}`;
+          ? `${specLabel} · ${endpoint.resourceName || endpoint.baseUrl || 'not configured'}`
+          : `${specLabel} · ${endpoint.baseUrl || t('settings.customProviders.dialog.noUrl')}`;
 
   return (
     <div className="flex items-start justify-between gap-2 rounded-lg border border-derived p-4">
@@ -1121,6 +1139,7 @@ function CustomEndpointCard({
 }
 
 function CustomEndpointsSection() {
+  const { t } = useI18n();
   const preferences = useKartonState((s) => s.preferences);
   const updatePreferences = useKartonProcedure((p) => p.preferences.update);
   const setCustomEndpointApiKey = useKartonProcedure(
@@ -1251,7 +1270,10 @@ function CustomEndpointsSection() {
       if (affectedModels.length > 0) {
         const names = affectedModels.map((m) => m.displayName).join(', ');
         const confirmed = window.confirm(
-          `The following custom models use this provider and will stop working:\n\n${names}\n\nDelete anyway?`,
+          t('settings.customProviders.deleteConfirm').replace(
+            '{names}',
+            names,
+          ),
         );
         if (!confirmed) return;
       }
@@ -1274,7 +1296,7 @@ function CustomEndpointsSection() {
       {endpoints.length === 0 ? (
         <div className="rounded-lg border border-derived-subtle p-4">
           <p className="text-center text-muted-foreground text-sm">
-            No custom providers configured yet.
+            {t('settings.customProviders.empty')}
           </p>
         </div>
       ) : (
@@ -1291,7 +1313,7 @@ function CustomEndpointsSection() {
       <div className="flex justify-end">
         <Button variant="secondary" size="sm" onClick={handleAdd}>
           <IconPlusOutline18 className="size-3.5" />
-          Add Provider
+          {t('settings.customProviders.add')}
         </Button>
       </div>
 
@@ -1310,6 +1332,7 @@ function CustomEndpointsSection() {
 // =============================================================================
 
 export function CustomProvidersSection() {
+  const { t } = useI18n();
   const setSettingsRoute = useKartonProcedure(
     (p) => p.appScreen.setSettingsRoute,
   );
@@ -1330,11 +1353,10 @@ export function CustomProvidersSection() {
             </Button>
             <div className="flex flex-col">
               <h1 className="font-semibold text-foreground text-xl">
-                Custom Providers
+                {t('settings.customProviders.title')}
               </h1>
               <span className="text-muted-foreground text-sm">
-                Add custom API endpoints for self-hosted or third-party LLM
-                services.
+                {t('settings.customProviders.description')}
               </span>
             </div>
           </div>

@@ -696,6 +696,12 @@ export class AgentManager extends DisposableService {
       },
     );
     this.wrapAgentRpc(
+      'agents.continueAfterError',
+      async (instanceId: string) => {
+        await this.continueAfterError(instanceId);
+      },
+    );
+    this.wrapAgentRpc(
       'agents.storeAttachment',
       async (
         agentId: string,
@@ -1433,8 +1439,6 @@ export class AgentManager extends DisposableService {
       agent_type: instance?.type ?? 'unknown',
       agent_instance_id: instanceId,
       model_id: instance?.state.activeModelId ?? 'unknown',
-      provider_mode: agent.lastProviderMode,
-      coding_plan_id: agent.lastCodingPlanId,
       has_attachments: attachmentParts.length > 0,
       attachment_count: attachmentParts.length,
       slash_command_ids: slashCommandIdsForTelemetry,
@@ -1665,6 +1669,16 @@ export class AgentManager extends DisposableService {
     }
 
     await agent.retryLastUserMessage();
+  }
+
+  public async continueAfterError(instanceId: string): Promise<void> {
+    const agent = this.activeAgents.get(instanceId);
+
+    if (!agent) {
+      throw new Error(`Agent with instance id ${instanceId} not found`);
+    }
+
+    await agent.continueAfterError();
   }
 
   private async updateInputState(instanceId: string, inputString: string) {

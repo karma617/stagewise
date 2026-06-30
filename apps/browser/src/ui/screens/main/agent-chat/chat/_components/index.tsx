@@ -15,9 +15,11 @@ import {
   OpenAgentContext,
   noopAgentSwitcher,
 } from '@ui/hooks/use-open-chat';
+import { useI18n } from '@ui/hooks/use-i18n';
 import { useCmdEnterDispatcher } from '@ui/hooks/use-cmd-enter-dispatcher';
 
 export function ChatPanel() {
+  const { t } = useI18n();
   const { forwardDropEvent } = useMessageEditState();
   const [openAgent, setOpenAgent, removeFromHistory] = useOpenAgent();
 
@@ -131,7 +133,7 @@ export function ChatPanel() {
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       role="region"
-      aria-label="Chat panel drop zone"
+      aria-label={t('chat.dropZone.label')}
     >
       <OpenAgentContext.Provider value={deferredContext}>
         {isTransitioning ? (

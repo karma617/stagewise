@@ -71,6 +71,7 @@ import {
   type EditorActions,
   useFileEditorController,
 } from './use-file-editor-controller';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 const MONACO_THEME_NAME = 'stagewise-file-preview';
 
@@ -667,6 +668,7 @@ function ToolbarTooltip({
   shortcut?: HotkeyActions;
   children: ReactElement;
 }) {
+  const { t } = useI18n();
   return (
     <Tooltip>
       <TooltipTrigger>{children}</TooltipTrigger>
@@ -693,6 +695,7 @@ function getPreviewAbsolutePath(
 }
 
 function OpenExternalMenu({ absolutePath }: { absolutePath: string }) {
+  const { t } = useI18n();
   const ides: OpenFilesInIde[] = [
     'cursor',
     'vscode',
@@ -715,14 +718,14 @@ function OpenExternalMenu({ absolutePath }: { absolutePath: string }) {
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label="Open externally"
+                aria-label={t('common.openExternally')}
               >
                 <IconOpenExternalOutline18 className="size-4" />
               </Button>
             }
           />
         </TooltipTrigger>
-        <TooltipContent>Open externally</TooltipContent>
+        <TooltipContent>{t('common.openExternally')}</TooltipContent>
       </Tooltip>
       <MenuBase.Portal>
         <MenuBase.Positioner className="z-50" sideOffset={4} align="end">
@@ -782,6 +785,7 @@ function FileTabToolbar({
   openExternalPath?: string;
   onInteract?: () => void;
 }) {
+  const { t } = useI18n();
   // Read-only files (attachment blobs, bundled plugins, agent app scratch)
   // cannot be edited, so collapse the save/undo/redo controls to a single
   // read-only indicator.
@@ -818,11 +822,11 @@ function FileTabToolbar({
     >
       <div className="flex items-center">
         <div className="flex items-center px-1">
-          <ToolbarTooltip label="Save file" shortcut={HotkeyActions.SAVE_FILE}>
+          <ToolbarTooltip label={t('fileTree.saveFile')} shortcut={HotkeyActions.SAVE_FILE}>
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="Save file"
+              aria-label={t('fileTree.saveFile')}
               disabled={
                 !actions?.isDirty || actions.isSaving || actions.externalChange
               }
@@ -838,22 +842,22 @@ function FileTabToolbar({
         </div>
         <div className="h-5 w-px bg-border-subtle" />
         <div className="flex items-center px-1">
-          <ToolbarTooltip label="Undo" shortcut={HotkeyActions.UNDO_FILE_EDIT}>
+          <ToolbarTooltip label={t('common.undo')} shortcut={HotkeyActions.UNDO_FILE_EDIT}>
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="Undo"
+              aria-label={t('common.undo')}
               disabled={!actions?.canUndo}
               onClick={() => actions?.undo()}
             >
               <IconUndoOutline18 className="size-4" />
             </Button>
           </ToolbarTooltip>
-          <ToolbarTooltip label="Redo" shortcut={HotkeyActions.REDO_FILE_EDIT}>
+          <ToolbarTooltip label={t('common.redo')} shortcut={HotkeyActions.REDO_FILE_EDIT}>
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="Redo"
+              aria-label={t('common.redo')}
               disabled={!actions?.canRedo}
               onClick={() => actions?.redo()}
             >
@@ -925,6 +929,7 @@ function FileMoveBanner({
   toPath: string;
   onDismiss: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex shrink-0 items-center justify-between gap-2 border-border border-b bg-info-solid/10 px-3 py-1.5 text-info-foreground text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
@@ -959,6 +964,7 @@ function FileDeletedBanner({
   onRecreate: () => void;
   isRecreating: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex shrink-0 items-center justify-between gap-2 border-border border-b bg-error-solid/10 px-3 py-1.5 text-error-foreground text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
@@ -1055,6 +1061,7 @@ function DiffEditorPreview({
   tab: NonNullable<TabState['file']>;
   tabId: string;
 }) {
+  const { t } = useI18n();
   const getFileDiffContent = useKartonProcedure(
     (p) => p.toolbox.getFileDiffContent,
   );
@@ -1369,12 +1376,12 @@ function DiffEditorPreview({
                 diffMode === 'inline' &&
                   'bg-background text-foreground ring-1 ring-border-subtle',
               )}
-              aria-label="Inline diff"
+              aria-label={t('fileTree.inlineDiff')}
               aria-pressed={diffMode === 'inline'}
               onClick={() => persistMode('inline')}
             >
               <IconTextAlignLeft2Outline18 className="size-3.5" />
-              {diffMode === 'inline' ? <span>Inline</span> : null}
+              {diffMode === 'inline' ? <span>{t('common.inline')}</span> : null}
             </button>
             <button
               type="button"
@@ -1383,12 +1390,12 @@ function DiffEditorPreview({
                 diffMode === 'split' &&
                   'bg-background text-foreground ring-1 ring-border-subtle',
               )}
-              aria-label="Split diff"
+              aria-label={t('fileTree.splitDiff')}
               aria-pressed={diffMode === 'split'}
               onClick={() => persistMode('split')}
             >
               <IconSplitViewOutline18 className="size-3.5" />
-              {diffMode === 'split' ? <span>Split</span> : null}
+              {diffMode === 'split' ? <span>{t('common.split')}</span> : null}
             </button>
           </div>
         }
@@ -1405,12 +1412,12 @@ function DiffEditorPreview({
           <div className="flex size-full items-center justify-center text-muted-foreground text-xs">
             <div className="flex items-center gap-2">
               <Loader2Icon className="size-3.5 animate-spin" />
-              <span>Loading diff…</span>
+              <span>{t('fileTree.loadingDiff')}</span>
             </div>
           </div>
         ) : diffError || !diffContent ? (
           <div className="flex size-full items-center justify-center text-error-foreground text-sm">
-            {diffError ?? 'Unable to load diff'}
+            {diffError ?? t('fileTree.unableLoadDiff')}
           </div>
         ) : (
           <DiffEditor
@@ -1485,6 +1492,7 @@ function TextEditorPreview({
   preview: FilePreviewResult;
   tabId: string;
 }) {
+  const { t } = useI18n();
   const cacheKey = getPreviewCacheKey(
     preview.workspaceKey,
     preview.relativePath,
@@ -1757,6 +1765,7 @@ function ImagePreview({
   blobUrl: string;
   tabId: string;
 }) {
+  const { t } = useI18n();
   const [background, setBackground] =
     useState<ImagePreviewBackground>('default');
   const [customBackground, setCustomBackground] = useState('ffffff');
@@ -1790,7 +1799,7 @@ function ImagePreview({
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  aria-label="Center image"
+                  aria-label={t('fileTree.centerImage')}
                   onClick={() => setPan({ x: 0, y: 0 })}
                 >
                   <IconArrowsToCenterOutline18 className="size-4" />
@@ -1801,7 +1810,7 @@ function ImagePreview({
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label="Zoom out"
+                aria-label={t('common.zoomOut')}
                 disabled={zoom <= 0.01}
                 onClick={() => zoomBy(-0.25)}
               >
@@ -1811,14 +1820,14 @@ function ImagePreview({
                 type="button"
                 className="min-w-10 text-center text-muted-foreground text-xs hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-solid focus-visible:ring-inset"
                 onClick={() => setZoom(1)}
-                aria-label="Reset zoom"
+                aria-label={t('common.resetZoom')}
               >
                 {Math.round(zoom * 100)}%
               </button>
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label="Zoom in"
+                aria-label={t('common.zoomIn')}
                 onClick={() => zoomBy(0.25)}
               >
                 <PlusIcon className="size-4" />
@@ -1831,7 +1840,7 @@ function ImagePreview({
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    aria-label="Image background config"
+                    aria-label={t('fileTree.imageBackgroundConfig')}
                   >
                     <IconColorPaletteOutline18 className="size-4" />
                   </Button>
@@ -1890,7 +1899,7 @@ function ImagePreview({
         className={`flex min-h-0 flex-1 touch-none select-none items-center justify-center overflow-hidden p-4 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${getPreviewBackgroundClassName(background)}`}
         role="button"
         tabIndex={0}
-        aria-label="Image preview canvas"
+        aria-label={t('fileTree.imagePreviewCanvas')}
         data-image-preview-canvas="true"
         onFocus={markFocused}
         onClick={markFocused}
@@ -1909,7 +1918,7 @@ function ImagePreview({
         {imageError ? (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <TriangleAlertIcon className="size-8" />
-            <span className="text-sm">Unable to render this image.</span>
+            <span className="text-sm">{t('fileTree.unableRenderImage')}</span>
             <span className="text-xs">
               The file may be corrupt or in an unsupported format.
             </span>
@@ -1939,6 +1948,7 @@ function SvgPreview({
   preview: FilePreviewResult;
   tabId: string;
 }) {
+  const { t } = useI18n();
   const cacheKey = getPreviewCacheKey(
     preview.workspaceKey,
     preview.relativePath,
@@ -2152,13 +2162,13 @@ function SvgPreview({
             {mode === 'preview' && isPanned ? (
               <div className="flex items-center pr-2 pl-1">
                 <ToolbarTooltip
-                  label="Center image"
+                  label={t('fileTree.centerImage')}
                   shortcut={HotkeyActions.CENTER_IMAGE}
                 >
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    aria-label="Center image"
+                    aria-label={t('fileTree.centerImage')}
                     onClick={() => setPan({ x: 0, y: 0 })}
                   >
                     <IconArrowsToCenterOutline18 className="size-4" />
@@ -2169,13 +2179,13 @@ function SvgPreview({
             {mode === 'preview' ? (
               <div className="flex items-center gap-0.5 px-1">
                 <ToolbarTooltip
-                  label="Zoom out"
+                  label={t('common.zoomOut')}
                   shortcut={HotkeyActions.ZOOM_OUT}
                 >
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    aria-label="Zoom out"
+                    aria-label={t('common.zoomOut')}
                     disabled={zoom <= 0.01}
                     onClick={() => zoomBy(-0.25)}
                   >
@@ -2183,26 +2193,26 @@ function SvgPreview({
                   </Button>
                 </ToolbarTooltip>
                 <ToolbarTooltip
-                  label="Reset zoom"
+                  label={t('common.resetZoom')}
                   shortcut={HotkeyActions.ZOOM_RESET}
                 >
                   <button
                     type="button"
                     className="min-w-10 cursor-pointer text-center text-muted-foreground text-xs hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-solid focus-visible:ring-inset"
                     onClick={() => setZoom(1)}
-                    aria-label="Reset zoom"
+                    aria-label={t('common.resetZoom')}
                   >
                     {Math.round(zoom * 100)}%
                   </button>
                 </ToolbarTooltip>
                 <ToolbarTooltip
-                  label="Zoom in"
+                  label={t('common.zoomIn')}
                   shortcut={HotkeyActions.ZOOM_IN}
                 >
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    aria-label="Zoom in"
+                    aria-label={t('common.zoomIn')}
                     onClick={() => zoomBy(0.25)}
                   >
                     <PlusIcon className="size-4" />
@@ -2214,13 +2224,13 @@ function SvgPreview({
               <>
                 <div className="h-5 w-px bg-border-subtle" />
                 <div className="flex items-center px-1">
-                  <ToolbarTooltip label="Preview config">
+                  <ToolbarTooltip label={t('fileTree.previewConfig')}>
                     <Popover>
                       <PopoverTrigger>
                         <Button
                           variant="ghost"
                           size="icon-xs"
-                          aria-label="Preview config"
+                          aria-label={t('fileTree.previewConfig')}
                         >
                           <IconColorPaletteOutline18 className="size-4" />
                         </Button>
@@ -2333,7 +2343,7 @@ function SvgPreview({
             ) : null}
             <div className="flex h-7 items-center gap-1 rounded-md bg-surface-1 p-0.5">
               <ToolbarTooltip
-                label="Show SVG source"
+                label={t('fileTree.showSvgSource')}
                 shortcut={HotkeyActions.TOGGLE_SVG_CODE_MODE}
               >
                 <button
@@ -2343,16 +2353,16 @@ function SvgPreview({
                     mode === 'source' &&
                       'bg-background text-foreground ring-1 ring-border-subtle',
                   )}
-                  aria-label="Show SVG source"
+                  aria-label={t('fileTree.showSvgSource')}
                   aria-pressed={mode === 'source'}
                   onClick={() => persistMode('source')}
                 >
                   <IconSquareCodeOutline18 className="size-3.5" />
-                  {mode === 'source' ? <span>Code</span> : null}
+                  {mode === 'source' ? <span>{t('common.code')}</span> : null}
                 </button>
               </ToolbarTooltip>
               <ToolbarTooltip
-                label="Show SVG preview"
+                label={t('fileTree.showSvgPreview')}
                 shortcut={HotkeyActions.TOGGLE_SVG_CODE_MODE}
               >
                 <button
@@ -2362,12 +2372,12 @@ function SvgPreview({
                     mode === 'preview' &&
                       'bg-background text-foreground ring-1 ring-border-subtle',
                   )}
-                  aria-label="Show SVG preview"
+                  aria-label={t('fileTree.showSvgPreview')}
                   aria-pressed={mode === 'preview'}
                   onClick={() => persistMode('preview')}
                 >
                   <IconEye2Outline18 className="size-3.5" />
-                  {mode === 'preview' ? <span>Preview</span> : null}
+                  {mode === 'preview' ? <span>{t('common.preview')}</span> : null}
                 </button>
               </ToolbarTooltip>
             </div>
@@ -2382,7 +2392,7 @@ function SvgPreview({
           <button
             type="button"
             className={`flex size-full touch-none select-none items-center justify-center overflow-hidden p-4 text-left focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${previewBackgroundClassName}`}
-            aria-label="SVG preview canvas"
+            aria-label={t('fileTree.svgPreviewCanvas')}
             data-image-preview-canvas="true"
             onFocus={markFocused}
             onClick={markFocused}
@@ -2401,7 +2411,7 @@ function SvgPreview({
             {imageError ? (
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                 <TriangleAlertIcon className="size-8" />
-                <span className="text-sm">Unable to render this SVG.</span>
+                <span className="text-sm">{t('fileTree.unableRenderSvg')}</span>
                 <span className="text-xs">
                   The file may be malformed or contain unsupported content.
                 </span>
@@ -2466,6 +2476,7 @@ function MarkdownPreview({
   preview: FilePreviewResult;
   tabId: string;
 }) {
+  const { t } = useI18n();
   const cacheKey = getPreviewCacheKey(
     preview.workspaceKey,
     preview.relativePath,
@@ -2568,7 +2579,7 @@ function MarkdownPreview({
         right={
           <div className="flex h-7 items-center gap-1 rounded-md bg-surface-1 p-0.5">
             <ToolbarTooltip
-              label="Show markdown source"
+              label={t('fileTree.showMarkdownSource')}
               shortcut={HotkeyActions.TOGGLE_MARKDOWN_PREVIEW}
             >
               <button
@@ -2578,16 +2589,16 @@ function MarkdownPreview({
                   mode === 'source' &&
                     'bg-background text-foreground ring-1 ring-border-subtle',
                 )}
-                aria-label="Show markdown source"
+                aria-label={t('fileTree.showMarkdownSource')}
                 aria-pressed={mode === 'source'}
                 onClick={() => persistMode('source')}
               >
                 <IconSquareCodeOutline18 className="size-3.5" />
-                {mode === 'source' ? <span>Code</span> : null}
+                {mode === 'source' ? <span>{t('common.code')}</span> : null}
               </button>
             </ToolbarTooltip>
             <ToolbarTooltip
-              label="Show markdown preview"
+              label={t('fileTree.showMarkdownPreview')}
               shortcut={HotkeyActions.TOGGLE_MARKDOWN_PREVIEW}
             >
               <button
@@ -2597,12 +2608,12 @@ function MarkdownPreview({
                   mode === 'preview' &&
                     'bg-background text-foreground ring-1 ring-border-subtle',
                 )}
-                aria-label="Show markdown preview"
+                aria-label={t('fileTree.showMarkdownPreview')}
                 aria-pressed={mode === 'preview'}
                 onClick={() => persistMode('preview')}
               >
                 <IconEye2Outline18 className="size-3.5" />
-                {mode === 'preview' ? <span>Preview</span> : null}
+                {mode === 'preview' ? <span>{t('common.preview')}</span> : null}
               </button>
             </ToolbarTooltip>
           </div>
@@ -2664,6 +2675,7 @@ function BinaryPreview({
   relativePath: string;
   revealInFolder: (workspaceKey: string, relativePath: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex size-full flex-col bg-background">
       <FileTabToolbar actions={null} />
@@ -2701,6 +2713,7 @@ function isMissingFileError(error: string | null): boolean {
 }
 
 function MissingFileNotice() {
+  const { t } = useI18n();
   return (
     <div className="flex size-full flex-col bg-background">
       <FileTabToolbar actions={null} />
@@ -2721,6 +2734,7 @@ function MissingFileNotice() {
 }
 
 export function FilePreviewTabContent({ tab }: FilePreviewTabContentProps) {
+  const { t } = useI18n();
   const getFilePreview = useKartonProcedure((p) => p.fileTree.getFilePreview);
   const getFileStat = useKartonProcedure((p) => p.fileTree.getFileStat);
   const clearFileNotice = useKartonProcedure((p) => p.browser.clearFileNotice);
@@ -2974,7 +2988,7 @@ export function FilePreviewTabContent({ tab }: FilePreviewTabContentProps) {
             <div className="flex size-full flex-col bg-background">
               <FileTabToolbar actions={null} />
               <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-xs">
-                No cached content available.
+                {t('fileTree.noCachedContent')}
               </div>
             </div>
           )}
@@ -3009,7 +3023,7 @@ export function FilePreviewTabContent({ tab }: FilePreviewTabContentProps) {
             <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-xs">
               <div className="flex items-center gap-2">
                 <Loader2Icon className="size-3.5 animate-spin" />
-                <span>Loading file…</span>
+                <span>{t('fileTree.loadingFile')}</span>
               </div>
             </div>
           </div>
@@ -3019,7 +3033,7 @@ export function FilePreviewTabContent({ tab }: FilePreviewTabContentProps) {
           <div className="flex size-full flex-col bg-background">
             <FileTabToolbar actions={null} />
             <div className="flex min-h-0 flex-1 items-center justify-center text-error-foreground text-sm">
-              {error ?? 'Failed to load file'}
+              {error ?? t('fileTree.failedToLoadFile')}
             </div>
           </div>
         ) : preview.truncated ? (
@@ -3027,7 +3041,7 @@ export function FilePreviewTabContent({ tab }: FilePreviewTabContentProps) {
             {preview.kind === 'text' || preview.kind === 'svg' ? (
               <>
                 <div className="shrink-0 border-border border-b px-3 py-1 text-warning-foreground text-xs">
-                  Preview truncated
+                  {t('fileTree.previewTruncated')}
                 </div>
                 <div className="min-h-0 flex-1">
                   <TextEditorPreview preview={preview} tabId={tab.id} />

@@ -301,17 +301,25 @@ export type PersonalizationThemeId = z.infer<
 export const appColorSchemeSchema = z.enum(['system', 'light', 'dark']);
 export type AppColorScheme = z.infer<typeof appColorSchemeSchema>;
 
+export const appLanguageSchema = z.enum(['zh-CN', 'en']);
+export type AppLanguage = z.infer<typeof appLanguageSchema>;
+
 export const globalConfigSchema = z
   .object({
+    telemetryLevel: z.enum(['off', 'anonymous', 'full']).default('off'),
+    notificationSoundsEnabled: z.boolean().default(true),
     notificationSoundLoudness: z
       .enum(['off', 'subtle', 'default'])
       .default('subtle'),
     notificationSoundPack: z.string().default('bubble-pops'),
+    availableSoundPacks: z.array(z.string()).default(['bubble-pops']),
+    packDisplayNames: z.record(z.string(), z.string()).default({}),
     dockBounceEnabled: z.boolean().default(true),
     blockAppSuspensionWhenAgentsActive: z.boolean().default(true),
     personalizationThemeId: personalizationThemeIdSchema
       .catch('default')
       .default('default'),
+    appLanguage: appLanguageSchema.catch('zh-CN').default('zh-CN'),
     appColorScheme: appColorSchemeSchema.catch('system').default('system'),
   })
   .loose();
@@ -464,9 +472,9 @@ const sidebarPreferencesSchema = z
 export const userPreferencesSchema = z.object({
   privacy: z
     .object({
-      telemetryLevel: z.enum(['off', 'anonymous', 'full']).default('anonymous'),
+      telemetryLevel: z.enum(['off', 'anonymous', 'full']).default('off'),
     })
-    .default({ telemetryLevel: 'anonymous' }),
+    .default({ telemetryLevel: 'off' }),
   search: z
     .object({
       /** ID of the default search engine (references keywords.id in Web Data DB) */
@@ -657,7 +665,7 @@ const defaultDevToolbarForUserPrefs: DevToolbarPreferences = {
 
 export const defaultUserPreferences: UserPreferences = {
   privacy: {
-    telemetryLevel: 'anonymous',
+    telemetryLevel: 'off',
   },
   search: {
     defaultEngineId: 1,

@@ -1,6 +1,7 @@
 import type { AgentToolUIPart } from '@shared/karton-contracts/ui/agent';
 import { ToolPartUINotCollapsible } from './shared/tool-part-ui-not-collapsible';
 import { IconBooks2Outline18 } from 'nucleo-ui-outline-18';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const ListLibraryDocsToolPart = ({
   part,
@@ -11,6 +12,7 @@ export const ListLibraryDocsToolPart = ({
   disableShimmer?: boolean;
   minimal?: boolean;
 }) => {
+  const { t } = useI18n();
   const streamingText = part.input?.name
     ? `Searching latest docs for ${part.input.name}...`
     : 'Searching latest docs...';
@@ -18,7 +20,7 @@ export const ListLibraryDocsToolPart = ({
   const finishedText =
     part.state === 'output-available' ? (
       <span className="flex min-w-0 gap-1">
-        <span className="shrink-0 truncate font-semibold">Found</span>
+        <span className="shrink-0 truncate font-semibold">{t('common.found')}</span>
         <span className="truncate font-normal">
           {part.output?.results.length ?? 0} docs for {part.input?.name}
         </span>

@@ -29,9 +29,11 @@ import {
   StreamingCodeBlock,
   getLanguageFromPath,
 } from '@ui/components/ui/streaming-code-block';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const GenericWriteToolPart = memo(
   function GenericWriteToolPart({ part }: { part: WritePart }) {
+  const { t } = useI18n();
     const [codeDiffCollapsed, setCodeDiffCollapsed] = useState(true);
     const [expanded, setExpanded] = useState(true);
     const [openAgent] = useOpenAgent();
@@ -199,7 +201,7 @@ export const GenericWriteToolPart = memo(
                   Open file
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Click to see full file</TooltipContent>
+              <TooltipContent>{t('common.clickToSeeFullFile')}</TooltipContent>
             </Tooltip>
           </div>
         );

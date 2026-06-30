@@ -13,53 +13,49 @@ import {
 } from '@ui/assets/feature-images';
 import { useTrack } from '@ui/hooks/use-track';
 import { cn } from '@ui/utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 interface Slide {
-  heading: string;
-  previewHeading: string;
-  subtitle: string;
+  headingKey: string;
+  previewHeadingKey: string;
+  subtitleKey: string;
   light: string;
   dark: string;
 }
 
 const slides: Slide[] = [
   {
-    heading: 'Connect multiple workspaces',
-    previewHeading: 'Workspaces',
-    subtitle:
-      'With workspaces, you can let the agent work across multiple folders at once.',
+    headingKey: 'onboarding.demo.workspaces.heading',
+    previewHeadingKey: 'onboarding.demo.workspaces.preview',
+    subtitleKey: 'onboarding.demo.workspaces.subtitle',
     light: WorkspacesLight,
     dark: WorkspacesDark,
   },
   {
-    heading: 'Use slash commands and skills',
-    previewHeading: 'Commands & Skills',
-    subtitle:
-      'Slash commands let you use features and plugins — and load skills proactively.',
+    headingKey: 'onboarding.demo.commands.heading',
+    previewHeadingKey: 'onboarding.demo.commands.preview',
+    subtitleKey: 'onboarding.demo.commands.subtitle',
     light: CommandsAndSkillsLight,
     dark: CommandsAndSkillsDark,
   },
   {
-    heading: 'Mention files, tabs and web elements',
-    previewHeading: 'Mentions',
-    subtitle:
-      'Reference local files and browser tabs — and select web elements from any website.',
+    headingKey: 'onboarding.demo.mentions.heading',
+    previewHeadingKey: 'onboarding.demo.mentions.preview',
+    subtitleKey: 'onboarding.demo.mentions.subtitle',
     light: MentionsLight,
     dark: MentionsDark,
   },
   {
-    heading: 'Use design previews',
-    previewHeading: 'Design Previews',
-    subtitle:
-      'Design previews let you iterate on designs before you modify real code.',
+    headingKey: 'onboarding.demo.designPreviews.heading',
+    previewHeadingKey: 'onboarding.demo.designPreviews.preview',
+    subtitleKey: 'onboarding.demo.designPreviews.subtitle',
     light: DesignPreviewLight,
     dark: DesignPreviewDark,
   },
   {
-    heading: 'Use plugins to integrate your stack',
-    previewHeading: 'Plugins',
-    subtitle:
-      'Use plugins like Figma, GitHub and more to integrate stagewise into your stack.',
+    headingKey: 'onboarding.demo.plugins.heading',
+    previewHeadingKey: 'onboarding.demo.plugins.preview',
+    subtitleKey: 'onboarding.demo.plugins.subtitle',
     light: PluginsLight,
     dark: PluginsDark,
   },
@@ -69,6 +65,7 @@ const SLIDE_INTERVAL = 6500;
 const FADE_DURATION = 200;
 
 export function StepDemo() {
+  const { t } = useI18n();
   const [activeIndex, setActiveIndex] = useState(0);
   const [slideKey, setSlideKey] = useState(0);
   const [visible, setVisible] = useState(true);
@@ -116,7 +113,7 @@ export function StepDemo() {
       if (index === activeIndex) return;
       pause();
       track('onboarding-demo-slide-clicked', {
-        slide_name: slides[index]?.previewHeading ?? `slide-${index}`,
+        slide_name: slides[index]?.previewHeadingKey ?? `slide-${index}`,
       });
       transitionTo(() => index, false);
     },
@@ -145,18 +142,18 @@ export function StepDemo() {
         style={{ transitionDuration: `${FADE_DURATION}ms` }}
       >
         <h1 className="font-semibold text-2xl text-foreground">
-          {slide.heading}
+          {t(slide.headingKey)}
         </h1>
-        <p className="pt-1 text-muted-foreground text-sm">{slide.subtitle}</p>
+        <p className="pt-1 text-muted-foreground text-sm">{t(slide.subtitleKey)}</p>
         <div className="flex w-1/2 flex-col gap-2 pt-4">
           <img
             src={slide.light}
-            alt={slide.heading}
+            alt={t(slide.headingKey)}
             className="block h-auto w-full rounded-md border border-border-subtle dark:hidden"
           />
           <img
             src={slide.dark}
-            alt={slide.heading}
+            alt={t(slide.headingKey)}
             className="hidden h-auto w-full rounded-md border border-border-subtle dark:block"
           />
           <SlideIndicators
@@ -188,6 +185,7 @@ function SlideIndicators({
   paused: boolean;
   onGoTo: (index: number) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="grid w-full grid-cols-5 gap-2 pt-8">
       <style>
@@ -229,7 +227,7 @@ function SlideIndicators({
               />
             )}
             {/* Label on top of fill */}
-            <span className="relative z-10">{slide.previewHeading}</span>
+            <span className="relative z-10">{t(slide.previewHeadingKey)}</span>
           </button>
         );
       })}

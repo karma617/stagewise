@@ -13,6 +13,9 @@ import { AccountSection } from './sections/account-section';
 import { AboutSection } from './sections/about-section';
 import { HistorySection } from './sections/history-section';
 import { WorktreeSetupSection } from './sections/agent-settings.worktree-setup';
+import { AutoRegisterSection } from './sections/auto-register-section';
+import { AccountPoolSection } from './sections/account-pool-section';
+import { ProxyPoolSection } from './sections/proxy-pool-section';
 
 export function SettingsContent() {
   const settingsRoute = useKartonState((s) => s.appScreen.settingsRoute);
@@ -45,5 +48,11 @@ export function SettingsContent() {
       return <AboutSection />;
     case 'history':
       return <HistorySection />;
+    case 'auto-register':
+      return <AutoRegisterSection />;
+    case 'account-pool':
+      return <AccountPoolSection />;
+    case 'proxy-pool':
+      return <ProxyPoolSection />;
   }
 }

@@ -4,7 +4,10 @@ import type {
   CommandCenterItem,
   CommandCenterMode,
 } from '../command-center-model';
-import { buildGroupedRows } from '../command-center-rows';
+import {
+  buildGroupedRows,
+  type CommandCenterGroupLabels,
+} from '../command-center-rows';
 import { CommandCenterEmptyState } from './command-center-empty-state';
 import { CommandCenterRow } from './command-center-row';
 
@@ -12,6 +15,7 @@ export function CommandCenterResults({
   items,
   mode,
   filesLabel,
+  groupLabels,
   selectedIndex,
   isLoading,
   renamingAgentId,
@@ -24,6 +28,7 @@ export function CommandCenterResults({
   items: CommandCenterItem[];
   mode: CommandCenterMode;
   filesLabel?: string;
+  groupLabels: CommandCenterGroupLabels;
   selectedIndex: number;
   isLoading?: boolean;
   renamingAgentId: string | null;
@@ -35,8 +40,8 @@ export function CommandCenterResults({
 }) {
   const itemRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
   const rows = useMemo(
-    () => buildGroupedRows(items, mode, { filesLabel }),
-    [items, mode, filesLabel],
+    () => buildGroupedRows(items, mode, { filesLabel, labels: groupLabels }),
+    [items, mode, filesLabel, groupLabels],
   );
 
   useEffect(() => {

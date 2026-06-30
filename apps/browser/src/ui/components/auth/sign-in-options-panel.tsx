@@ -9,6 +9,7 @@ import { IconEnvelopeOutline18, IconKey2Outline18 } from 'nucleo-ui-outline-18';
 import { Loader2Icon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@stagewise/stage-ui/lib/utils';
+import { useI18n } from '@ui/hooks/use-i18n';
 import type { SocialAuthProvider } from '@shared/karton-contracts/ui/shared-types';
 export type SignInMethod = SocialAuthProvider | 'email';
 
@@ -45,23 +46,25 @@ export type SignInOptionsPanelProps = {
 const LAST_USED_SIGN_IN_METHOD_KEY = 'stagewise:last-used-sign-in-method';
 function getHandoffProviderLabel(
   provider: SocialAuthProvider | 'email' | null,
+  t: (key: string) => string,
 ) {
   switch (provider) {
     case 'google':
-      return 'Google';
+      return t('auth.handoff.google');
     case 'github':
-      return 'GitHub';
+      return t('auth.handoff.github');
     case 'email':
-      return 'Email';
+      return t('auth.handoff.email');
     default:
-      return 'your provider';
+      return t('auth.handoff.unknown');
   }
 }
 
 function LastUsedBadge() {
+  const { t } = useI18n();
   return (
     <span className="absolute -top-2 right-2 rounded-full border border-derived-lighter-subtle bg-primary-solid px-2 py-0.5 font-medium text-[10px] text-solid-foreground leading-none shadow-elevation-1">
-      Last used
+      {t('auth.lastUsed')}
     </span>
   );
 }
@@ -115,8 +118,8 @@ function CodingPlanLogoStack() {
 }
 
 export function SignInOptionsPanel({
-  title = 'Authenticate',
-  description = 'Choose a sign-in method to continue.',
+  title,
+  description,
   variant = 'centered',
   sendOtp,
   verifyOtp,
@@ -129,6 +132,9 @@ export function SignInOptionsPanel({
   onAuthenticated,
   className,
 }: SignInOptionsPanelProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t('auth.title');
+  const resolvedDescription = description ?? t('auth.description');
   const [phase, setPhase] = useState<AuthPhase>('options');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -236,7 +242,7 @@ export function SignInOptionsPanel({
         });
         clearRememberedSignInMethod();
         setSocialLoading(null);
-        setError('Failed to complete social sign-in.');
+        setError(t('auth.error.social'));
       }
     },
     [
@@ -286,7 +292,7 @@ export function SignInOptionsPanel({
       });
       clearRememberedSignInMethod();
       setSocialLoading(null);
-      setError('Failed to complete email sign-in.');
+      setError(t('auth.error.email'));
     }
   }, [
     clearRememberedSignInMethod,
@@ -309,7 +315,7 @@ export function SignInOptionsPanel({
       void track(`${trackingPrefix}-otp-failed`, {
         error_kind: 'turnstile-not-ready',
       });
-      setError('Security verification not ready. Please wait a moment.');
+      setError(t('auth.error.securityNotReady'));
       return;
     }
     setError(null);
@@ -323,7 +329,7 @@ export function SignInOptionsPanel({
         void track(`${trackingPrefix}-otp-failed`, {
           error_kind: 'turnstile-solve-failed',
         });
-        setError('Security verification failed. Please try again.');
+        setError(t('auth.error.securityFailed'));
         setLoading(false);
         return;
       }
@@ -346,7 +352,7 @@ export function SignInOptionsPanel({
       void track(`${trackingPrefix}-otp-failed`, {
         error_kind: 'network-error',
       });
-      setError('Failed to send verification code.');
+      setError(t('auth.error.sendCode'));
       resetTurnstile();
     } finally {
       setLoading(false);
@@ -392,7 +398,7 @@ export function SignInOptionsPanel({
         auth_method: 'stagewise',
         error_kind: 'network-error',
       });
-      setError('Failed to verify code.');
+      setError(t('auth.error.verifyCode'));
     } finally {
       setLoading(false);
     }
@@ -408,12 +414,15 @@ export function SignInOptionsPanel({
 
   const headerDescription =
     phase === 'email'
-      ? 'Enter your email to receive a verification code.'
+      ? t('auth.emailDescription')
       : phase === 'otp'
-        ? `We sent a code to ${email}. Enter it below.`
+        ? t('auth.otpDescription').replace('{email}', email)
         : phase === 'social'
-          ? `Please finish signing in with ${getHandoffProviderLabel(socialLoading)} in your browser, then return to stagewise.`
-          : description;
+          ? t('auth.socialHandoff').replace(
+              '{provider}',
+              getHandoffProviderLabel(socialLoading, t),
+            )
+          : resolvedDescription;
 
   return (
     <div
@@ -423,29 +432,19 @@ export function SignInOptionsPanel({
         className,
       )}
     >
-      {(title || headerDescription) && (
+      {(resolvedTitle || headerDescription) && (
         <div
           className={cn(
             'flex flex-col gap-2',
             variant === 'centered' && 'items-center',
           )}
         >
-          {title && (
-            <h2 className="font-medium text-foreground text-xl">{title}</h2>
+          {resolvedTitle && (
+            <h2 className="font-medium text-foreground text-xl">{resolvedTitle}</h2>
           )}
           {headerDescription && (
             <p className="text-muted-foreground text-sm">
-              {phase === 'otp' ? (
-                <>
-                  We sent a code to{' '}
-                  <span className="font-semibold text-muted-foreground">
-                    {email}
-                  </span>
-                  . Enter it below.
-                </>
-              ) : (
-                headerDescription
-              )}
+              {headerDescription}
             </p>
           )}
         </div>
@@ -465,7 +464,7 @@ export function SignInOptionsPanel({
             >
               {lastUsedMethod === 'google' && <LastUsedBadge />}
               <GoogleLogo className="size-4" aria-hidden />
-              Continue with Google
+              {t('auth.continueWith.google')}
             </Button>
             <Button
               variant="secondary"
@@ -476,7 +475,7 @@ export function SignInOptionsPanel({
             >
               {lastUsedMethod === 'github' && <LastUsedBadge />}
               <GithubMark className="size-4" aria-hidden="true" />
-              Continue with GitHub
+              {t('auth.continueWith.github')}
             </Button>
             <Button
               variant="secondary"
@@ -487,11 +486,11 @@ export function SignInOptionsPanel({
             >
               {lastUsedMethod === 'email' && <LastUsedBadge />}
               <IconEnvelopeOutline18 className="size-4" />
-              Continue with Email
+              {t('auth.continueWith.email')}
             </Button>
           </div>
           <div className="relative text-center text-subtle-foreground text-xs after:absolute after:inset-x-0 after:top-1/2 after:border-border-subtle after:border-t">
-            <span className="relative z-10 bg-background px-2">or</span>
+            <span className="relative z-10 bg-background px-2">{t('auth.or')}</span>
           </div>
           <div className="grid gap-2">
             <Button
@@ -505,7 +504,7 @@ export function SignInOptionsPanel({
               disabled={loading}
             >
               <IconKey2Outline18 className="size-4" />
-              Use your own API keys
+              {t('auth.useApiKeys')}
             </Button>
             <Button
               variant="secondary"
@@ -518,7 +517,7 @@ export function SignInOptionsPanel({
               disabled={loading}
             >
               <CodingPlanLogoStack />
-              Use existing subscription
+              {t('auth.useSubscription')}
             </Button>
           </div>
         </div>
@@ -528,7 +527,7 @@ export function SignInOptionsPanel({
         <div className="app-no-drag grid w-full max-w-sm gap-3 py-6">
           <Input
             ref={emailRef}
-            placeholder="you@example.com"
+            placeholder={t('auth.emailPlaceholder')}
             size="sm"
             className="w-full"
             type="email"
@@ -555,8 +554,8 @@ export function SignInOptionsPanel({
           >
             {lastUsedMethod === 'email' && <LastUsedBadge />}
             {turnstileEnabled && !turnstileReady && !turnstileError
-              ? 'Loading...'
-              : 'Send code'}
+              ? t('auth.loading')
+              : t('auth.sendCode')}
           </Button>
           <Button
             variant="ghost"
@@ -569,7 +568,7 @@ export function SignInOptionsPanel({
             }}
             disabled={loading}
           >
-            Back to sign-in options
+            {t('auth.backToOptions')}
           </Button>
         </div>
       )}
@@ -580,7 +579,7 @@ export function SignInOptionsPanel({
             <div className="flex flex-col items-center gap-3 py-4">
               <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
               <p className="text-center text-muted-foreground text-sm">
-                Waiting for you to complete sign-in in your browser…
+                {t('auth.waitingBrowser')}
               </p>
             </div>
           )}
@@ -595,7 +594,7 @@ export function SignInOptionsPanel({
             }}
             disabled={loading}
           >
-            Back to sign-in options
+            {t('auth.backToOptions')}
           </Button>
         </div>
       )}
@@ -618,7 +617,7 @@ export function SignInOptionsPanel({
             onClick={() => void handleVerifyOtp()}
             disabled={loading || code.length < 6}
           >
-            {loading ? 'Verifying...' : 'Verify'}
+            {loading ? t('auth.verifying') : t('auth.verify')}
           </Button>
           <Button
             variant="ghost"
@@ -632,7 +631,7 @@ export function SignInOptionsPanel({
             }}
             disabled={loading}
           >
-            Use a different email
+            {t('auth.useDifferentEmail')}
           </Button>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { Button } from '@stagewise/stage-ui/components/button';
+import { useI18n } from '@ui/hooks/use-i18n';
 import { Input } from '@stagewise/stage-ui/components/input';
 import {
   Tooltip,
@@ -254,16 +255,17 @@ function RowComponent({
     role: 'listitem';
   };
 } & RowProps) {
-  const [copyTooltipText, setCopyTooltipText] = useState('Copy link');
+  const { t } = useI18n();
+  const [copyTooltipText, setCopyTooltipText] = useState(t('settings.history.copyLink'));
 
   if (index === 0) {
     return (
       <div style={style} className="flex items-start pb-8">
         <div className="flex w-full items-center gap-24">
-          <h1 className="font-semibold text-foreground text-xl">History</h1>
+          <h1 className="font-semibold text-foreground text-xl">{t('settings.history.title')}</h1>
           <Input
             type="text"
-            placeholder="Search history"
+            placeholder={t('settings.history.searchPlaceholder')}
             value={searchText}
             onValueChange={onSearchTextChange}
           />
@@ -312,8 +314,8 @@ function RowComponent({
   const handleCopyUrl = async (e: React.MouseEvent) => {
     e.stopPropagation();
     await navigator.clipboard.writeText(row.url);
-    setCopyTooltipText('Copied!');
-    setTimeout(() => setCopyTooltipText('Copy link'), 1500);
+    setCopyTooltipText(t('settings.history.copied'));
+    setTimeout(() => setCopyTooltipText(t('settings.history.copyLink')), 1500);
   };
 
   return (
@@ -355,6 +357,7 @@ function RowComponent({
 // =============================================================================
 
 export function HistorySection() {
+  const { t } = useI18n();
   const [searchText, setSearchText] = useState('');
   const [debouncedSearchText, setDebouncedSearchText] = useState('');
   const [history, setHistory] = useState<HistoryResult[]>([]);
@@ -475,7 +478,7 @@ export function HistorySection() {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err : new Error('Failed to load history'),
+            err instanceof Error ? err : new Error(t('settings.history.error.loadFailed')),
           );
           setIsLoading(false);
         }
@@ -617,7 +620,7 @@ export function HistorySection() {
               {import.meta.env.DEV && error.stack && (
                 <details className="mt-4 text-left">
                   <summary className="cursor-pointer text-muted-foreground text-xs">
-                    Technical details (dev mode)
+                    {t('settings.history.error.technicalDetails')}
                   </summary>
                   <pre className="mt-2 max-h-48 overflow-auto rounded bg-surface-1 p-2 text-muted-foreground text-xs">
                     {error.stack}
@@ -653,15 +656,15 @@ export function HistorySection() {
                 }
               }}
             >
-              Retry
+              {t('settings.history.retry')}
             </Button>
           </div>
         ) : rows.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-muted-foreground text-sm">
               {searchText
-                ? 'No history found matching your search'
-                : 'No history yet'}
+                ? t('settings.history.empty.noSearchResults')
+                : t('settings.history.empty.noHistory')}
             </p>
           </div>
         ) : containerSize.height > 0 ? (

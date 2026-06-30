@@ -50,6 +50,7 @@ import { useContentCollapsed } from '../../../_components/content-collapsed-cont
 import type { Content } from '@tiptap/core';
 import { IconMagicWandSparkle } from 'nucleo-micro-bold';
 import { MessageUserPlanAction } from './message-user-plan-action';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 type UserMessage = AgentMessage & { role: 'user' };
 
@@ -67,6 +68,7 @@ export const MessageUser = memo(
     isWorking: boolean;
     hasSubsequentFileModifications?: boolean;
   }) {
+  const { t } = useI18n();
     const chatInputRef = useRef<ChatInputHandle>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [openAgent] = useOpenAgent();
@@ -758,7 +760,7 @@ export const MessageUser = memo(
                       onChange={setPendingTiptapContent}
                       onSubmit={handleSubmitEdit}
                       onEscape={handleCancelEditing}
-                      placeholder="Edit your message..."
+                      placeholder={t('chat.message.editYourMessage')}
                       showModelSelect
                       onModelChange={() => chatInputRef.current?.focus()}
                       showContextUsageRing={false}

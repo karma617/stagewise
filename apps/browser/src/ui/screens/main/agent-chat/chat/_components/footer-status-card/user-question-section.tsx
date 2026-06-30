@@ -30,6 +30,7 @@ import { CmdEnterPriority } from '@ui/utils/cmd-enter-registry';
 import { HotkeyCombo } from '@ui/components/hotkey-combo';
 import { HotkeyActions } from '@shared/hotkeys';
 import { IconHelpChatOutline18 } from 'nucleo-ui-outline-18';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 /**
  * Module-level store for the current form draft answers.
@@ -161,6 +162,7 @@ function UserQuestionForm({
   ) => Promise<void>;
   onGoBack: (questionId: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const formRef = useRef<HTMLDivElement>(null);
   const currentStepData = pendingQuestion.steps[pendingQuestion.currentStep];
   const isLastStep =
@@ -365,7 +367,7 @@ function UserQuestionForm({
             size="xs"
             onClick={() => void onGoBack(pendingQuestion.id)}
           >
-            Back
+            {t('common.back')}
           </Button>
         )}
         <Button
@@ -375,7 +377,7 @@ function UserQuestionForm({
           onClick={() => void handleSubmit()}
           disabled={!isStepComplete || isSubmitting}
         >
-          {isLastStep ? 'Send' : 'Next'}
+          {isLastStep ? t('common.send') : t('common.next')}
           {submitIsWinner && (
             <HotkeyCombo
               action={HotkeyActions.CMD_ENTER}
@@ -410,6 +412,7 @@ function FieldRenderer({
   onChange: (value: QuestionAnswerValue) => void;
   onBlur?: (questionId: string, error: string | null) => void;
 }) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   // Refs for radio-group "Other" state — declared unconditionally to
   // satisfy the Rules of Hooks. Only used when field.type === 'radio-group'.
@@ -585,7 +588,7 @@ function FieldRenderer({
                 <Input
                   size="xs"
                   tabIndex={-1}
-                  placeholder="Other (please enter)..."
+                  placeholder={t('chat.userQuestion.otherPlease')}
                   value={isOtherSelected ? otherText : otherTextRef.current}
                   onValueChange={(val) => onChange(`__other__:${val}`)}
                   onFocus={() => {

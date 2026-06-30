@@ -6,6 +6,7 @@ import type {
   CommandCenterMode,
   TabCommandItem,
 } from '../command-center-model';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export type CommandCenterDeleteConfirmation = {
   agentId: string;
@@ -35,13 +36,14 @@ export function CommandCenterFooter({
   includeGitignored: boolean;
   searchInContent: boolean;
 }) {
+  const { t } = useI18n();
   if (isRenamingAgent) {
     return (
       <div className="flex h-9 items-center justify-end gap-3 border-border-subtle border-t px-3 text-muted-foreground text-xs">
-        <CommandCenterFooterAction label="Cancel">
+        <CommandCenterFooterAction label={t('common.cancel')}>
           <ShortcutCombo value="Esc" size="xs" />
         </CommandCenterFooterAction>
-        <CommandCenterFooterAction label="Save">
+        <CommandCenterFooterAction label={t('common.save')}>
           <ShortcutCombo value="Enter" size="xs" />
         </CommandCenterFooterAction>
       </div>
@@ -52,14 +54,16 @@ export function CommandCenterFooter({
     return (
       <div className="flex h-9 items-center justify-between gap-3 border-border-subtle border-t px-3 text-xs">
         <span className="min-w-0 truncate text-foreground">
-          Delete{' '}
-          <span className="font-medium">“{deleteConfirmation.title}”</span>?
+          {t('commandCenter.footer.deleteConfirm').replace(
+            '{title}',
+            deleteConfirmation.title,
+          )}
         </span>
         <div className="flex shrink-0 items-center gap-3 text-muted-foreground">
-          <CommandCenterFooterAction label="Cancel">
+          <CommandCenterFooterAction label={t('common.cancel')}>
             <ShortcutCombo value="Esc" size="xs" />
           </CommandCenterFooterAction>
-          <CommandCenterFooterAction label="Delete">
+          <CommandCenterFooterAction label={t('common.delete')}>
             <ShortcutCombo value="Enter" size="xs" />
           </CommandCenterFooterAction>
         </div>
@@ -70,14 +74,16 @@ export function CommandCenterFooter({
   if (selectedAgent) {
     return (
       <div className="flex h-9 items-center justify-end gap-3 border-border-subtle border-t px-3 text-muted-foreground text-xs">
-        <CommandCenterFooterAction label="Rename">
+        <CommandCenterFooterAction label={t('common.rename')}>
           <HotkeyCombo
             action={HotkeyActions.COMMAND_CENTER_RENAME_AGENT}
             size="xs"
           />
         </CommandCenterFooterAction>
         <CommandCenterFooterAction
-          label={selectedAgent.isPinned ? 'Unpin' : 'Pin'}
+          label={
+            selectedAgent.isPinned ? t('common.unpin') : t('common.pin')
+          }
         >
           <HotkeyCombo
             action={HotkeyActions.COMMAND_CENTER_TOGGLE_AGENT_PIN}
@@ -85,7 +91,7 @@ export function CommandCenterFooter({
           />
         </CommandCenterFooterAction>
         {!selectedAgent.isWorking && (
-          <CommandCenterFooterAction label="Delete">
+          <CommandCenterFooterAction label={t('common.delete')}>
             <HotkeyCombo
               action={HotkeyActions.COMMAND_CENTER_DELETE_AGENT}
               size="xs"
@@ -101,7 +107,9 @@ export function CommandCenterFooter({
       <div className="flex h-9 items-center justify-end gap-3 border-border-subtle border-t px-3 text-muted-foreground text-xs">
         <CommandCenterFooterAction
           label={
-            searchInContent ? 'Search filenames only' : 'Search in content'
+            searchInContent
+              ? t('commandCenter.footer.searchFilenamesOnly')
+              : t('commandCenter.footer.searchInContent')
           }
         >
           <HotkeyCombo
@@ -112,7 +120,9 @@ export function CommandCenterFooter({
         {canToggleGitignored && (
           <CommandCenterFooterAction
             label={
-              includeGitignored ? 'Exclude gitignored' : 'Include gitignored'
+              includeGitignored
+                ? t('commandCenter.footer.excludeGitignored')
+                : t('commandCenter.footer.includeGitignored')
             }
           >
             <HotkeyCombo
@@ -130,7 +140,7 @@ export function CommandCenterFooter({
       <div className="flex h-9 items-center justify-end gap-3 border-border-subtle border-t px-3 text-muted-foreground text-xs">
         {canToggleSelectedTabPin && (
           <CommandCenterFooterAction
-            label={selectedTab.isPinned ? 'Unpin' : 'Pin'}
+            label={selectedTab.isPinned ? t('common.unpin') : t('common.pin')}
           >
             <HotkeyCombo
               action={HotkeyActions.COMMAND_CENTER_TOGGLE_AGENT_PIN}
@@ -139,14 +149,14 @@ export function CommandCenterFooter({
           </CommandCenterFooterAction>
         )}
         {canCopySelectedTabUrl && (
-          <CommandCenterFooterAction label="Copy URL">
+          <CommandCenterFooterAction label={t('commandCenter.footer.copyUrl')}>
             <HotkeyCombo
               action={HotkeyActions.COMMAND_CENTER_COPY_TAB_URL}
               size="xs"
             />
           </CommandCenterFooterAction>
         )}
-        <CommandCenterFooterAction label="Close">
+        <CommandCenterFooterAction label={t('common.close')}>
           <HotkeyCombo action={HotkeyActions.CLOSE_TAB} size="xs" />
         </CommandCenterFooterAction>
       </div>

@@ -9,8 +9,11 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@stagewise/stage-ui/components/tooltip';
+import { useI18n } from '@ui/hooks/use-i18n';
 
-export function ColorSchemeWidget({ tab }: { tab: TabState }) {
+export function ColorSchemeWidget({
+  tab }: { tab: TabState }) {
+  const { t } = useI18n();
   const cycleColorScheme = useKartonProcedure(
     (p) => p.browser.cycleColorScheme,
   );
@@ -57,9 +60,9 @@ export function ColorSchemeWidget({ tab }: { tab: TabState }) {
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <span>Toggle color scheme</span>
+        <span>{t('common.toggleColorScheme')}</span>
         <span className="mt-0.5 block text-muted-foreground text-xs">
-          Current:{' '}
+          {t('common.current')}{': '}
           {tab.colorScheme === 'light'
             ? 'Light'
             : tab.colorScheme === 'dark'

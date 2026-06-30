@@ -1,6 +1,7 @@
 import type { AgentToolUIPart } from '@shared/karton-contracts/ui/agent';
 import { ToolPartUINotCollapsible } from './shared/tool-part-ui-not-collapsible';
 import { IconFileSearchOutline18 } from 'nucleo-ui-outline-18';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 export const GlobToolPart = ({
   part,
@@ -11,6 +12,7 @@ export const GlobToolPart = ({
   disableShimmer?: boolean;
   minimal?: boolean;
 }) => {
+  const { t } = useI18n();
   const streamingText = part.input?.pattern
     ? `Searching for ${part.input.pattern}...`
     : 'Searching files...';

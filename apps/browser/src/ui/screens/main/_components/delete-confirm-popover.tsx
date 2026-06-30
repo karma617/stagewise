@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useKartonState } from '@ui/hooks/use-karton';
 import { useFloatingIsolation } from './use-floating-isolation';
 import type { ReactNode } from 'react';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 /**
  * Top viewport padding reserved for the macOS traffic-light controls when
@@ -40,9 +41,9 @@ export function DeleteConfirmPopover({
   onConfirm,
   isolated = false,
   anchorPoint,
-  title = 'Delete agent?',
-  description = 'This will permanently delete this agent and its chat history.',
-  confirmLabel = 'Delete',
+  title,
+  description,
+  confirmLabel,
   confirmVariant = 'primary',
   confirmDisabled = false,
   children,
@@ -59,6 +60,7 @@ export function DeleteConfirmPopover({
   confirmDisabled?: boolean;
   children?: ReactNode;
 }) {
+  const { t } = useI18n();
   // On macOS with a hidden titlebar, keep the popover clear of the
   // traffic-light overlay that sits at the top of the window.
   const isMacOs = useKartonState((s) => s.appInfo.platform === 'darwin');
@@ -121,8 +123,8 @@ export function DeleteConfirmPopover({
         collisionPadding={collisionPadding}
       >
         <div ref={shieldRef} className="contents">
-          <PopoverTitle>{title}</PopoverTitle>
-          <PopoverDescription>{description}</PopoverDescription>
+          <PopoverTitle>{title ?? t('dialogs.deleteAgentTitle')}</PopoverTitle>
+          <PopoverDescription>{description ?? '此操作将永久删除此代理及其聊天记录。'}</PopoverDescription>
           {children}
           <PopoverClose />
           <PopoverFooter>
@@ -133,14 +135,14 @@ export function DeleteConfirmPopover({
               onClick={onConfirm}
               autoFocus
             >
-              {confirmLabel}
+              {confirmLabel ?? t('common.delete')}
             </Button>
             <Button
               variant="ghost"
               size="xs"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
           </PopoverFooter>
         </div>

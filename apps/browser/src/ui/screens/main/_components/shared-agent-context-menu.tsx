@@ -11,6 +11,7 @@ import {
   IconPinTackSlashOutline18,
 } from 'nucleo-ui-outline-18';
 import { useFloatingIsolation } from './use-floating-isolation';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 /**
  * Shared right-click context menu for agent cards and list rows.
@@ -108,6 +109,7 @@ export const SharedAgentContextMenuHost = memo(
     onClose,
     onDeleteRequest,
   }: SharedAgentContextMenuHostProps) {
+    const { t } = useI18n();
     const revealWorkingDirectory = useKartonProcedure(
       (p) => p.agents.revealWorkingDirectory,
     );
@@ -201,7 +203,7 @@ export const SharedAgentContextMenuHost = memo(
                 }}
               >
                 <IconPen2Outline18 className="size-3.5 shrink-0" />
-                <span>Rename</span>
+                <span>{t('common.rename')}</span>
               </AgentMenuItem>
               {togglePinned && (
                 <AgentMenuItem
@@ -215,7 +217,7 @@ export const SharedAgentContextMenuHost = memo(
                   ) : (
                     <IconPinTackOutline18 className="size-3.5 shrink-0" />
                   )}
-                  <span>{isPinned ? 'Unpin' : 'Pin globally'}</span>
+                  <span>{isPinned ? t('chat.sharedMenu.unpin') : t('chat.sharedMenu.pinGlobally')}</span>
                 </AgentMenuItem>
               )}
               {canDelete !== false && (
@@ -226,7 +228,7 @@ export const SharedAgentContextMenuHost = memo(
                   }}
                 >
                   <IconTrash2Outline24 className="size-3.5 shrink-0" />
-                  <span>Permanently delete</span>
+                  <span>{t('chat.sharedMenu.permanentlyDelete')}</span>
                 </AgentMenuItem>
               )}
               {showDev && (
@@ -239,7 +241,7 @@ export const SharedAgentContextMenuHost = memo(
                     }}
                   >
                     <IconCopyIdOutline18 className="size-3.5 shrink-0" />
-                    <span>Copy instance ID</span>
+                    <span>{t('chat.sharedMenu.copyInstanceId')}</span>
                   </AgentMenuItem>
                   <AgentMenuItem
                     onClick={() => {
@@ -248,7 +250,7 @@ export const SharedAgentContextMenuHost = memo(
                     }}
                   >
                     <IconFolderOpenOutline18 className="size-3.5 shrink-0" />
-                    <span>Open data directory</span>
+                    <span>{t('chat.sharedMenu.openDataDir')}</span>
                   </AgentMenuItem>
                 </>
               )}

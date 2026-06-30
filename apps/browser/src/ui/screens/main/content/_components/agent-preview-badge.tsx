@@ -10,12 +10,15 @@ import { HotkeyCombo } from '@ui/components/hotkey-combo';
 import { useKartonState } from '@ui/hooks/use-karton';
 import { cn } from '@ui/utils';
 import { useOpenAgent } from '@ui/hooks/use-open-chat';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 type AgentPreviewBadgeProps = {
   onClick: () => void;
 };
 
-export function AgentPreviewBadge({ onClick }: AgentPreviewBadgeProps) {
+export function AgentPreviewBadge({
+  onClick }: AgentPreviewBadgeProps) {
+  const { t } = useI18n();
   const [openAgent] = useOpenAgent();
   const isWorking = useKartonState((s) =>
     openAgent ? s.agents.instances[openAgent]?.state.isWorking : false,
@@ -41,7 +44,7 @@ export function AgentPreviewBadge({ onClick }: AgentPreviewBadgeProps) {
         </TooltipTrigger>
         <TooltipContent>
           <div className="flex flex-row items-center gap-1.5">
-            <span className="text-xs">Toggle chat panel</span>
+            <span className="text-xs">{t('common.toggleChatPanel')}</span>
             <HotkeyCombo
               action={HotkeyActions.TOGGLE_CONTEXT_SELECTOR}
               size="xs"

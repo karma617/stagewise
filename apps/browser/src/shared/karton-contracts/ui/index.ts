@@ -403,33 +403,11 @@ export type TutorialState = z.infer<typeof tutorialStateSchema>;
 
 export const lastViewedChatsSchema = z.record(z.string(), z.number());
 
-export const experienceSurveySchema = z.object({
-  dismissedAt: z.number().nullable(),
-  dismissedCount: z.number(),
-  answered: z.boolean(),
-  answeredAt: z.number().nullable(),
-});
-
-export type ExperienceSurvey = z.infer<typeof experienceSurveySchema>;
-
-export const founderCallSurveySchema = z.object({
-  dismissedAt: z.number().nullable(),
-  dismissedCount: z.number(),
-  answered: z.boolean(),
-  answeredAt: z.number().nullable(),
-});
-
-export type FounderCallSurvey = z.infer<typeof founderCallSurveySchema>;
-
 export const storedExperienceDataSchema = z.object({
   recentlyOpenedWorkspaces: recentlyOpenedWorkspacesArraySchema,
   hasSeenOnboardingFlow: z.boolean().nullable(),
   lastViewedChats: lastViewedChatsSchema,
   tutorialState: tutorialStateSchema,
-  experienceSurvey: experienceSurveySchema,
-  firstUsedAt: z.number().nullable(),
-  founderCallSurvey: founderCallSurveySchema,
-  totalAgentCount: z.number(),
 });
 
 export type StoredExperienceData = z.infer<typeof storedExperienceDataSchema>;
@@ -1066,6 +1044,10 @@ export type AppState = {
     };
     tokenExpiresAt?: string;
     refreshTokenExpiresAt?: string;
+    /** Live step log for auto-register flow (pushed from backend, consumed by UI) */
+    registrationSteps?: Array<{ ts: number; msg: string }>;
+    /** Whether an auto-register flow is currently running */
+    registrationRunning?: boolean;
   };
   // Current stagewise app runtime information
   appInfo: {
@@ -1109,11 +1091,6 @@ export type AppState = {
   };
   // The global configuration of the CLI.
   globalConfig: GlobalConfig;
-  // Discovered notification sound packs (runtime, not persisted).
-  notificationSoundPacks: {
-    available: string[];
-    displayNames: Record<string, string>;
-  };
   // State of the current user experience (getting started etc.)
   userExperience: {
     storedExperienceData: StoredExperienceData;
@@ -1131,8 +1108,6 @@ export type AppState = {
         presetName: string; // Preset can be a name like "mobile" or "iPhone 13" or whatever
       } | null;
     };
-    experienceSurvey: ExperienceSurvey;
-    founderCallSurvey: FounderCallSurvey;
   };
   // State of the notification service.
   notifications: {
@@ -1342,6 +1317,7 @@ export type KartonContract = {
         undoToolCalls: boolean,
       ) => Promise<string>;
       retryLastUserMessage: (agentId: string) => Promise<void>;
+      continueAfterError: (agentId: string) => Promise<void>;
       markAsRead: (agentId: string) => Promise<void>;
       setActiveModelId: (agentId: string, modelId: ModelId) => Promise<void>;
       setTitle: (agentId: string, title: string) => Promise<void>;
@@ -1512,6 +1488,7 @@ export type KartonContract = {
         provider: SocialAuthProvider,
       ) => Promise<{ error?: string }>;
       signInEmail: () => Promise<{ error?: string }>;
+      cancelSignInEmail: () => Promise<{ ok: boolean }>;
       refreshStatus: () => Promise<void>;
       logout: () => Promise<void>;
       /** Get current usage stats */
@@ -1543,6 +1520,307 @@ export type KartonContract = {
         'xiaomi-mimo': ApiKeyValidationResult;
         mistral: ApiKeyValidationResult;
       }>;
+      /** Auto-register new account from email pool and sign in */
+      autoRegister: (
+        cfg: {
+          mailboxService?:
+            | 'outlook-manager-plus'
+            | 'cloudflare_temp_email'
+            | 'tempmail_lol'
+            | 'moemail'
+            | 'inbucket'
+            | 'duckmail';
+          apiUrl: string;
+          apiKey: string;
+          adminPassword?: string;
+          groupId?: string;
+          tagIds?: string;
+          includeUntagged?: boolean;
+          skipTagNames?: string[];
+          registerSuccessTagNames?: string[];
+          invalidEmailTagNames?: string[];
+          emailFolder?: string;
+          emailTop?: number;
+          pollIntervalMs?: number;
+          proxyPool?: string;
+          mailServices?: Record<string, unknown>;
+          /** Captcha provider for Turnstile solving. */
+          captchaProvider?:
+            | 'console-handoff'
+            | '2captcha'
+            | 'capsolver'
+            | 'yescaptcha'
+            | 'playwright-stealth'
+            | 'browser-ui-flow';
+          /** API key for third-party captcha services. */
+          captchaApiKeys?: {
+            twocaptcha?: string;
+            capsolver?: string;
+            yescaptcha?: string;
+          };
+        },
+        captchaToken?: string,
+      ) => Promise<{ error?: string; email?: string }>;
+      /** Test email pool connection */
+      /** Save auto-register config to SQLite */
+      saveAutoRegisterConfig: (
+        config: Record<string, unknown>,
+      ) => Promise<{ ok: boolean }>;
+      /** Load auto-register config from SQLite */
+      loadAutoRegisterConfig: () => Promise<Record<string, unknown> | null>;
+      testMailboxConnection: (cfg: {
+        mailboxService?:
+          | 'outlook-manager-plus'
+          | 'cloudflare_temp_email'
+          | 'tempmail_lol'
+          | 'moemail'
+          | 'inbucket'
+          | 'duckmail';
+        apiUrl: string;
+        apiKey: string;
+        adminPassword?: string;
+        groupId?: string;
+        tagIds?: string;
+        emailFolder?: string;
+        emailTop?: number;
+        pollIntervalMs?: number;
+        proxyPool?: string;
+        mailServices?: Record<string, unknown>;
+      }) => Promise<{ ok: boolean; accountCount?: number; error?: string }>;
+      /** Test connectivity of every proxy in the pool */
+      testProxyPool: (urls: string[]) => Promise<{
+        results: Array<{
+          url: string;
+          ok: boolean;
+          latencyMs?: number;
+          ip?: string;
+          error?: string;
+        }>;
+      }>;
+      /** Get all accounts in the pool */
+      getAccountPool: () => Promise<
+        Array<{
+          email: string;
+          token?: string;
+          status: 'normal' | 'throttled' | 'banned';
+          addedAt: string;
+          lastCheckedAt?: string;
+          throttledSince?: string;
+          throttledResetsAt?: string;
+          usage?: CurrentUsageResponse;
+          usageCheckedAt?: string;
+        }>
+      >;
+      /** Export portable account pool JSON for another device */
+      exportAccountPool: () => Promise<{
+        version: 1;
+        exportedAt: string;
+        accounts: Array<{
+          email: string;
+          token: string;
+          status: 'normal' | 'throttled' | 'banned';
+          addedAt: string;
+        }>;
+      }>;
+      /** Import account pool JSON. Duplicate emails overwrite old tokens. */
+      importAccountPool: (rawJson: string) => Promise<{
+        total: number;
+        imported: number;
+        updated: number;
+        skipped: number;
+        accounts: Array<{
+          email: string;
+          token?: string;
+          status: 'normal' | 'throttled' | 'banned';
+          addedAt: string;
+          lastCheckedAt?: string;
+          throttledSince?: string;
+          throttledResetsAt?: string;
+          usage?: CurrentUsageResponse;
+          usageCheckedAt?: string;
+        }>;
+      }>;
+      /** Remove account from the pool */
+      removeFromPool: (email: string) => Promise<{ ok: boolean }>;
+      /** Validate every pool account's token against the server */
+      checkPoolHealth: () => Promise<
+        Array<{
+          email: string;
+          token?: string;
+          status: 'normal' | 'throttled' | 'banned';
+          addedAt: string;
+          lastCheckedAt?: string;
+          throttledSince?: string;
+          throttledResetsAt?: string;
+          usage?: CurrentUsageResponse;
+          usageCheckedAt?: string;
+        }>
+      >;
+      /** Start a background pool health check with progress polling. */
+      startPoolHealthCheck: () => Promise<{ taskId: string }>;
+      getPoolHealthCheckStatus: (taskId: string) => Promise<{
+        taskId: string;
+        status: 'running' | 'completed' | 'error';
+        total: number;
+        done: number;
+        failed: number;
+        skipped: number;
+        activeEmails: string[];
+        logs: string[];
+        logsByEmail: Record<string, string[]>;
+        accounts: Array<{
+          email: string;
+          token?: string;
+          status: 'normal' | 'throttled' | 'banned';
+          addedAt: string;
+          lastCheckedAt?: string;
+          throttledSince?: string;
+          throttledResetsAt?: string;
+          usage?: CurrentUsageResponse;
+          usageCheckedAt?: string;
+        }>;
+        error?: string;
+      }>;
+      /** Refresh usage info for all healthy pool accounts */
+      refreshPoolUsage: () => Promise<
+        Array<{
+          email: string;
+          token?: string;
+          status: 'normal' | 'throttled' | 'banned';
+          addedAt: string;
+          lastCheckedAt?: string;
+          throttledSince?: string;
+          throttledResetsAt?: string;
+          usage?: CurrentUsageResponse;
+          usageCheckedAt?: string;
+        }>
+      >;
+      /** Refresh usage info for one pool account */
+      refreshPoolAccountUsage: (email: string) => Promise<{
+        accounts: Array<{
+          email: string;
+          token?: string;
+          status: 'normal' | 'throttled' | 'banned';
+          addedAt: string;
+          lastCheckedAt?: string;
+          throttledSince?: string;
+          throttledResetsAt?: string;
+          usage?: CurrentUsageResponse;
+          usageCheckedAt?: string;
+        }>;
+        logs: string[];
+      }>;
+      /** Remove pool accounts that were marked invalid/banned */
+      cleanupInvalidPoolAccounts: () => Promise<{
+        removed: number;
+        accounts: Array<{
+          email: string;
+          token?: string;
+          status: 'normal' | 'throttled' | 'banned';
+          addedAt: string;
+          lastCheckedAt?: string;
+          throttledSince?: string;
+          throttledResetsAt?: string;
+          usage?: CurrentUsageResponse;
+          usageCheckedAt?: string;
+        }>;
+      }>;
+      /** Switch to a specific pool account */
+      switchToAccount: (
+        email: string,
+      ) => Promise<{ error?: string; email?: string }>;
+      /** Auto-switch to the next available pool account only */
+      switchToAvailablePoolAccount: (
+        currentEmail?: string,
+        throttledResetsAt?: string,
+      ) => Promise<{ error?: string; email?: string }>;
+      /** Auto-switch on quota exceeded: use pool account or register new */
+      autoSwitchOnQuotaExceeded: (
+        cfg: {
+          mailboxService?:
+            | 'outlook-manager-plus'
+            | 'cloudflare_temp_email'
+            | 'tempmail_lol'
+            | 'moemail'
+            | 'inbucket'
+            | 'duckmail';
+          apiUrl: string;
+          apiKey: string;
+          adminPassword?: string;
+          groupId?: string;
+          tagIds?: string;
+          includeUntagged?: boolean;
+          skipTagNames?: string[];
+          registerSuccessTagNames?: string[];
+          invalidEmailTagNames?: string[];
+          emailFolder?: string;
+          emailTop?: number;
+          pollIntervalMs?: number;
+          proxyPool?: string;
+          mailServices?: Record<string, unknown>;
+        },
+        currentEmail?: string,
+        throttledResetsAt?: string,
+        captchaToken?: string,
+      ) => Promise<{
+        error?: string;
+        email?: string;
+        action?: 'switched' | 'registered';
+      }>;
+      /** Start a background batch registration task. Returns a task id immediately; progress is polled via getBatchTaskStatus. */
+      autoRegisterBatch: (params: {
+        cfg: {
+          mailboxService?:
+            | 'outlook-manager-plus'
+            | 'cloudflare_temp_email'
+            | 'tempmail_lol'
+            | 'moemail'
+            | 'inbucket'
+            | 'duckmail';
+          apiUrl: string;
+          apiKey: string;
+          adminPassword?: string;
+          groupId?: string;
+          tagIds?: string;
+          includeUntagged?: boolean;
+          skipTagNames?: string[];
+          registerSuccessTagNames?: string[];
+          invalidEmailTagNames?: string[];
+          emailFolder?: string;
+          emailTop?: number;
+          pollIntervalMs?: number;
+          proxyPool?: string;
+          mailServices?: Record<string, unknown>;
+          /** Captcha provider for Turnstile solving (mirrors autoRegister). */
+          captchaProvider?:
+            | 'console-handoff'
+            | '2captcha'
+            | 'capsolver'
+            | 'yescaptcha'
+            | 'playwright-stealth'
+            | 'browser-ui-flow';
+          /** API key for third-party captcha services. */
+          captchaApiKeys?: {
+            twocaptcha?: string;
+            capsolver?: string;
+            yescaptcha?: string;
+          };
+        };
+        total: number;
+        intervalMs?: number;
+        captchaToken?: string;
+      }) => Promise<{ taskId: string }>;
+      getBatchTaskStatus: (taskId: string) => Promise<{
+        taskId: string;
+        status: 'running' | 'completed' | 'cancelled' | 'error';
+        total: number;
+        done: number;
+        failed: number;
+        logs: string[];
+        emails: string[];
+        error?: string;
+      }>;
+      cancelBatchTask: (taskId: string) => Promise<{ ok: boolean }>;
     };
     userExperience: {
       devAppPreview: {
@@ -1584,17 +1862,6 @@ export type KartonContract = {
           tutorialId: string;
           stepIndex: number;
         }) => Promise<void>;
-      };
-      survey: {
-        answer: (answer: 'yes' | 'no') => Promise<void>;
-        dismiss: () => Promise<void>;
-        submitFeedback: (feedback: string) => Promise<void>;
-      };
-      founderCall: {
-        survey: {
-          open: () => Promise<void>;
-          dismiss: () => Promise<void>;
-        };
       };
     };
     filePicker: {
@@ -2130,6 +2397,8 @@ export const defaultState: KartonContract['state'] = {
   toolbox: {},
   userAccount: {
     status: 'unauthenticated',
+    registrationSteps: [],
+    registrationRunning: false,
   },
   appInfo: {
     baseName: __APP_BASE_NAME__,
@@ -2159,16 +2428,17 @@ export const defaultState: KartonContract['state'] = {
     errorMessage: null,
   },
   globalConfig: {
+    telemetryLevel: 'full',
+    notificationSoundsEnabled: true,
     notificationSoundLoudness: 'subtle',
     notificationSoundPack: 'bubble-pops',
+    availableSoundPacks: ['bubble-pops'],
+    packDisplayNames: {},
     dockBounceEnabled: true,
     blockAppSuspensionWhenAgentsActive: true,
     personalizationThemeId: 'default',
     appColorScheme: 'system',
-  },
-  notificationSoundPacks: {
-    available: ['bubble-pops'],
-    displayNames: {},
+    appLanguage: 'zh-CN',
   },
   userExperience: {
     storedExperienceData: {
@@ -2176,38 +2446,12 @@ export const defaultState: KartonContract['state'] = {
       hasSeenOnboardingFlow: null,
       lastViewedChats: {},
       tutorialState: {},
-      experienceSurvey: {
-        dismissedAt: null,
-        dismissedCount: 0,
-        answered: false,
-        answeredAt: null,
-      },
-      firstUsedAt: null,
-      founderCallSurvey: {
-        dismissedAt: null,
-        dismissedCount: 0,
-        answered: false,
-        answeredAt: null,
-      },
-      totalAgentCount: 0,
     },
     pendingOnboardingSuggestion: null,
     devAppPreview: {
       isFullScreen: false,
       inShowCodeMode: false,
       customScreenSize: null,
-    },
-    experienceSurvey: {
-      dismissedAt: null,
-      dismissedCount: 0,
-      answered: false,
-      answeredAt: null,
-    },
-    founderCallSurvey: {
-      dismissedAt: null,
-      dismissedCount: 0,
-      answered: false,
-      answeredAt: null,
     },
   },
   notifications: [],
