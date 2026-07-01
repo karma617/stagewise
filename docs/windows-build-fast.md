@@ -60,6 +60,7 @@ FAST 打包不需要签名/公证密钥）。`.env` 不纳入版本库。
    - `pnpm exec tsx scripts/prepare-camoufox-assets.ts`
    - `pnpm package:fast`
    - 将 `apps/browser/assets/camoufox` 复制到 `out/**/resources/camoufox`
+   - 将打包出的应用目录压缩为同级 `.zip` 文件
 
 ## 七、已知非致命告警
 - PostHog source map 上传失败：使用的是占位 API key（`POSTHOG_CLI_API_KEY`），
@@ -68,3 +69,10 @@ FAST 打包不需要签名/公证密钥）。`.env` 不纳入版本库。
 
 ## 八、产物
 `apps/browser/out/dev/stagewise-dev-win32-x64/stagewise-dev.exe`
+
+同时会生成便于分发的 zip 包：
+`apps/browser/out/dev/stagewise-dev-win32-x64.zip`
+
+## 九、任务栏图标
+打包产物会将 `assets/icons/dev/icon.png` 写入 `resources/icon.png`，主窗口在
+Windows 解压目录直跑时也会显式使用该图标，避免任务栏显示为默认白色文件图标。

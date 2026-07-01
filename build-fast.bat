@@ -43,6 +43,14 @@ if %_CODE% EQU 0 (
   )
 )
 
+if %_CODE% EQU 0 (
+  echo [build-fast] creating zip package
+  pwsh -NoProfile -ExecutionPolicy Bypass -Command "$root = (Get-Location).Path; $out = Join-Path $root 'apps\browser\out'; if (!(Test-Path -LiteralPath $out)) { throw \"Output directory missing: $out\" }; $packageDirs = @(Get-ChildItem -LiteralPath $out -Directory -Recurse | Where-Object { (Test-Path -LiteralPath (Join-Path $_.FullName 'resources')) -and ((Get-ChildItem -LiteralPath $_.FullName -File -Filter '*.exe' | Select-Object -First 1) -ne $null) }); if ($packageDirs.Count -eq 0) { throw \"No packaged app directories found under $out\" }; foreach ($dir in $packageDirs) { $zipPath = Join-Path $dir.Parent.FullName ($dir.Name + '.zip'); if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }; Compress-Archive -LiteralPath $dir.FullName -DestinationPath $zipPath -CompressionLevel Optimal -Force; Write-Host \"[build-fast] created zip package: $zipPath\" }"
+  if errorlevel 1 (
+    set _CODE=%ERRORLEVEL%
+  )
+)
+
 :AFTER_PACKAGE
 echo.
 echo [build-fast] finished at %DATE% %TIME%
@@ -52,6 +60,7 @@ if %_CODE% NEQ 0 (
 ) else (
   echo [build-fast] SUCCESS. Artifact directory:
   echo   %CD%\apps\browser\out
+  echo [build-fast] Zip packages are next to packaged app directories.
 )
 
 :END

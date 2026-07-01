@@ -65,6 +65,20 @@ const windowStateSchema = z.object({
 
 type WindowState = z.infer<typeof windowStateSchema>;
 
+function getWindowIconPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'icon.png');
+  }
+
+  return path.join(
+    app.getAppPath(),
+    'assets',
+    'icons',
+    __APP_RELEASE_CHANNEL__,
+    'icon.png',
+  );
+}
+
 const fileTabMetadataSchema = z.object({
   workspaceKey: z.string(),
   relativePath: z.string(),
@@ -540,12 +554,9 @@ export class WindowLayoutService extends DisposableService {
       titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'hiddenInset',
       show: false, // Shown on the renderer's `dom-ready` (see showMainWindowOnce) to avoid an unstyled flash
       // fullscreenable: false,
-      ...(process.platform === 'linux'
+      ...(process.platform === 'linux' || process.platform === 'win32'
         ? {
-            icon: path.join(
-              process.resourcesPath,
-              `assets/icons/${__APP_RELEASE_CHANNEL__}/icon.png`,
-            ),
+            icon: getWindowIconPath(),
           }
         : {}),
       trafficLightPosition: {

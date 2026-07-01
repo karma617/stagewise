@@ -302,6 +302,30 @@ function insertGroupHeaders(agents: MergedAgentEntry[]): GroupedItem[] {
   return result;
 }
 
+function getGroupLabelText(label: GroupLabel, t: (key: string) => string) {
+  switch (label) {
+    case 'Today':
+      return t('chat.agentList.group.today');
+    case 'Yesterday':
+      return t('chat.agentList.group.yesterday');
+    case 'Last 7 days':
+      return t('chat.agentList.group.last7Days');
+    case 'Last 30 days':
+      return t('chat.agentList.group.last30Days');
+    case 'Older':
+      return t('chat.agentList.group.older');
+  }
+}
+
+function getAgentDisplayTitle(title: string, t: (key: string) => string) {
+  const defaultPrefix = 'New Chat Agent - ';
+  if (!title.startsWith(defaultPrefix)) return title;
+
+  return `${t('chat.agentList.defaultChatAgentTitlePrefix')}${title.slice(
+    defaultPrefix.length,
+  )}`;
+}
+
 // ============================================================================
 // Sortable rows
 // ============================================================================
@@ -641,10 +665,13 @@ function AgentListGroupingToggle({
   onModeChange: (mode: AgentListGroupingMode) => void;
 }) {
   const { t } = useI18n();
-  const label = mode === 'workspace' ? 'Group by Workspace' : 'Group by Age';
+  const label =
+    mode === 'workspace'
+      ? t('chat.agentList.groupByWorkspace')
+      : t('chat.agentList.groupByAge');
   const options = [
-    { value: 'age', label: 'Age' },
-    { value: 'workspace', label: 'Workspace' },
+    { value: 'age', label: t('chat.agentList.groupOptionAge') },
+    { value: 'workspace', label: t('chat.agentList.groupOptionWorkspace') },
   ] as const;
 
   return (
@@ -2068,7 +2095,7 @@ export function AgentsList() {
         <AgentCardWithPreview
           key={key}
           id={agent.id}
-          title={agent.title}
+          title={getAgentDisplayTitle(agent.title, t)}
           isActive={isOpen}
           isPreviewActive={isPreviewOpen}
           isWorking={agent.isWorking}
@@ -2096,6 +2123,7 @@ export function AgentsList() {
       openAgent,
       previewAgentId,
       pinnedAgentIdSet,
+      t,
     ],
   );
 
@@ -2344,7 +2372,7 @@ export function AgentsList() {
         >
           <IconPenPlusOutline18 className="size-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-left transition-[mask-image] duration-200 group-hover/new-agent:[mask-image:linear-gradient(to_right,black_calc(100%-56px),transparent_100%)]">
-            New Agent
+            {t('chat.agentList.newAgent')}
           </span>
           <HotkeyCombo
             action={HotkeyActions.NEW_CHAT}
@@ -2395,7 +2423,9 @@ export function AgentsList() {
       >
         <div className="flex shrink-0 items-center pt-0 pr-0 pb-1 pl-1.5">
           <div className="min-w-0 flex-1 truncate font-normal text-sidebar-foreground text-xs">
-            {filteredPinnedAgents.length > 0 ? 'Pinned' : 'Agents'}
+            {filteredPinnedAgents.length > 0
+              ? t('chat.agentList.pinned')
+              : t('chat.agentList.agents')}
           </div>
           <AgentListGroupingToggle
             mode={agentListGroupingMode}
@@ -2445,7 +2475,7 @@ export function AgentsList() {
                 <div className="[&_*]:!cursor-grabbing shadow-elevation-1">
                   <AgentCard
                     id={activePinnedDragAgent.id}
-                    title={activePinnedDragAgent.title}
+                    title={getAgentDisplayTitle(activePinnedDragAgent.title, t)}
                     isActive={activePinnedDragAgent.id === openAgent}
                     isWorking={activePinnedDragAgent.isWorking}
                     isWaitingForUser={activePinnedDragAgent.isWaitingForUser}
@@ -2510,7 +2540,7 @@ export function AgentsList() {
                   key={`h-${item.label}`}
                   className="shrink-0 px-1.5 pt-3 pb-1 font-normal text-sidebar-foreground text-xs"
                 >
-                  {item.label}
+                  {getGroupLabelText(item.label, t)}
                 </div>
               );
             }

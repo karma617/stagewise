@@ -19,6 +19,13 @@ const FOUNDER_CALL_STAGGER_MS = 24 * 60 * 60 * 1000; // 24 hours
 const FOUNDER_CALL_DISMISS_COOLDOWN_MS = 96 * 60 * 60 * 1000; // 96 hours
 const BOOKING_URL = 'https://calendar.app.google/McsonxboNHu7oyUF8';
 
+const DEFAULT_SURVEY_STATE = {
+  answered: false,
+  answeredAt: null,
+  dismissedAt: null,
+  dismissedCount: 0,
+};
+
 export function SidebarExperienceSurvey() {
   const [feedback, setFeedback] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -26,7 +33,9 @@ export function SidebarExperienceSurvey() {
 
   // ── First survey state ──
   const survey = useKartonState(
-    (s) => s.userExperience.storedExperienceData.experienceSurvey,
+    (s) =>
+      s.userExperience.storedExperienceData.experienceSurvey ??
+      DEFAULT_SURVEY_STATE,
   );
   const answerSurvey = useKartonProcedure(
     (p) => p.userExperience.survey.answer,
@@ -40,10 +49,12 @@ export function SidebarExperienceSurvey() {
 
   // ── Second (founder call) survey state ──
   const founderCallSurvey = useKartonState(
-    (s) => s.userExperience.storedExperienceData.founderCallSurvey,
+    (s) =>
+      s.userExperience.storedExperienceData.founderCallSurvey ??
+      DEFAULT_SURVEY_STATE,
   );
   const firstUsedAt = useKartonState(
-    (s) => s.userExperience.storedExperienceData.firstUsedAt,
+    (s) => s.userExperience.storedExperienceData.firstUsedAt ?? null,
   );
   const openFounderCallSurvey = useKartonProcedure(
     (p) => p.userExperience.founderCall.survey.open,
@@ -54,7 +65,7 @@ export function SidebarExperienceSurvey() {
 
   // Total agent count from DB (via storedExperienceData)
   const totalAgentCount = useKartonState(
-    (s) => s.userExperience.storedExperienceData.totalAgentCount,
+    (s) => s.userExperience.storedExperienceData.totalAgentCount ?? 0,
   );
 
   // Count total user messages across all active agents (first survey trigger)
