@@ -319,3 +319,40 @@ FAST_BUILD 模式下用文件硬链接替代 copyNativeDependencies 的递归 fs
 - progress.md：追加本轮恢复与验证记录。
 
 回滚方式: git checkout -- apps/browser/src/backend/services/experience.ts apps/browser/src/backend/services/experience.test.ts progress.md; Remove-Item -Recurse -Force agent/runtime-node/dist,apps/browser/bundled/eslint-server,apps/browser/out,apps/browser/src/pages/generated,packages/agent-core/dist,packages/agent-shell/dist,packages/karton/dist,packages/tailwindcss-color-modifiers/dist
+
+## 2026-07-01 - Task: 安装依赖并通过 build-fast.bat 打包 apps/browser
+
+### What was done
+- 适配 pnpm 11：把原 package.json 的 pnpm 配置迁移到 pnpm-workspace.yaml，新增
+  blockExoticSubdeps=false、nodeLinker=hoisted/shamefullyHoist=true、allowBuilds
+  （必要原生包置 true、所有 nucleo-* 因许可证校验置 false）、并在 overrides 锁定
+  @types/node=22.15.2 以修复 agent-core 的 d.ts 类型报错。
+- 修复 apps/browser/scripts/bundle-eslint-server.ts：解压 vscode-eslint 后把指向
+  $shared 的 shared 符号链接在 Windows 上落地为真实目录，解决 webpack 无法解析
+  ./shared/customMessages、./shared/settings 的问题。
+- 通过 ELECTRON_MIRROR 镜像下载 Electron 二进制；从根目录 .env.example 生成 .env
+  以满足 package:fast 的 dotenv 读取（.env 不入库）。
+- 先用 turbo 构建 browser 依赖的 workspace 包，再执行 build-fast.bat 三步（Camoufox
+  资源准备、pnpm package:fast、复制 camoufox 到 resources），成功产出可执行文件。
+
+### Testing
+- `pnpm install`（最终一次干净安装）退出码 0，原生包 install/postinstall 正常执行。
+- `pnpm -F @stagewise/agent-core build` 退出码 0（含 tsc --emitDeclarationOnly）。
+- `pnpm turbo run build --filter="stagewise^..."` 退出码 0（5/5 包构建成功）。
+- `pnpm bundle:eslint` 退出码 0，webpack 成功打包 shared 模块。
+- `apps/browser` 下 `pnpm package:fast` 退出码 0；产物为
+  apps/browser/out/dev/stagewise-dev-win32-x64/stagewise-dev.exe（约 204 MB）。
+- 已确认 resources/camoufox/GeoLite2-City.mmdb 复制到位。
+- 非致命告警：PostHog source map 上传失败（占位 key）、NuGet 下载 VC++ CRT 失败
+  后回退 System32，均不影响产物。
+
+### Notes
+改动文件清单：
+- pnpm-workspace.yaml：迁移并新增 pnpm 11 配置（blockExoticSubdeps、nodeLinker、
+  shamefullyHoist、allowBuilds、overrides 锁 @types/node）。回滚：git checkout 该文件。
+- apps/browser/scripts/bundle-eslint-server.ts：新增 materializeSharedSymlink 及其
+  调用，修复 Windows 符号链接。回滚：git checkout 该文件。
+- pnpm-lock.yaml：随依赖解析自动更新。回滚：git checkout 该文件后重装。
+- docs/windows-build-fast.md：新增打包说明文档。回滚：删除该文件。
+- .env（未入库）：从 .env.example 复制。回滚：删除根目录 .env。
+统一回滚点：`git checkout -- pnpm-workspace.yaml pnpm-lock.yaml apps/browser/scripts/bundle-eslint-server.ts` 并删除 docs/windows-build-fast.md 与根目录 .env。

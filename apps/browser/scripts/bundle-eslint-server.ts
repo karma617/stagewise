@@ -83,6 +83,19 @@ async function main() {
   );
   const serverDir = path.join(extractedDir, 'server');
 
+  // On Windows, the zip extraction turns the repo's `shared` symlinks
+  // (server/src/shared and client/src/shared -> ../../$shared) into plain
+  // text files, so webpack cannot resolve ./shared/customMessages etc.
+  // Materialize them by copying the real `$shared` sources into place.
+  await materializeSharedSymlink(
+    path.join(serverDir, 'src', 'shared'),
+    path.join(extractedDir, '$shared'),
+  );
+  await materializeSharedSymlink(
+    path.join(extractedDir, 'client', 'src', 'shared'),
+    path.join(extractedDir, '$shared'),
+  );
+
   // Install root dependencies first (needed for shared.webpack.config.js which requires merge-options)
   // Using pnpm for consistency with the monorepo's package manager
   log('Installing root dependencies...', colors.blue);
@@ -169,6 +182,25 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// Replace a broken `shared` symlink-as-file with a real directory copied
+// from the canonical `$shared` sources. No-op if the source is missing.
+async function materializeSharedSymlink(
+  linkPath: string,
+  sourceDir: string,
+): Promise<void> {
+  if (!(await fileExists(sourceDir))) {
+    return;
+  }
+  const stat = await fs.lstat(linkPath).catch(() => null);
+  if (stat?.isDirectory()) {
+    return;
+  }
+  if (stat) {
+    await fs.rm(linkPath, { recursive: true, force: true });
+  }
+  await copyDir(sourceDir, linkPath);
 }
 
 async function downloadFile(url: string, dest: string): Promise<void> {
