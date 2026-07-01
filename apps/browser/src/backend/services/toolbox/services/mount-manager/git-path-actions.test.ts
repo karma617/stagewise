@@ -24,7 +24,10 @@ import {
   WORKTREE_SETUP_SCRIPT_RELATIVE_PATHS,
   variantForPlatform,
 } from '@shared/worktree-setup';
-import type { WorkspaceGitSetupRun } from '@shared/karton-contracts/ui';
+import type {
+  WorkspaceGitCleanupCandidate,
+  WorkspaceGitSetupRun,
+} from '@shared/karton-contracts/ui';
 import {
   AgentStore,
   createInitialAgentSystemState,
@@ -66,6 +69,13 @@ function createHarness({ recentPaths = [] }: { recentPaths?: string[] } = {}) {
     agents: { instances: { agent1: { type: 'regular' } } },
     workspaceGitSetup: {
       runsByPath: {} as Record<string, WorkspaceGitSetupRun>,
+    },
+    workspaceGitCleanup: {
+      checkedAt: null,
+      dismissed: false,
+      cleaning: false,
+      candidates: [] as WorkspaceGitCleanupCandidate[],
+      lastResult: null,
     },
   };
 
@@ -117,6 +127,18 @@ function createHarness({ recentPaths = [] }: { recentPaths?: string[] } = {}) {
         },
       ],
     })),
+    listWorktrees: vi.fn(async (workspacePath: string) => [
+      {
+        worktreeId: workspacePath,
+        path: workspacePath,
+        branch: 'main',
+        headSha: 'abc123',
+        isDetached: false,
+        isMainWorktree: true,
+        current: true,
+        createdAt: null,
+      },
+    ]),
     getWorkspaceRepositoryInfo: vi.fn(async (workspacePath: string) => ({
       repositoryId: path.join(workspacePath, '.git'),
       repoRoot: workspacePath,
@@ -128,6 +150,25 @@ function createHarness({ recentPaths = [] }: { recentPaths?: string[] } = {}) {
         : workspacePath,
     ),
     getMountedWorkspaceSummary: vi.fn(async () => null),
+    getWorktreeStatus: vi.fn(async () => ({
+      dirty: false,
+      stagedCount: 0,
+      unstagedCount: 0,
+      untrackedCount: 0,
+    })),
+    findMergedTarget: vi.fn(async () => ({ merged: true, target: 'main' })),
+    backupWorktreeChangesForCleanup: vi.fn(async (workspacePath: string) => ({
+      ok: true,
+      backupPath: path.join(mockHomeDir, 'backup', path.basename(workspacePath)),
+      patchPath: path.join(
+        mockHomeDir,
+        'backup',
+        path.basename(workspacePath),
+        'changes.patch',
+      ),
+      untrackedDir: null,
+    })),
+    removeWorktree: vi.fn(async () => ({ ok: true })),
     switchBranch: vi.fn(async () => ({ ok: true, git: null })),
     createBranch: vi.fn(async () => ({ ok: true, git: null })),
     createWorktree: vi.fn(async (workspacePath: string, options) => ({
@@ -162,6 +203,7 @@ function createHarness({ recentPaths = [] }: { recentPaths?: string[] } = {}) {
   const service = new MountManagerService(
     {
       debug: vi.fn(),
+      info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
       isDebugEnabled: false,
@@ -243,6 +285,30 @@ function detachWorkspacePathFromAgents(
     p: string,
   ) => Promise<string[]>;
   return fn.call(service, workspacePath);
+}
+
+async function createManagedCleanupCandidate(
+  branch = 'feature-a',
+): Promise<WorkspaceGitCleanupCandidate> {
+  const worktreePath = path.join(getWorktreesDir(), 'repo-hash', branch);
+  await fs.mkdir(worktreePath, { recursive: true });
+  await fs.writeFile(path.join(worktreePath, '.git'), 'gitdir: mock');
+  const resolvedPath = await fs.realpath(worktreePath);
+  return {
+    path: resolvedPath,
+    branch,
+    headSha: 'abc123',
+    repositoryId: 'repo-hash',
+    repoRoot: path.dirname(resolvedPath),
+    lastUsedAt: null,
+    mergedInto: 'main',
+    status: {
+      dirty: false,
+      stagedCount: 0,
+      unstagedCount: 0,
+      untrackedCount: 0,
+    },
+  };
 }
 
 describe('MountManagerService path-based Git actions', () => {
@@ -566,6 +632,128 @@ describe('MountManagerService path-based Git actions', () => {
     expect(service.getCoreMountManager().getAllMountedPaths()).toContain(
       createdPath,
     );
+  });
+
+  it('force-removes cleanup candidates that become unsafe before deletion', async () => {
+    const candidate = await createManagedCleanupCandidate();
+    const { service, procedureHandlers, state, gitService } = createHarness();
+    state.workspaceGitCleanup.candidates = [candidate];
+    state.toolbox.agent1.workspace.mounts.push({
+      prefix: 'w1234',
+      path: candidate.path,
+      git: null,
+      skills: [],
+      workspaceMdContent: null,
+      agentsMdContent: null,
+    });
+    await initializeService(service);
+    service.setWorkspaceLastUsedAtResolver(async () => new Map());
+    setWorkspacePathForMount(service, 'w1234', candidate.path);
+    setAgentMount(service, 'agent1', 'w1234');
+
+    const cleanHandler = procedureHandlers.get(
+      'toolbox.cleanWorkspaceGitWorktrees',
+    );
+    const result = await cleanHandler?.('client1', [candidate.path]);
+
+    expect(result).toEqual({
+      removed: [{ path: candidate.path, branch: candidate.branch }],
+      failed: [],
+    });
+    expect(gitService.removeWorktree).toHaveBeenCalledWith(candidate.path, {
+      force: true,
+    });
+    expect(state.workspaceGitCleanup.candidates).toEqual([]);
+    expect(state.workspaceGitCleanup.dismissed).toBe(true);
+    expect(state.toolbox.agent1.workspace.mounts).toEqual([]);
+  });
+
+  it('backs up dirty cleanup candidates before force removal', async () => {
+    const candidate = await createManagedCleanupCandidate();
+    const { service, procedureHandlers, state, gitService } = createHarness();
+    state.workspaceGitCleanup.candidates = [candidate];
+    vi.mocked(gitService.getWorktreeStatus).mockResolvedValue({
+      dirty: true,
+      stagedCount: 1,
+      unstagedCount: 1,
+      untrackedCount: 1,
+    });
+    await initializeService(service);
+    service.setWorkspaceLastUsedAtResolver(async () => new Map());
+
+    const cleanHandler = procedureHandlers.get(
+      'toolbox.cleanWorkspaceGitWorktrees',
+    );
+    const result = await cleanHandler?.('client1', [candidate.path]);
+
+    expect(result).toEqual({
+      removed: [{ path: candidate.path, branch: candidate.branch }],
+      failed: [],
+    });
+    expect(gitService.backupWorktreeChangesForCleanup).toHaveBeenCalledWith(
+      candidate.path,
+    );
+    expect(gitService.removeWorktree).toHaveBeenCalledWith(candidate.path, {
+      force: true,
+    });
+  });
+
+  it('keeps valid cleanup candidates visible when git remove fails', async () => {
+    const candidate = await createManagedCleanupCandidate();
+    const { service, procedureHandlers, state, gitService } = createHarness();
+    state.workspaceGitCleanup.candidates = [candidate];
+    vi.mocked(gitService.getMountedWorkspaceSummary).mockResolvedValue({
+      repositoryId: 'repo-hash',
+      worktreeId: candidate.path,
+      repoRoot: candidate.repoRoot,
+      mainWorktreePath: path.dirname(candidate.repoRoot),
+      commonGitDir: path.join(candidate.repoRoot, '.git'),
+      isWorktree: true,
+      branch: candidate.branch,
+      headSha: candidate.headSha,
+      status: candidate.status,
+    });
+    vi.mocked(gitService.listWorktrees).mockResolvedValue([
+      {
+        worktreeId: 'main',
+        path: path.dirname(candidate.repoRoot),
+        branch: 'main',
+        headSha: 'main123',
+        isDetached: false,
+        isMainWorktree: true,
+        createdAt: null,
+      },
+      {
+        worktreeId: candidate.path,
+        path: candidate.path,
+        branch: candidate.branch,
+        headSha: candidate.headSha,
+        isDetached: false,
+        isMainWorktree: false,
+        createdAt: null,
+      },
+    ]);
+    vi.mocked(gitService.removeWorktree).mockResolvedValue({
+      ok: false,
+      message: 'git refused removal',
+    });
+    await initializeService(service);
+    service.setWorkspaceLastUsedAtResolver(async () => new Map());
+
+    const cleanHandler = procedureHandlers.get(
+      'toolbox.cleanWorkspaceGitWorktrees',
+    );
+    const result = await cleanHandler?.('client1', [candidate.path]);
+
+    expect(result).toEqual({
+      removed: [],
+      failed: [{ path: candidate.path, message: 'git refused removal' }],
+    });
+    expect(gitService.removeWorktree).toHaveBeenCalledWith(candidate.path, {
+      force: true,
+    });
+    expect(state.workspaceGitCleanup.candidates).toEqual([candidate]);
+    expect(state.workspaceGitCleanup.dismissed).toBe(false);
   });
 
   it('detaches a deleted worktree path from agent mounts', async () => {

@@ -613,5 +613,4 @@ export const chatDict: Dict = {
   'settings.autoRegister.captcha.2captcha': { 'zh-CN': '2Captcha API', en: '2Captcha API' },
   'settings.autoRegister.captcha.capsolver': { 'zh-CN': 'CapSolver API', en: 'CapSolver API' },
   'settings.autoRegister.captcha.yescaptcha': { 'zh-CN': 'YesCaptcha API', en: 'YesCaptcha API' },
-  'settings.autoRegister.captcha.playwright-stealth': { 'zh-CN': 'Playwright 隐身模式', en: 'Playwright Stealth' },
 };

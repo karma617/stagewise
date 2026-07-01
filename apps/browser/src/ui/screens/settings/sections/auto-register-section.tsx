@@ -370,9 +370,6 @@ export function AutoRegisterSection() {
                   <option value="yescaptcha">
                     {t('settings.autoRegister.captcha.yescaptcha')}
                   </option>
-                  <option value="playwright-stealth">
-                    {t('settings.autoRegister.captcha.playwright-stealth')}
-                  </option>
                   <option value="browser-ui-flow">
                     {t('settings.autoRegister.captcha.browserUiFlow')}
                   </option>
@@ -414,11 +411,6 @@ export function AutoRegisterSection() {
                     }}
                   />
                 </div>
-              )}
-              {cfg.captchaProvider === 'playwright-stealth' && (
-                <p className="text-amber-600 text-xs dark:text-amber-400">
-                  {t('settings.autoRegister.captcha.playwrightHint')}
-                </p>
               )}
               {cfg.captchaProvider === 'console-handoff' && (
                 <p className="text-muted-foreground text-xs">

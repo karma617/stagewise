@@ -319,3 +319,95 @@ FAST_BUILD 模式下用文件硬链接替代 copyNativeDependencies 的递归 fs
 - progress.md：追加本轮恢复与验证记录。
 
 回滚方式: git checkout -- apps/browser/src/backend/services/experience.ts apps/browser/src/backend/services/experience.test.ts progress.md; Remove-Item -Recurse -Force agent/runtime-node/dist,apps/browser/bundled/eslint-server,apps/browser/out,apps/browser/src/pages/generated,packages/agent-core/dist,packages/agent-shell/dist,packages/karton/dist,packages/tailwindcss-color-modifiers/dist
+
+## 2026-07-01 - Task: 移除 Playwright 隐身验证码模式
+### What was done
+从自动注册的安全验证方式中移除 `Playwright 隐身模式`。设置页下拉不再展示该选项，配置类型和 Karton contract 不再允许 `playwright-stealth`，后端也删除了对应的 Playwright solver 实现。
+
+历史配置如果仍保存了旧的 `playwright-stealth` 值，后端会归一到 `browser-ui-flow`，即继续走真实浏览器页面注册。
+
+### Testing
+- `rg -n "playwright-stealth|Playwright 隐身模式|Playwright Stealth|playwrightHint|captchaProvider\\?:[\\s\\S]*playwright" apps\\browser\\src -S`：无输出，确认旧模式入口和文案已清理。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`：通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit`：未通过；失败点是既有 `sidebar-experience-survey.tsx` 仍引用当前 experience contract 中不存在的 survey 字段，与本轮移除 Playwright 隐身模式无关。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/settings/sections/auto-register-section.tsx：移除 `Playwright 隐身模式` 下拉选项和对应提示。
+- apps/browser/src/ui/screens/settings/sections/auto-register-config.ts：移除 `playwright-stealth` 配置枚举，并让旧值回落到默认真实浏览器页面注册。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：移除 auto-register 与 batch-register contract 中的 `playwright-stealth` provider。
+- apps/browser/src/backend/services/auth/captcha-providers.ts：移除 Playwright solver provider 和动态安装/导入实现。
+- apps/browser/src/backend/services/auth/index.ts：增加验证码 provider 归一逻辑，把旧 `playwright-stealth` 配置归到 `browser-ui-flow`。
+- apps/browser/src/ui/i18n/dict/settings.ts：删除 Playwright 模式提示文案。
+- apps/browser/src/ui/i18n/dict/chat.ts：删除 Playwright 模式选项文案。
+- apps/browser/src/types/playwright.d.ts：删除不再需要的 optional Playwright ambient declaration。
+- progress.md：追加本轮施工与验证记录。
+
+回滚点: git checkout -- apps/browser/src/ui/screens/settings/sections/auto-register-section.tsx apps/browser/src/ui/screens/settings/sections/auto-register-config.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/backend/services/auth/captcha-providers.ts apps/browser/src/backend/services/auth/index.ts apps/browser/src/ui/i18n/dict/settings.ts apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/types/playwright.d.ts progress.md
+
+## 2026-07-01 - Task: 修复工作树清理提示失败反馈
+### What was done
+工作树清理按钮现在会在删除前返回具体的安全校验失败原因，不再只显示笼统的 `Worktree is no longer safe to clean.`。
+
+清理结束后会重新扫描可清理候选项。已经不再满足安全清理条件的工作树会从提示中移除；如果 Git 删除本身失败但工作树仍然符合清理条件，则继续保留在提示里并显示 Git 返回的失败原因。
+
+### Testing
+- `pnpm -F stagewise exec vitest run src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts`：通过，17 个测试通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`：通过。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts：为工作树清理候选的二次安全校验返回具体失败原因，并在清理后刷新候选列表。
+- apps/browser/src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts：补充清理候选变为不安全、以及 Git 删除失败时候选保留的回归测试。
+- progress.md：追加本轮施工与验证记录。
+
+回滚点: git checkout -- apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts apps/browser/src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts progress.md
+
+## 2026-07-01 - Task: 修复清除全部时间与强制清理工作树
+### What was done
+修复“清除全部时间”在选择下载记录时因为 history 数据库缺少 `downloads` 表而报错的问题。新库初始化会创建下载相关表，已有 version 1 数据库会通过 version 2 迁移补齐 `downloads`、`downloads_url_chains` 和 `downloads_slices`。
+
+工作树清理改为对当前提示里的受管候选执行强制删除。即使点击时二次校验发现候选已被挂载或状态变化，只要它仍是提示里的受管工作树候选，就使用 `git worktree remove --force` 删除；删除成功后同步解绑仍指向该路径的 agent 挂载。
+
+### Testing
+- `pnpm -F stagewise exec vitest run src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts`：通过，17 个测试通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`：通过。
+- `pnpm exec biome check apps/browser/src/backend/services/history/migrations/v002-create-downloads-tables.ts apps/browser/src/backend/services/history/migrations/index.ts`：通过。
+- `pnpm exec biome check apps/browser/src/backend/services/history/migrations/v002-create-downloads-tables.ts apps/browser/src/backend/services/history/migrations/index.ts apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts apps/browser/src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts`：未通过；失败原因是既有 CRLF 文件会被 Biome 整文件改成 LF，本轮按禁止全量格式化/转码约束未执行该改写。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/history/schema.sql：补齐新 history 数据库初始化时的下载记录表。
+- apps/browser/src/backend/services/history/migrations/index.ts：注册 history 数据库 version 2 迁移。
+- apps/browser/src/backend/services/history/migrations/v002-create-downloads-tables.ts：为已有 history 数据库创建缺失的下载记录表。
+- apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts：工作树清理对提示候选执行 `--force` 删除，并在成功后解绑相关 agent 挂载。
+- apps/browser/src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts：更新工作树清理测试，覆盖候选变为不安全时仍强制删除。
+- progress.md：追加本轮施工与验证记录。
+
+回滚点: git checkout -- apps/browser/src/backend/services/history/schema.sql apps/browser/src/backend/services/history/migrations/index.ts apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts apps/browser/src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts progress.md; Remove-Item -LiteralPath apps/browser/src/backend/services/history/migrations/v002-create-downloads-tables.ts
+
+## 2026-07-01 - Task: 安全强制清理工作树
+### What was done
+将工作树清理从直接强制删除升级为安全强制删除。删除前会重新检查工作树状态；如果发现未提交改动，会先在用户目录下的 `.stagewise/worktree-cleanup-backups` 创建备份，再执行 `git worktree remove --force`。
+
+备份内容包括 tracked/staged 改动的 `changes.patch`、未跟踪文件的 `untracked/` 目录，以及记录原路径、分支、HEAD 和备份文件位置的 `metadata.json`。如果 Git 报 dirty 但没有捕获到可恢复内容，则停止删除，避免不可恢复的数据丢失。
+
+同步新增 `docs/worktree-cleanup.md`，说明受管清理范围、备份位置和恢复方式。
+
+### Testing
+- `pnpm -F stagewise exec vitest run src/backend/services/git/index.test.ts`：通过，61 个测试通过。
+- `pnpm -F stagewise exec vitest run src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts`：通过，18 个测试通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`：通过。
+- `pnpm exec biome check apps/browser/src/backend/services/history/migrations/v002-create-downloads-tables.ts apps/browser/src/backend/services/history/migrations/index.ts apps/browser/src/backend/utils/paths.ts docs/worktree-cleanup.md`：通过；Biome 实际检查 3 个受支持文件，Markdown 未被检查。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/git/index.ts：新增工作树清理前备份能力，导出 patch、复制未跟踪文件并写 metadata。
+- apps/browser/src/backend/services/git/index.test.ts：补充 dirty worktree 清理备份的 GitService 测试。
+- apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts：强制删除前重新检查状态，dirty 时先备份，备份失败则不删除。
+- apps/browser/src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts：补充 dirty 候选先备份再强删的回归测试。
+- apps/browser/src/backend/utils/paths.ts：新增工作树清理备份目录路径并纳入目录初始化。
+- docs/worktree-cleanup.md：记录清理范围、备份内容和恢复方式。
+- progress.md：追加本轮施工与验证记录。
+
+回滚点: git checkout -- apps/browser/src/backend/services/git/index.ts apps/browser/src/backend/services/git/index.test.ts apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts apps/browser/src/backend/services/toolbox/services/mount-manager/git-path-actions.test.ts apps/browser/src/backend/utils/paths.ts progress.md; Remove-Item -LiteralPath docs/worktree-cleanup.md
