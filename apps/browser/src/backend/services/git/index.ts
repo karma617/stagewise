@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { DisposableService } from '@/services/disposable';
-import { getWorktreesDir } from '@/utils/paths';
+import { getWorktreeCleanupBackupsDir, getWorktreesDir } from '@/utils/paths';
 import { sanitizeEnv } from '@stagewise/agent-shell';
 import type {
   GitActionFailure,
@@ -58,6 +58,19 @@ export type {
 const execFileAsync = promisify(execFile);
 const DEFAULT_GIT_TIMEOUT_MS = 2_000;
 const MUTATION_GIT_TIMEOUT_MS = 30_000;
+
+function sanitizeBackupName(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function isPathInside(parentPath: string, childPath: string): boolean {
+  const relativePath = path.relative(parentPath, childPath);
+  return (
+    relativePath.length > 0 &&
+    !relativePath.startsWith('..') &&
+    !path.isAbsolute(relativePath)
+  );
+}
 
 function normalizeGitPath(value: string): string {
   const resolved = path.resolve(value);
@@ -740,6 +753,130 @@ export class GitService extends DisposableService {
     return {
       ok: false,
       message: result.stderr || `Failed to remove worktree ${workspacePath}.`,
+    };
+  }
+
+  public async backupWorktreeChangesForCleanup(
+    workspacePath: string,
+  ): Promise<
+    | {
+        ok: true;
+        backupPath: string;
+        patchPath: string | null;
+        untrackedDir: string | null;
+      }
+    | { ok: false; message: string }
+  > {
+    const repositoryInfo = await this.getRepositoryInfo(workspacePath);
+    if (!repositoryInfo) {
+      return { ok: false, message: 'Unable to verify Git repository.' };
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const branchName =
+      (await this.runGit(workspacePath, ['branch', '--show-current'])) ??
+      'detached';
+    const headSha =
+      (await this.runGit(workspacePath, ['rev-parse', '--short', 'HEAD'])) ??
+      'unknown';
+    const backupName = sanitizeBackupName(
+      `${path.basename(workspacePath)}-${branchName}-${headSha}-${timestamp}`,
+    );
+    const backupPath = path.join(getWorktreeCleanupBackupsDir(), backupName);
+    const untrackedDir = path.join(backupPath, 'untracked');
+
+    await fs.mkdir(backupPath, { recursive: true });
+
+    const diffResult = await this.runGitStrict(workspacePath, [
+      'diff',
+      'HEAD',
+      '--binary',
+    ]);
+    if (diffResult.exitCode !== 0) {
+      return {
+        ok: false,
+        message:
+          diffResult.stderr ||
+          'Unable to create cleanup backup patch for tracked changes.',
+      };
+    }
+
+    let patchPath: string | null = null;
+    if (diffResult.stdout.length > 0) {
+      patchPath = path.join(backupPath, 'changes.patch');
+      await fs.writeFile(patchPath, diffResult.stdout, 'utf8');
+    }
+
+    const untrackedResult = await this.runGitStrict(workspacePath, [
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+      '-z',
+    ]);
+    if (untrackedResult.exitCode !== 0) {
+      return {
+        ok: false,
+        message:
+          untrackedResult.stderr ||
+          'Unable to list untracked files for cleanup backup.',
+      };
+    }
+
+    let copiedUntracked = false;
+    const untrackedPaths = untrackedResult.stdout.split('\0').filter(Boolean);
+    for (const relativePath of untrackedPaths) {
+      const sourcePath = path.resolve(workspacePath, relativePath);
+      if (!isPathInside(workspacePath, sourcePath)) {
+        return {
+          ok: false,
+          message: `Refusing to back up unsafe untracked path ${relativePath}.`,
+        };
+      }
+
+      const targetPath = path.resolve(untrackedDir, relativePath);
+      if (!isPathInside(untrackedDir, targetPath)) {
+        return {
+          ok: false,
+          message: `Refusing to write unsafe backup path ${relativePath}.`,
+        };
+      }
+
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
+      await fs.cp(sourcePath, targetPath, { recursive: true });
+      copiedUntracked = true;
+    }
+
+    if (!patchPath && !copiedUntracked) {
+      return {
+        ok: false,
+        message: 'Worktree is dirty, but no restorable changes were captured.',
+      };
+    }
+
+    await fs.writeFile(
+      path.join(backupPath, 'metadata.json'),
+      `${JSON.stringify(
+        {
+          workspacePath,
+          repositoryId: repositoryInfo.repositoryId,
+          repoRoot: repositoryInfo.repoRoot,
+          branch: branchName,
+          headSha,
+          createdAt: new Date().toISOString(),
+          patchPath,
+          untrackedDir: copiedUntracked ? untrackedDir : null,
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+
+    return {
+      ok: true,
+      backupPath,
+      patchPath,
+      untrackedDir: copiedUntracked ? untrackedDir : null,
     };
   }
 

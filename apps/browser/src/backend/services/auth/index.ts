@@ -89,6 +89,22 @@ type StoredCredentials = z.infer<typeof credentialsSchema>;
 
 export type AuthState = KartonContract['state']['userAccount'];
 
+type RegistrationCaptchaProvider = CaptchaProviderId | 'browser-ui-flow';
+
+function normalizeRegistrationCaptchaProvider(
+  value: unknown,
+): RegistrationCaptchaProvider {
+  if (
+    value === '2captcha' ||
+    value === 'capsolver' ||
+    value === 'yescaptcha' ||
+    value === 'console-handoff'
+  ) {
+    return value;
+  }
+  return 'browser-ui-flow';
+}
+
 const SESSION_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const SOCIAL_AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -1796,10 +1812,10 @@ export class AuthService extends DisposableService {
         );
       }
 
-      const captchaProviderForFlow =
-        (cfg as { captchaProvider?: CaptchaProviderId }).captchaProvider ??
-        'console-handoff';
-      if ((captchaProviderForFlow as string) === 'browser-ui-flow') {
+      const captchaProviderForFlow = normalizeRegistrationCaptchaProvider(
+        (cfg as { captchaProvider?: unknown }).captchaProvider,
+      );
+      if (captchaProviderForFlow === 'browser-ui-flow') {
         // Camoufox registration: drive the real console sign-in page
         // end-to-end and capture set-auth-token off the response.
         return await this.runBrowserUiFlowRegistration(
@@ -1825,9 +1841,9 @@ export class AuthService extends DisposableService {
         this.logger.info(
           '[AuthService] Auto-register: no captcha token supplied, acquiring via headless console',
         );
-        const captchaProvider =
-          (cfg as { captchaProvider?: CaptchaProviderId }).captchaProvider ??
-          'console-handoff';
+        const captchaProvider = normalizeRegistrationCaptchaProvider(
+          (cfg as { captchaProvider?: unknown }).captchaProvider,
+        );
         const captchaApiKeys = (
           cfg as {
             captchaApiKeys?: {
@@ -1846,7 +1862,10 @@ export class AuthService extends DisposableService {
                   ? captchaApiKeys.yescaptcha
                   : undefined) ?? undefined)
           : undefined;
-        if (captchaProvider && captchaProvider !== 'console-handoff') {
+        if (
+          captchaProvider !== 'console-handoff' &&
+          captchaProvider !== 'browser-ui-flow'
+        ) {
           this.pushRegistrationStep(
             '\u4f7f\u7528\u7b2c\u4e09\u65b9\u9a8c\u8bc1\u670d\u52a1: ' +
               captchaProvider +
@@ -2230,10 +2249,10 @@ export class AuthService extends DisposableService {
       metadata: Record<string, unknown>;
     } | null = null;
     try {
-      const captchaProviderForFlow =
-        (cfg as { captchaProvider?: CaptchaProviderId }).captchaProvider ??
-        'console-handoff';
-      if ((captchaProviderForFlow as string) === 'browser-ui-flow') {
+      const captchaProviderForFlow = normalizeRegistrationCaptchaProvider(
+        (cfg as { captchaProvider?: unknown }).captchaProvider,
+      );
+      if (captchaProviderForFlow === 'browser-ui-flow') {
         this.checkRegistrationAborted();
         const res = await this.runBrowserUiFlowRegistration(
           mailboxPool,
@@ -2261,9 +2280,9 @@ export class AuthService extends DisposableService {
         this.logger.info(
           '[AuthService] Batch register: no captcha token supplied, acquiring via headless console',
         );
-        const captchaProvider =
-          (cfg as { captchaProvider?: CaptchaProviderId }).captchaProvider ??
-          'console-handoff';
+        const captchaProvider = normalizeRegistrationCaptchaProvider(
+          (cfg as { captchaProvider?: unknown }).captchaProvider,
+        );
         const captchaApiKeys = (
           cfg as {
             captchaApiKeys?: {
@@ -2282,7 +2301,10 @@ export class AuthService extends DisposableService {
                   ? captchaApiKeys.yescaptcha
                   : undefined) ?? undefined)
           : undefined;
-        if (captchaProvider && captchaProvider !== 'console-handoff') {
+        if (
+          captchaProvider !== 'console-handoff' &&
+          captchaProvider !== 'browser-ui-flow'
+        ) {
           this.pushRegistrationStep(
             '\u4f7f\u7528\u7b2c\u4e09\u65b9\u9a8c\u8bc1\u670d\u52a1: ' +
               captchaProvider +

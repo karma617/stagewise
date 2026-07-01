@@ -93,6 +93,9 @@ type AgentInstanceId = string;
 type MountPrefix = string;
 type WorkspacePath = string;
 type PendingWorktreeSetup = WorktreeSetupMetadata & { createdAt: number };
+type WorkspaceGitCleanupCandidateCheck =
+  | { candidate: WorkspaceGitCleanupCandidate; message: null }
+  | { candidate: null; message: string };
 
 async function safeRealpath(targetPath: string): Promise<string | null> {
   try {
@@ -1218,23 +1221,67 @@ export class MountManagerService extends DisposableService {
       return result;
     }
 
+    const cleanupCandidatesByPath = new Map(
+      this.uiKarton.state.workspaceGitCleanup.candidates.map(
+        (candidate: WorkspaceGitCleanupCandidate) => [candidate.path, candidate],
+      ),
+    );
+
     for (const workspacePath of uniquePaths) {
       try {
-        const candidate = await this.getCleanupCandidateForPath(
+        const check = await this.getCleanupCandidateCheckForPath(
           workspacePath,
           lastUsedByPath,
         );
+        let candidate = check.candidate;
+        if (!candidate) {
+          const resolvedPath =
+            (await this.resolveManagedWorktreePath(workspacePath)) ??
+            workspacePath;
+          candidate =
+            cleanupCandidatesByPath.get(resolvedPath) ??
+            cleanupCandidatesByPath.get(workspacePath) ??
+            null;
+        }
         if (!candidate) {
           failed.push({
             path: workspacePath,
-            message: 'Worktree is no longer safe to clean.',
+            message: check.message ?? 'Worktree is no longer safe to clean.',
           });
           continue;
         }
 
-        const result = await this.gitService.removeWorktree(candidate.path);
+        const status = await this.gitService.getWorktreeStatus(candidate.path);
+        if (!status) {
+          failed.push({
+            path: candidate.path,
+            message: 'Unable to verify worktree status before cleanup.',
+          });
+          continue;
+        }
+        if (status.dirty) {
+          const backup =
+            await this.gitService.backupWorktreeChangesForCleanup(
+              candidate.path,
+            );
+          if (!backup.ok) {
+            failed.push({ path: candidate.path, message: backup.message });
+            continue;
+          }
+          this.logger.info('[MountManager] Backed up dirty worktree cleanup', {
+            path: candidate.path,
+            backupPath: backup.backupPath,
+            patchPath: backup.patchPath,
+            untrackedDir: backup.untrackedDir,
+          });
+        }
+
+        const result = await this.gitService.removeWorktree(candidate.path, {
+          force: true,
+        });
         if (result.ok) {
           removed.push({ path: candidate.path, branch: candidate.branch });
+          await this.detachWorkspacePathFromAgents(candidate.path);
         } else {
           failed.push({ path: candidate.path, message: result.message });
         }
@@ -1251,21 +1298,11 @@ export class MountManagerService extends DisposableService {
 
     const removedPaths = new Set(removed.map((item) => item.path));
     const result = { removed, failed };
-    this.uiKarton.setState((draft: KartonStateDraft) => {
-      draft.workspaceGitCleanup.cleaning = false;
-      draft.workspaceGitCleanup.lastResult = result;
-      draft.workspaceGitCleanup.candidates =
-        draft.workspaceGitCleanup.candidates.filter(
-          (candidate: WorkspaceGitCleanupCandidate) =>
-            !removedPaths.has(candidate.path),
-        );
-      if (draft.workspaceGitCleanup.candidates.length === 0) {
-        draft.workspaceGitCleanup.dismissed = true;
-      }
-    });
+    let nextCandidates = this.uiKarton.state.workspaceGitCleanup.candidates;
     try {
       const remainingCleanupCandidates =
         await this.getWorkspaceGitCleanupCandidates();
+      nextCandidates = remainingCleanupCandidates;
       await this.preferencesService.pruneWorkspaceGitCleanupSnoozes(
         remainingCleanupCandidates.map(
           (candidate: WorkspaceGitCleanupCandidate) => candidate.path,
@@ -1273,10 +1310,23 @@ export class MountManagerService extends DisposableService {
         WORKTREE_CLEANUP_DISMISS_MS,
       );
     } catch (error) {
+      nextCandidates = nextCandidates.filter(
+        (candidate: WorkspaceGitCleanupCandidate) =>
+          !removedPaths.has(candidate.path),
+      );
       this.logger.warn(
-        `[MountManager] Failed to prune worktree cleanup snoozes after cleanup: ${error instanceof Error ? error.message : String(error)}`,
+        `[MountManager] Failed to refresh worktree cleanup candidates after cleanup: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+
+    this.uiKarton.setState((draft: KartonStateDraft) => {
+      draft.workspaceGitCleanup.cleaning = false;
+      draft.workspaceGitCleanup.lastResult = result;
+      draft.workspaceGitCleanup.candidates = nextCandidates;
+      if (draft.workspaceGitCleanup.candidates.length === 0) {
+        draft.workspaceGitCleanup.dismissed = true;
+      }
+    });
 
     return result;
   }
@@ -1350,15 +1400,39 @@ export class MountManagerService extends DisposableService {
     workspacePath: string,
     lastUsedByPath: ReadonlyMap<string, number>,
   ): Promise<WorkspaceGitCleanupCandidate | null> {
+    return (
+      await this.getCleanupCandidateCheckForPath(workspacePath, lastUsedByPath)
+    ).candidate;
+  }
+
+  private async getCleanupCandidateCheckForPath(
+    workspacePath: string,
+    lastUsedByPath: ReadonlyMap<string, number>,
+  ): Promise<WorkspaceGitCleanupCandidateCheck> {
     const resolvedWorkspacePath =
       await this.resolveManagedWorktreePath(workspacePath);
-    if (!resolvedWorkspacePath) return null;
-    if (await this.isCurrentlyMounted(resolvedWorkspacePath)) return null;
+    if (!resolvedWorkspacePath) {
+      return {
+        candidate: null,
+        message: 'Worktree is no longer available in managed storage.',
+      };
+    }
+    if (await this.isCurrentlyMounted(resolvedWorkspacePath)) {
+      return {
+        candidate: null,
+        message: 'Worktree is currently mounted by an agent.',
+      };
+    }
 
     const summary = await this.gitService.getMountedWorkspaceSummary(
       resolvedWorkspacePath,
     );
-    if (!summary?.isWorktree || !summary.branch) return null;
+    if (!summary?.isWorktree || !summary.branch) {
+      return {
+        candidate: null,
+        message: 'Path is no longer a branch worktree.',
+      };
+    }
 
     const worktrees = await this.gitService.listWorktrees(
       resolvedWorkspacePath,
@@ -1372,42 +1446,80 @@ export class MountManagerService extends DisposableService {
         break;
       }
     }
-    if (!currentWorktree || currentWorktree.isMainWorktree) return null;
-    if (currentWorktree.isDetached || !currentWorktree.branch) return null;
+    if (!currentWorktree) {
+      return {
+        candidate: null,
+        message: 'Worktree is no longer registered with Git.',
+      };
+    }
+    if (currentWorktree.isMainWorktree) {
+      return {
+        candidate: null,
+        message: 'Root worktree cannot be cleaned automatically.',
+      };
+    }
+    if (currentWorktree.isDetached || !currentWorktree.branch) {
+      return {
+        candidate: null,
+        message: 'Detached worktree cannot be cleaned automatically.',
+      };
+    }
 
     const status = await this.gitService.getWorktreeStatus(
       resolvedWorkspacePath,
     );
-    if (!status || status.dirty) return null;
+    if (!status) {
+      return {
+        candidate: null,
+        message: 'Unable to verify worktree status.',
+      };
+    }
+    if (status.dirty) {
+      return {
+        candidate: null,
+        message: 'Worktree has uncommitted changes.',
+      };
+    }
 
     const lastUsedAt = lastUsedByPath.get(resolvedWorkspacePath) ?? null;
     if (
       lastUsedAt !== null &&
       Date.now() - lastUsedAt < WORKTREE_CLEANUP_UNUSED_MS
     ) {
-      return null;
+      return {
+        candidate: null,
+        message: 'Worktree was used recently.',
+      };
     }
 
     const merged = await this.gitService.findMergedTarget(
       resolvedWorkspacePath,
       currentWorktree.branch,
     );
-    if (!merged.merged || !merged.target) return null;
+    if (!merged.merged || !merged.target) {
+      return {
+        candidate: null,
+        message: 'Worktree branch is no longer merged.',
+      };
+    }
 
     return {
-      path: resolvedWorkspacePath,
-      branch: currentWorktree.branch,
-      headSha: currentWorktree.headSha,
-      repositoryId: summary.repositoryId,
-      repoRoot: summary.repoRoot,
-      lastUsedAt,
-      mergedInto: merged.target,
-      status: {
-        dirty: false,
-        stagedCount: 0,
-        unstagedCount: 0,
-        untrackedCount: 0,
+      candidate: {
+        path: resolvedWorkspacePath,
+        branch: currentWorktree.branch,
+        headSha: currentWorktree.headSha,
+        repositoryId: summary.repositoryId,
+        repoRoot: summary.repoRoot,
+        lastUsedAt,
+        mergedInto: merged.target,
+        status: {
+          dirty: false,
+          stagedCount: 0,
+          unstagedCount: 0,
+          untrackedCount: 0,
+        },
       },
+      message: null,
     };
   }
 

@@ -81,6 +81,9 @@ export const getMemoryDir = (): string => path.join(getUserDataDir(), 'memory');
 export const getWorktreesDir = (): string =>
   path.join(app.getPath('home'), '.stagewise', 'worktrees');
 
+export const getWorktreeCleanupBackupsDir = (): string =>
+  path.join(app.getPath('home'), '.stagewise', 'worktree-cleanup-backups');
+
 export const getRipgrepBasePath = (): string => path.join(getDataRoot(), 'bin');
 
 export async function ensureDataDirectories(): Promise<void> {
@@ -95,6 +98,7 @@ export async function ensureDataDirectories(): Promise<void> {
     fs.mkdir(getLogsDir(), { recursive: true }),
     fs.mkdir(getMemoryDir(), { recursive: true }),
     fs.mkdir(getWorktreesDir(), { recursive: true }),
+    fs.mkdir(getWorktreeCleanupBackupsDir(), { recursive: true }),
   ]);
 }
 
