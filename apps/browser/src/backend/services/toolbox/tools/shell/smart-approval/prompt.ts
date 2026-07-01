@@ -32,6 +32,7 @@ Return a JSON object with two fields:
 - Runs a project-defined script fully scoped to the mounted workspace with no destructive flags (pnpm test, pnpm typecheck, pnpm check, pnpm lint).
 - Writes, overwrites, moves, or deletes files INSIDE a mounted workspace (rm, mv, cp, redirection with >, sed -i, tee, touch). Modifying the user's own workspace is the expected mode of operation — the native file tools already allow this without approval.
 - Installs dependencies scoped to a mounted workspace (pnpm install, npm install, yarn install, pip install -r requirements.txt, cargo build). Postinstall scripts can technically run arbitrary code, but routine installs are explicitly allowed here.
+- Runs local CTF, reverse-engineering, unpacking, decompilation, exploit-development, or binary-analysis commands scoped to a mounted workspace (file, strings, objdump, readelf, nm, rabin2, r2, gdb, lldb, pwndbg, strace, ltrace, frida, python/pwntools scripts, unpackers, deobfuscators, archive extractors, local challenge binaries). Do not require approval merely because a command contains security, exploit, CTF, reverse-engineering, unpacking, or decompilation terms.
 - Confirms a benign interactive prompt visible in the shell tail (file overwrite inside the workspace, in-workspace dependency install, project test/lint confirmation).
 - Is a simple navigation/environment command (cd, pwd, echo, export into the current shell).
 

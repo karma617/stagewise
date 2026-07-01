@@ -96,3 +96,206 @@
 - apps/browser/src/ui/i18n/dict/chat.ts：新增左侧列表所需 i18n key，并将相关 Agent 中文翻译调整为“智能体”。回滚：git checkout 该文件。
 - progress.md：追加本轮修改与验证记录。回滚：删除本条记录。
 统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/sidebar/agents-list/index.tsx apps/browser/src/ui/i18n/dict/chat.ts progress.md`。
+
+## 2026-07-01 - Task: 新增 Windows 正式包一键打包脚本
+
+### What was done
+- 新增 `build-release.bat`，参考 `build-fast.bat` 实现 Windows 正式包一键打包流程。
+- 正式脚本设置 `RELEASE_CHANNEL=release` 并执行 `pnpm make`，生成 `stagewise` 正式包而不是 `stagewise-dev` 开发包。
+- 脚本在 `.env.prod` 缺失时自动从 `.env` 或 `.env.example` 生成本地 `.env.prod`，避免首次运行直接卡住。
+- 脚本在打包后将 Camoufox 资源复制到 `apps/browser/out/release/**/resources/camoufox`。
+- 新增 `docs/windows-build-release.md`，记录正式包脚本的前置条件、执行步骤和产物位置。
+
+### Testing
+- `cmd /c "echo y|build-release.bat"` 首次运行时自动从 `.env` 创建 `.env.prod`，随后完整执行 release make，退出码 0。
+- 打包日志确认 `[forge.config] Release channel: release`。
+- 已生成正式应用目录：`apps/browser/out/release/stagewise-win32-x64/stagewise.exe`。
+- 已生成 Forge make 产物：`apps/browser/out/release/make/squirrel.windows/stagewise-1.14.0-x64-setup.exe`、`apps/browser/out/release/make/squirrel.windows/stagewise-1.14.0-x64-full.nupkg`、`apps/browser/out/release/make/squirrel.windows/RELEASES-win32-x64`、`apps/browser/out/release/make/zip/win32/x64/stagewise-win32-x64-1.14.0.zip`。
+- 已确认 Camoufox 资源复制到 `apps/browser/out/release/stagewise-win32-x64/resources/camoufox`。
+
+### Notes
+改动文件清单：
+- build-release.bat：新增 Windows 正式包一键打包脚本，并支持自动生成本地 `.env.prod`。回滚：删除该文件。
+- docs/windows-build-release.md：新增正式包打包说明，并记录自动生成 `.env.prod` 与正式产物位置。回滚：删除该文件。
+- progress.md：追加本轮脚本新增与验证记录。回滚：删除本条记录。
+统一回滚点：`Remove-Item -LiteralPath build-release.bat, docs/windows-build-release.md; git checkout -- progress.md`。
+
+## 2026-07-01 - Task: 修复聊天输入框输入后立即清空
+
+### What was done
+- 定位输入框无法保留文字的原因：聊天输入每次变更都会同步父级输入状态，触发 `ChatInput` 重渲染；TipTap `useEditor` 在无依赖参数时会比较并重设新创建的 editor options，导致输入过程中的内容和选择状态被打断。
+- 将 TipTap 编辑器初始化改为带稳定依赖的形式，并把提交、粘贴、焦点、ESC、附件删除等事件回调用 ref 读取最新值，避免编辑器在每次输入后重新配置，同时避免事件闭包停留在首次渲染状态。
+- 删除 `ChatInput` 内部只用于旧提交判断的 `textContent/canSendMessage/handleSubmit` 局部链路，保留父级已有的发送状态与提交校验，减少输入期额外重渲染。
+
+### Testing
+- `pnpm exec biome check --write apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx` 退出码 0。
+- `git diff --check` 退出码 0；仅提示 `progress.md` 下次由 Git 触碰时 CRLF 会替换为 LF。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 未通过：被既有 `sidebar-experience-survey.tsx` survey 契约缺口，以及 `chat-input.tsx` 中 ProseMirror 依赖重复类型冲突阻塞；本轮输入框修复未新增新的类型错误类别。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx：稳定 TipTap 编辑器配置和事件回调，防止输入状态同步引发编辑器重配后清空输入。回滚：git checkout 该文件。
+- progress.md：追加本轮修复与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx progress.md`。
+
+## 2026-07-01 - Task: 修复聊天输入框重挂载后草稿回退为空
+
+### What was done
+- 继续排查输入框仍无法输入的问题，定位到父级 `ChatPanelFooter` 普通输入时只更新 `localInputStateRef`，没有同步更新传给 `ChatInput` 的 `value` 状态。
+- 将 `updateChatInputState` 改为同时更新 `localInputState`，确保输入框因 agent/focus/外部状态变化发生重挂载或重新同步时，拿到的是最新草稿，而不是旧的空草稿。
+- 保留上一轮 TipTap 编辑器稳定化处理，形成两层保护：编辑器不因输入重配，重挂载时也不回退为空内容。
+
+### Testing
+- `pnpm exec biome check --write apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx` 退出码 0。
+- `git diff --check` 退出码 0；仅提示 `progress.md` 下次由 Git 触碰时 CRLF 会替换为 LF。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 未通过：仍被既有 `sidebar-experience-survey.tsx` survey 契约缺口，以及 `chat-input.tsx` 中 ProseMirror 依赖重复类型冲突阻塞；本轮父级草稿同步修复未新增新的类型错误类别。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：普通输入时同步更新 `localInputState`，防止输入框重挂载后使用旧空草稿。回滚：git checkout 该文件。
+- progress.md：追加本轮修复与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx progress.md`。
+
+## 2026-07-01 - Task: 按 17:51 可用包回退聊天输入链路
+
+### What was done
+- 根据用户确认的 2026-06-30 17:51 可用包作为回归边界，定位 18:01 后输入链路直接差异集中在聊天输入区域新增的 i18n 订阅与文案替换。
+- 从 `ChatInput` 和 `ChatPanel` 撤回本次回归窗口内新增的 i18n 订阅，恢复 17:51 基线里的静态输入框占位文案、按钮文案和 drop zone aria 文案。
+- 恢复零宽字符为 `\u200B` 转义写法，避免不可见字符在后续维护中被误改。
+- 撤回上一轮 `panel-footer` 每次输入都 `setLocalInputState` 的临时方案，避免把输入框重新变成每键父级重渲染的受控链路。
+
+### Testing
+- `pnpm exec biome check apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/index.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx` 退出码 0。
+- `git diff --check` 退出码 0；仅提示 `progress.md` 下次由 Git 触碰时 CRLF 会替换为 LF。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 未通过：被既有 `sidebar-experience-survey.tsx` survey 契约缺口，以及 `chat-input.tsx` 中 ProseMirror 依赖重复类型冲突阻塞；本轮回退未新增新的类型错误类别。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx：撤回输入框内部 i18n 订阅和文案替换，保留 TipTap 编辑器稳定化处理，并恢复 `\u200B` 转义写法。回滚：git checkout 该文件。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/index.tsx：撤回聊天面板外层 i18n 订阅，恢复 drop zone 静态 aria 文案。回滚：git checkout 该文件。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：撤回上一轮每键同步 `localInputState` 的临时方案，当前不保留最终差异。回滚：无需额外操作。
+- progress.md：追加本轮回退与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/index.tsx progress.md`。
+
+## 2026-07-01 - Task: 加固聊天输入框防外部空草稿覆盖
+
+### What was done
+- 在 `ChatInput` 外部 value 同步逻辑中增加焦点期保护：当输入框正聚焦且编辑器已有内容时，外部传入的空草稿不再覆盖当前编辑器内容。
+- 在 `ChatPanelFooter` 增加按 agent 维度的本地草稿缓存，普通输入只更新 ref、缓存和后端输入状态，不触发每键父级重渲染。
+- 将发送清空、失败恢复、agent 切换恢复等路径同步写入草稿缓存，避免输入框重挂载时重新拿到旧空草稿。
+
+### Testing
+- `pnpm exec biome check apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/index.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx` 退出码 0。
+- `git diff --check` 退出码 0；仅提示 `progress.md` 下次由 Git 触碰时 CRLF 会替换为 LF。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 未通过：仍被既有 `sidebar-experience-survey.tsx` survey 契约缺口，以及 `chat-input.tsx` 中 ProseMirror 依赖重复类型冲突阻塞；本轮加固未新增新的类型错误类别。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx：阻止聚焦输入期间外部空草稿覆盖已有编辑器内容。回滚：git checkout 该文件。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：增加 agent 草稿缓存，防止输入框重挂载时回退到旧空草稿。回滚：git checkout 该文件。
+- progress.md：追加本轮加固与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx progress.md`。
+
+## 2026-07-01 - Task: 修复 ProseMirror 依赖重复导致聊天输入失败
+
+### What was done
+- 根据运行时报错 `Can not convert <...> to a Fragment (looks like multiple versions of prosemirror-model were loaded)`，确认输入框清空根因不是业务状态覆盖，而是运行时加载了多份 `prosemirror-model`。
+- 在有效的 `pnpm-workspace.yaml` overrides 中锁定 ProseMirror 核心包版本，使 TipTap、prosemirror-view、prosemirror-highlight 等依赖解析到同一组 ProseMirror 实例。
+- 执行依赖重装并更新 `pnpm-lock.yaml`，将 `prosemirror-model` 从 2 个版本收敛为 1 个版本。
+- 清理 Vite 预打包缓存并重新启动 Electron 应用，避免继续使用旧的重复依赖缓存。
+- 新增 ProseMirror 依赖去重说明文档，记录后续变更依赖后的验证方式。
+- 撤回排查阶段保留在输入组件、footer 和 UI console 转发里的临时代码，最终不保留聊天输入组件源码差异。
+
+### Testing
+- `pnpm install` 退出码 0，已按新 overrides 更新本地依赖与锁文件。
+- `pnpm why prosemirror-model --recursive` 退出码 0，输出 `Found 1 version of prosemirror-model`。
+- `pnpm -F stagewise clear-vite-cache` 退出码 0，已清理 `src/ui/node_modules/.vite` 与 `src/pages/node_modules/.vite`。
+- `pnpm -F stagewise start:fast` 已成功启动 Electron 应用；用户手动输入并发送后，终端出现 `agent-message-sent`，未再出现 ProseMirror `RangeError`。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 未通过：只剩既有 `sidebar-experience-survey.tsx` survey 契约字段缺失，未再出现 `chat-input.tsx` 或 ProseMirror 重复类型错误。
+- `git diff --check` 退出码 0；仅提示 `progress.md` 下次由 Git 触碰时 CRLF 会替换为 LF。
+- `pnpm exec biome check pnpm-workspace.yaml docs/prosemirror-dependency-dedupe.md` 未处理文件：当前 Biome 配置忽略 YAML 和 Markdown 路径。
+
+### Notes
+改动文件清单：
+- pnpm-workspace.yaml：新增 ProseMirror 核心包 overrides，强制运行时单版本解析。回滚：删除本轮新增的 `prosemirror-*` overrides。
+- pnpm-lock.yaml：依赖重装后同步锁文件，将 ProseMirror 解析结果收敛到单版本。回滚：随 `pnpm-workspace.yaml` 一起恢复锁文件。
+- docs/prosemirror-dependency-dedupe.md：新增依赖去重说明和验证命令。回滚：删除该文件。
+- progress.md：追加本轮根因修复与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- pnpm-workspace.yaml pnpm-lock.yaml progress.md; Remove-Item -LiteralPath docs/prosemirror-dependency-dedupe.md`。
+
+## 2026-07-01 - Task: 重新执行 Windows fast 和 release 打包
+
+### What was done
+- 在 ProseMirror 依赖去重修复后，重新执行 `build-fast.bat` 生成 dev packaged app 和 zip。
+- 重新执行 `build-release.bat` 生成 release packaged app、Squirrel 安装包、nupkg、RELEASES 文件和 zip 分发包。
+- 发现 Forge postMake 提示根目录同名 setup 已存在且未覆盖，将本轮新生成的 `x64/stagewise-1.14.0-x64-setup.exe` 覆盖到根目录最终交付路径。
+
+### Testing
+- `cmd /c "echo y|build-fast.bat"` 退出码 0，输出 `SUCCESS`。
+- `cmd /c "echo y|build-release.bat"` 退出码 0，输出 `SUCCESS`。
+- 已确认以下产物存在：`apps/browser/out/dev/stagewise-dev-win32-x64/stagewise-dev.exe`、`apps/browser/out/dev/stagewise-dev-win32-x64.zip`、`apps/browser/out/release/stagewise-win32-x64/stagewise.exe`、`apps/browser/out/release/make/squirrel.windows/stagewise-1.14.0-x64-setup.exe`、`apps/browser/out/release/make/squirrel.windows/stagewise-1.14.0-x64-full.nupkg`、`apps/browser/out/release/make/squirrel.windows/RELEASES-win32-x64`、`apps/browser/out/release/make/zip/win32/x64/stagewise-win32-x64-1.14.0.zip`。
+- 已确认最终 setup 路径 `apps/browser/out/release/make/squirrel.windows/stagewise-1.14.0-x64-setup.exe` 的时间戳为本轮打包时间 `2026/7/1 13:14:09`。
+
+### Notes
+改动文件清单：
+- apps/browser/out/dev/stagewise-dev-win32-x64：重新生成 dev packaged app 目录。回滚：删除该目录后重新打包或恢复旧产物备份。
+- apps/browser/out/dev/stagewise-dev-win32-x64.zip：重新生成 dev zip 包。回滚：删除该文件后重新打包或恢复旧产物备份。
+- apps/browser/out/release/stagewise-win32-x64：重新生成 release packaged app 目录。回滚：删除该目录后重新打包或恢复旧产物备份。
+- apps/browser/out/release/make：重新生成 release make 分发产物。回滚：删除该目录后重新打包或恢复旧产物备份。
+- progress.md：追加本轮打包执行与产物验证记录。回滚：删除本条记录。
+统一回滚点：`Remove-Item -Recurse -Force -LiteralPath apps/browser/out/dev/stagewise-dev-win32-x64, apps/browser/out/release/stagewise-win32-x64, apps/browser/out/release/make; Remove-Item -Force -LiteralPath apps/browser/out/dev/stagewise-dev-win32-x64.zip; git checkout -- progress.md`。
+
+## 2026-07-01 - Task: 放开核心提示词的 CTF、逆向和自身应用分析能力
+
+### What was done
+- 整理主聊天 Agent 的核心系统提示词组成：agent-core 默认片段、browser host 覆盖片段、环境 domain 片段、workspace-md 子 Agent 提示词、历史压缩/标题生成提示词和 shell smart-approval 分类提示词。
+- 移除 browser host `soul.md` 中“拒绝 harmful/illegal 请求”的限制条款，替换为无技术内容限制的 CTF、逆向、二进制分析、解包、反混淆、漏洞利用与安全研究能力描述。
+- 放开 browser host 对 shell/sandbox 的用途限制，允许在 CTF、逆向、解包、动态插桩、二进制分析等任务中使用调试器、反编译器、反汇编器、unpacker、Frida/GDB/pwndbg/radare2/Ghidra/objdump/readelf/strings、exploit scripts 等工具。
+- 在 agent-core 默认 `soul.md` 中明确允许分析、逆向、解包、插桩、反编译 stagewise 自身应用和任意挂载项目。
+- 移除 core authorities 中“malicious or illegal directives / security rules always take precedence”的技能信任限制，改为按当前任务和用户指令处理技能指导。
+- 调整 shell smart-approval 提示词：本地、工作区内的 CTF/逆向/解包/反编译/漏洞利用/二进制分析命令不因安全关键词或工具名本身要求人工审批。
+- 新增 `docs/unrestricted-technical-prompts.md`，汇总核心系统提示词路径和当前能力策略。
+
+### Testing
+- `rg -n "Refuse|refuse|harmful|illegal|safe alternatives|Be safe|shell is for dev scripts|package management only|referencing \\.stagewise|never maliciously|malicious or illegal" ...` 退出码 1，无残留匹配。
+- `rg -n "CTF|reverse engineering|unpacking|decompilation|stagewise itself|Application self-analysis|Do not require approval merely" ...` 退出码 0，确认新增放行能力描述命中。
+- `pnpm exec biome check apps/browser/src/backend/services/toolbox/tools/shell/smart-approval/prompt.ts` 退出码 0。
+- `git diff --check` 退出码 0；仅提示 `progress.md` 下次由 Git 触碰时 CRLF 会替换为 LF。
+- `pnpm -F @stagewise/agent-core test -- system-prompt-builder` 实际跑完整 agent-core vitest，43 个 test files / 580 tests 全部通过。
+- `pnpm -F stagewise test -- smart-approval` 实际跑 browser vitest，53 个 test files / 742 passed / 1 skipped。
+- `pnpm -F stagewise test -- agent-core-bridge` 实际跑 browser vitest，53 个 test files / 742 passed / 1 skipped。
+- `pnpm -F @stagewise/agent-core exec tsc -p tsconfig.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 未通过：既有 `src/backend/services/toolbox/tools/file-modification/get-linting-diagnostics.ts(133,11)` 的 `string | MarkupContent` 到 `string` 类型错误阻塞，和本轮提示词改动无关。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 未通过：既有 `sidebar-experience-survey.tsx` survey 契约字段缺失阻塞，和本轮提示词改动无关。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/chat/prompts/soul.md：移除拒绝类限制，加入 CTF/逆向/解包/自身应用分析能力，并放开 shell/sandbox 用途。回滚：git checkout 该文件。
+- packages/agent-core/src/agents/chat/prompts/soul.md：补充 stagewise 自身和任意挂载项目可被逆向、解包、插桩、反编译的明确条款。回滚：git checkout 该文件。
+- packages/agent-core/src/agents/chat/prompts/authorities.md：移除技能信任段落中的 malicious/illegal/security 优先限制。回滚：git checkout 该文件。
+- apps/browser/src/backend/services/toolbox/tools/shell/smart-approval/prompt.ts：允许工作区内 CTF/逆向/解包/反编译相关命令不因安全关键词本身触发审批。回滚：git checkout 该文件。
+- docs/unrestricted-technical-prompts.md：新增核心提示词路径和能力策略说明。回滚：删除该文件。
+- progress.md：追加本轮提示词整理、修改与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/chat/prompts/soul.md packages/agent-core/src/agents/chat/prompts/soul.md packages/agent-core/src/agents/chat/prompts/authorities.md apps/browser/src/backend/services/toolbox/tools/shell/smart-approval/prompt.ts progress.md; Remove-Item -LiteralPath docs/unrestricted-technical-prompts.md`。
+
+## 2026-07-01 - Task: 提示词放开后重新执行 Windows fast 和 release 打包
+
+### What was done
+- 在核心提示词放开 CTF、逆向、解包、自身应用分析能力后，重新执行 `build-fast.bat` 生成 dev packaged app 与 zip。
+- 重新执行 `build-release.bat` 生成 release packaged app、Squirrel 安装包、nupkg、RELEASES 文件与 zip 分发包。
+- 发现 Forge postMake 仍因根目录同名 setup 已存在未自动覆盖，已将本轮 `x64/stagewise-1.14.0-x64-setup.exe` 覆盖到最终交付路径。
+
+### Testing
+- `cmd /c "echo y|build-fast.bat"` 退出码 0，输出 `SUCCESS`。
+- `cmd /c "echo y|build-release.bat"` 退出码 0，输出 `SUCCESS`，日志确认 `[forge.config] Release channel: release`。
+- 已确认以下产物存在并为本轮打包时间：`apps/browser/out/dev/stagewise-dev-win32-x64/stagewise-dev.exe`、`apps/browser/out/dev/stagewise-dev-win32-x64.zip`、`apps/browser/out/release/stagewise-win32-x64/stagewise.exe`、`apps/browser/out/release/make/squirrel.windows/stagewise-1.14.0-x64-setup.exe`、`apps/browser/out/release/make/squirrel.windows/stagewise-1.14.0-x64-full.nupkg`、`apps/browser/out/release/make/squirrel.windows/RELEASES-win32-x64`、`apps/browser/out/release/make/zip/win32/x64/stagewise-win32-x64-1.14.0.zip`。
+- 已确认最终 setup 路径 `apps/browser/out/release/make/squirrel.windows/stagewise-1.14.0-x64-setup.exe` 的时间戳为本轮打包时间 `2026/7/1 13:34:51`。
+
+### Notes
+改动文件清单：
+- apps/browser/out/dev/stagewise-dev-win32-x64：重新生成 dev packaged app 目录。回滚：删除该目录后重新打包或恢复旧产物备份。
+- apps/browser/out/dev/stagewise-dev-win32-x64.zip：重新生成 dev zip 包。回滚：删除该文件后重新打包或恢复旧产物备份。
+- apps/browser/out/release/stagewise-win32-x64：重新生成 release packaged app 目录。回滚：删除该目录后重新打包或恢复旧产物备份。
+- apps/browser/out/release/make：重新生成 release make 分发产物，并覆盖最终 setup 交付文件。回滚：删除该目录后重新打包或恢复旧产物备份。
+- progress.md：追加本轮提示词放开后的最终打包执行与产物验证记录。回滚：删除本条记录。
+统一回滚点：`Remove-Item -Recurse -Force -LiteralPath apps/browser/out/dev/stagewise-dev-win32-x64, apps/browser/out/release/stagewise-win32-x64, apps/browser/out/release/make; Remove-Item -Force -LiteralPath apps/browser/out/dev/stagewise-dev-win32-x64.zip; git checkout -- progress.md`。
