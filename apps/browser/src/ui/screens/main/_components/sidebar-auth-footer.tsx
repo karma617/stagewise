@@ -7,17 +7,35 @@ import {
 import { cn } from '@stagewise/stage-ui/lib/utils';
 import { useKartonProcedure, useKartonState } from '@ui/hooks/use-karton';
 import { useTrack } from '@ui/hooks/use-track';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   IconGear3Outline18,
   IconHotDrinkOutline18,
   IconOpenRectArrowInOutline18,
 } from 'nucleo-ui-outline-18';
 import { useI18n } from '@ui/hooks/use-i18n';
+import type { CurrentUsageResponse } from '@shared/karton-contracts/pages-api/types';
 
 function getPlanLabel(plan: string | undefined, freeLabel: string): string {
   if (!plan) return freeLabel;
   return plan.charAt(0).toUpperCase() + plan.slice(1).toLowerCase();
+}
+
+type PoolEntry = {
+  email: string;
+  status: 'normal' | 'throttled' | 'banned';
+  usage?: CurrentUsageResponse;
+};
+
+/** Mirrors the logic in account-pool-section to count available accounts. */
+function computePoolStats(pool: PoolEntry[]): { total: number; available: number } {
+  let available = 0;
+  for (const entry of pool) {
+    if (entry.status === 'banned' || entry.status === 'throttled') continue;
+    const exceeded = entry.usage?.windows.some((w) => w.exceeded || w.usedPercent >= 100);
+    if (!exceeded) available += 1;
+  }
+  return { total: pool.length, available };
 }
 
 export function SidebarAuthFooter() {
@@ -28,11 +46,30 @@ export function SidebarAuthFooter() {
   const toggleClosedLidSleep = useKartonProcedure(
     (p) => p.closedLidSleep.toggle,
   );
+  const getAccountPool = useKartonProcedure((p) => p.userAccount.getAccountPool);
+  const getAccountPoolRef = useRef(getAccountPool);
+  getAccountPoolRef.current = getAccountPool;
 
   const appScreenMode = useKartonState((s) => s.appScreen.mode);
   const userAccount = useKartonState((s) => s.userAccount);
   const isMacOs = useKartonState((s) => s.appInfo.platform === 'darwin');
   const closedLidSleep = useKartonState((s) => s.closedLidSleep);
+
+  const [poolStats, setPoolStats] = useState<{ total: number; available: number } | null>(null);
+
+  // Fetch pool once on mount; ignore errors (pool may be empty or unavailable).
+  useEffect(() => {
+    let cancelled = false;
+    void getAccountPoolRef
+      .current()
+      .then((entries) => {
+        if (!cancelled) setPoolStats(computePoolStats(entries as PoolEntry[]));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const isAuthenticated =
     userAccount.status === 'authenticated' ||
@@ -73,6 +110,27 @@ export function SidebarAuthFooter() {
 
   return (
     <div className="mt-2 flex shrink-0 flex-col gap-2">
+      {poolStats !== null && poolStats.total > 0 && (
+        <div className="flex flex-row items-center gap-3 rounded-lg bg-surface-2 px-2 py-1">
+          <span className="flex items-center gap-1 text-xs">
+            <span className="font-medium text-info-foreground tabular-nums">
+              {poolStats.total}
+            </span>
+            <span className="text-muted-foreground">
+              {t('sidebarAuth.poolStats.total')}
+            </span>
+          </span>
+          <span className="h-3 w-px bg-border-subtle" />
+          <span className="flex items-center gap-1 text-xs">
+            <span className="font-medium text-success-foreground tabular-nums">
+              {poolStats.available}
+            </span>
+            <span className="text-muted-foreground">
+              {t('sidebarAuth.poolStats.available')}
+            </span>
+          </span>
+        </div>
+      )}
       <div className="flex flex-row items-center justify-between gap-2">
         {isAuthenticated ? (
           <button

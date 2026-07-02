@@ -947,6 +947,47 @@ describe('GitService', () => {
     expect(mutationCalls).toContain('worktree remove /repo');
   });
 
+  it('backs up dirty worktree cleanup changes', async () => {
+    const workspacePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'dirty-worktree-'),
+    );
+    await fs.mkdir(path.join(workspacePath, 'notes'), { recursive: true });
+    await fs.writeFile(path.join(workspacePath, 'notes', 'untracked.txt'), 'u');
+    const { service, mutationCalls, readCalls } = await createGitService(
+      {
+        'rev-parse --show-toplevel --git-common-dir': `${workspacePath}\n${path.join(workspacePath, '.git')}\n`,
+        'branch --show-current': 'feature-a\n',
+        'rev-parse --short HEAD': 'abc123\n',
+      },
+      {
+        'diff HEAD --binary': {
+          stdout: 'diff --git a/src/a.ts b/src/a.ts\n',
+        },
+        'ls-files --others --exclude-standard -z': {
+          stdout: 'notes/untracked.txt\0',
+        },
+      },
+    );
+
+    const result =
+      await service.backupWorktreeChangesForCleanup(workspacePath);
+
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) throw new Error(result.message);
+    await expect(fs.readFile(result.patchPath!, 'utf8')).resolves.toBe(
+      'diff --git a/src/a.ts b/src/a.ts\n',
+    );
+    await expect(
+      fs.readFile(path.join(result.untrackedDir!, 'notes', 'untracked.txt'), 'utf8'),
+    ).resolves.toBe('u');
+    await expect(
+      fs.readFile(path.join(result.backupPath, 'metadata.json'), 'utf8'),
+    ).resolves.toContain('"branch": "feature-a"');
+    expect(readCalls).toContain('branch --show-current');
+    expect(mutationCalls).toContain('diff HEAD --binary');
+    expect(mutationCalls).toContain('ls-files --others --exclude-standard -z');
+  });
+
   it('returns structured worktree command failure', async () => {
     const { service } = await createGitService(
       {

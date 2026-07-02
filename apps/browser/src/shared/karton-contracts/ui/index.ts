@@ -1550,7 +1550,6 @@ export type KartonContract = {
             | '2captcha'
             | 'capsolver'
             | 'yescaptcha'
-            | 'playwright-stealth'
             | 'browser-ui-flow';
           /** API key for third-party captcha services. */
           captchaApiKeys?: {
@@ -1797,7 +1796,6 @@ export type KartonContract = {
             | '2captcha'
             | 'capsolver'
             | 'yescaptcha'
-            | 'playwright-stealth'
             | 'browser-ui-flow';
           /** API key for third-party captcha services. */
           captchaApiKeys?: {

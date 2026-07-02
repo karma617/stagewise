@@ -828,11 +828,6 @@ export const settingsDict: Dict = {
       '启动一个可见的隔离 Electron 窗口加载 console.stagewise.io 登录页，页面自行完成 Turnstile，必要时可手动交互，然后自动填入邮箱与 OTP。',
     en: 'Opens a visible isolated Electron window for the real console.stagewise.io sign-in page. The page completes Turnstile itself, allows manual interaction when needed, then auto-fills email and OTP.',
   },
-  'settings.autoRegister.captcha.playwrightHint': {
-    'zh-CN':
-      '不推荐：headless Playwright 可能被 Cloudflare 拒绝。优先使用“真实浏览器页面注册”。首次使用会自动安装 playwright 和 chromium，可能需要几分钟。',
-    en: 'Not recommended: headless Playwright may be rejected by Cloudflare. Prefer "Real browser page registration". The first run installs playwright and chromium automatically; this can take a few minutes.',
-  },
   'settings.autoRegister.captcha.apiKey': {
     'zh-CN': 'API Key',
     en: 'API Key',

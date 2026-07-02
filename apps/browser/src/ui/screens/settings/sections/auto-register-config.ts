@@ -3,7 +3,6 @@ export type CaptchaProvider =
   | '2captcha'
   | 'capsolver'
   | 'yescaptcha'
-  | 'playwright-stealth'
   | 'browser-ui-flow';
 
 export type MailboxService =
@@ -234,7 +233,6 @@ function isCaptchaProvider(value: unknown): value is CaptchaProvider {
     value === '2captcha' ||
     value === 'capsolver' ||
     value === 'yescaptcha' ||
-    value === 'playwright-stealth' ||
     value === 'browser-ui-flow'
   );
 }

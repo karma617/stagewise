@@ -1,4 +1,48 @@
 packages:
-- apps/*
-- packages/*
-- agent/*
+  - apps/*
+  - packages/*
+  - agent/*
+
+blockExoticSubdeps: false
+nodeLinker: hoisted
+shamefullyHoist: true
+
+allowBuilds:
+  "@google/genai": true
+  "@posthog/cli": true
+  "@swc/core": true
+  "@parcel/watcher": true
+  bufferutil: true
+  core-js: true
+  core-js-pure: true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  fs-xattr: true
+  lefthook: true
+  libsql: true
+  macos-alias: true
+  node-pty: true
+  sharp: true
+  utf-8-validate: true
+  protobufjs: true
+  nucleo-core-fill-24: false
+  nucleo-core-outline-24: false
+  nucleo-micro-bold: false
+  nucleo-ui-fill-18: false
+  nucleo-ui-fill-duo-18: false
+  nucleo-ui-outline-12: false
+  nucleo-ui-outline-18: false
+  nucleo-ui-outline-duo-18: false
+
+overrides:
+  lucide-react: "0.554.0"
+  "@types/react": "19.2.14"
+  "@types/react-dom": "19.2.3"
+  "@types/glob": "8.1.0"
+  "@types/minimatch": "5.1.2"
+  "@types/node": "22.15.2"
+  prosemirror-model: "1.25.9"
+  prosemirror-state: "1.4.4"
+  prosemirror-transform: "1.12.0"
+  prosemirror-view: "1.41.5"

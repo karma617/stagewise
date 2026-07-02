@@ -38,7 +38,7 @@ export const chatDict: Dict = {
     en: 'All',
   },
   'commandCenter.mode.agents': {
-    'zh-CN': '代理',
+    'zh-CN': '智能体',
     en: 'Agents',
   },
   'commandCenter.mode.browser': {
@@ -58,7 +58,7 @@ export const chatDict: Dict = {
     en: 'Switch to {mode} mode',
   },
   'commandCenter.search.placeholder.default': {
-    'zh-CN': '搜索代理、标签页、设置…',
+    'zh-CN': '搜索智能体、标签页、设置…',
     en: 'Search agents, tabs, settings…',
   },
   'commandCenter.search.placeholder.files': {
@@ -66,7 +66,7 @@ export const chatDict: Dict = {
     en: 'Search files…',
   },
   'commandCenter.group.agents': {
-    'zh-CN': '代理',
+    'zh-CN': '智能体',
     en: 'Agents',
   },
   'commandCenter.group.browser': {
@@ -138,7 +138,7 @@ export const chatDict: Dict = {
     en: 'Working…',
   },
   'commandCenter.agent.untitled': {
-    'zh-CN': '未命名代理',
+    'zh-CN': '未命名智能体',
     en: 'Untitled Agent',
   },
   'commandCenter.agent.messages': {
@@ -533,7 +533,7 @@ export const chatDict: Dict = {
   'chat.runtimeError.reportLink': { 'zh-CN': '在 GitHub 上报告', en: 'report it on GitHub' },
   'chat.runtimeError.reportSuffix': { 'zh-CN': '。请附上错误消息和堆栈跟踪（如果有），帮助我们诊断问题。', en: '. Please include the error message and stack trace (if available) to help us diagnose the issue.' },
   'chat.message.editYourMessage': { 'zh-CN': '编辑您的消息...', en: 'Edit your message...' },
-  'chat.history.agentMessageDisplay': { 'zh-CN': '代理消息展示', en: 'Agent message display' },
+  'chat.history.agentMessageDisplay': { 'zh-CN': '智能体消息展示', en: 'Agent message display' },
   'chat.workspace.stopContextGen': { 'zh-CN': '停止生成上下文', en: 'Stop the context generation' },
   'chat.dropZone.label': { 'zh-CN': '聊天面板拖放区', en: 'Chat panel drop zone' },
   'chat.notif.dismiss': { 'zh-CN': '关闭通知', en: 'Dismiss notification' },
@@ -548,9 +548,22 @@ export const chatDict: Dict = {
   'chat.mentions.tabPreview': { 'zh-CN': '标签预览', en: 'Tab preview' },
   'chat.mentions.openOriginalUrl': { 'zh-CN': '在新标签中打开原始 URL', en: 'Open original URL in new tab' },
   'chat.agentList.deleteWorktree': { 'zh-CN': '删除工作树', en: 'Delete worktree' },
-  'chat.agentList.changeGroupingMode': { 'zh-CN': '更改代理分组模式', en: 'Change agent grouping mode' },
-  'chat.agentList.searchAgents': { 'zh-CN': '搜索代理', en: 'Search agents' },
-  'chat.agentList.searchAgentsPlaceholder': { 'zh-CN': '搜索代理...', en: 'Search agents…' },
+  'chat.agentList.changeGroupingMode': { 'zh-CN': '更改智能体分组模式', en: 'Change agent grouping mode' },
+  'chat.agentList.searchAgents': { 'zh-CN': '搜索智能体', en: 'Search agents' },
+  'chat.agentList.searchAgentsPlaceholder': { 'zh-CN': '搜索智能体...', en: 'Search agents…' },
+  'chat.agentList.newAgent': { 'zh-CN': '新建智能体', en: 'New Agent' },
+  'chat.agentList.defaultChatAgentTitlePrefix': { 'zh-CN': '新建聊天智能体 - ', en: 'New Chat Agent - ' },
+  'chat.agentList.agents': { 'zh-CN': '智能体', en: 'Agents' },
+  'chat.agentList.pinned': { 'zh-CN': '已固定', en: 'Pinned' },
+  'chat.agentList.groupByAge': { 'zh-CN': '按时间分组', en: 'Group by Age' },
+  'chat.agentList.groupByWorkspace': { 'zh-CN': '按工作区分组', en: 'Group by Workspace' },
+  'chat.agentList.groupOptionAge': { 'zh-CN': '时间', en: 'Age' },
+  'chat.agentList.groupOptionWorkspace': { 'zh-CN': '工作区', en: 'Workspace' },
+  'chat.agentList.group.today': { 'zh-CN': '今天', en: 'Today' },
+  'chat.agentList.group.yesterday': { 'zh-CN': '昨天', en: 'Yesterday' },
+  'chat.agentList.group.last7Days': { 'zh-CN': '最近 7 天', en: 'Last 7 days' },
+  'chat.agentList.group.last30Days': { 'zh-CN': '最近 30 天', en: 'Last 30 days' },
+  'chat.agentList.group.older': { 'zh-CN': '更早', en: 'Older' },
   'chat.sidebar.newChat': { 'zh-CN': '新建对话', en: 'New chat' },
   'chat.sharedMenu.unpin': { 'zh-CN': '取消固定', en: 'Unpin' },
   'chat.sharedMenu.pinGlobally': { 'zh-CN': '全局固定', en: 'Pin globally' },
@@ -613,5 +626,4 @@ export const chatDict: Dict = {
   'settings.autoRegister.captcha.2captcha': { 'zh-CN': '2Captcha API', en: '2Captcha API' },
   'settings.autoRegister.captcha.capsolver': { 'zh-CN': 'CapSolver API', en: 'CapSolver API' },
   'settings.autoRegister.captcha.yescaptcha': { 'zh-CN': 'YesCaptcha API', en: 'YesCaptcha API' },
-  'settings.autoRegister.captcha.playwright-stealth': { 'zh-CN': 'Playwright 隐身模式', en: 'Playwright Stealth' },
 };

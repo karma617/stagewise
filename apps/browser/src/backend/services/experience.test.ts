@@ -109,24 +109,17 @@ function createGitService(
   } as unknown as GitService;
 }
 
-function createService(
-  gitService: GitService,
-  getOldestAgentCreatedAt?: () => Promise<Date | null>,
-  getAgentCount?: () => Promise<number>,
-) {
+function createService(gitService: GitService) {
   const state = {
-    agents: { instances: {} },
     userExperience: {
       storedExperienceData: {
         recentlyOpenedWorkspaces: [],
         hasSeenOnboardingFlow: null,
         lastViewedChats: {},
-        totalAgentCount: 0,
       },
     },
   };
   const uiKarton = {
-    state,
     setState: vi.fn((updater: (draft: typeof state) => void) => {
       updater(state);
     }),
@@ -148,8 +141,6 @@ function createService(
     uiKarton,
     telemetryService,
     gitService,
-    getOldestAgentCreatedAt,
-    getAgentCount,
   );
 }
 
@@ -359,70 +350,5 @@ describe('UserExperienceService recent workspace normalization', () => {
     expect(getRecentWorkspaces()).toEqual([
       { path: '/repo', name: 'repo', openedAt: 10 },
     ]);
-  });
-});
-
-describe('UserExperienceService firstUsedAt backfill', () => {
-  beforeEach(() => {
-    persistedData.clear();
-    existingPaths.clear();
-    persistedData.set('onboarding-state', { hasSeenOnboardingFlow: false });
-  });
-
-  it('backfills firstUsedAt from oldest agent createdAt when messages exist', async () => {
-    const oldestDate = new Date('2025-01-15T10:00:00Z');
-    const service = await createService(
-      createGitService({}),
-      async () => oldestDate,
-    );
-
-    // Access the private method via any to trigger the backfill
-    await (service as any).setFirstUsedAt();
-
-    const firstUsedAt = persistedData.get('first-used-at') as number;
-    expect(firstUsedAt).toBe(oldestDate.getTime());
-  });
-
-  it('falls back to Date.now() when no agents exist', async () => {
-    const before = Date.now();
-    const service = await createService(createGitService({}), async () => null);
-
-    await (service as any).setFirstUsedAt();
-    const after = Date.now();
-
-    const firstUsedAt = persistedData.get('first-used-at') as number;
-    expect(firstUsedAt).toBeGreaterThanOrEqual(before);
-    expect(firstUsedAt).toBeLessThanOrEqual(after);
-  });
-
-  it('falls back to Date.now() when no callback is provided', async () => {
-    const before = Date.now();
-    const service = await createService(createGitService({}));
-
-    await (service as any).setFirstUsedAt();
-    const after = Date.now();
-
-    const firstUsedAt = persistedData.get('first-used-at') as number;
-    expect(firstUsedAt).toBeGreaterThanOrEqual(before);
-    expect(firstUsedAt).toBeLessThanOrEqual(after);
-  });
-
-  it('treats implausible persisted firstUsedAt as null (self-heal)', async () => {
-    // Simulate a corrupted value (e.g. 0 or 100 from epoch-0 agent records)
-    persistedData.set('first-used-at', 100);
-    const oldestDate = new Date('2025-01-15T10:00:00Z');
-    const service = await createService(
-      createGitService({}),
-      async () => oldestDate,
-    );
-
-    // readFirstUsedAt should return null for the corrupted value
-    const readResult = await (service as any).readFirstUsedAt();
-    expect(readResult).toBeNull();
-
-    // setFirstUsedAt should backfill from the oldest agent createdAt
-    await (service as any).setFirstUsedAt();
-    const firstUsedAt = persistedData.get('first-used-at') as number;
-    expect(firstUsedAt).toBe(oldestDate.getTime());
   });
 });
