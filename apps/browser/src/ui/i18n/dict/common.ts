@@ -176,4 +176,6 @@ export const commonDict: Dict = {
     'zh-CN': '恢复合盖休眠',
     en: 'Re-enable sleep on closed lid',
   },
+  'sidebarAuth.poolStats.total': { 'zh-CN': '总账号', en: 'Total accounts' },
+  'sidebarAuth.poolStats.available': { 'zh-CN': '可用', en: 'Available' },
 };

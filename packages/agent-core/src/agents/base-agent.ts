@@ -1,4 +1,4 @@
-import {
+﻿import {
   type ModelMessage,
   type Tool,
   type ToolApprovalResponse,
@@ -2590,7 +2590,12 @@ export abstract class BaseAgent<
       `[BaseAgent:${this.instanceId}] Appending synthetic model-only continuation. reason=${continuation.reason}, previousLastRole=${lastMessage?.role ?? 'none'}`,
     );
 
-    return [...modelMessages, { role: 'user', content: 'continue' }];
+    // For quota-account-switched, emit an explicit directive so the model
+    // does not re-explore files it already analyzed in the previous account's
+    // session. For other synthetic-continuation reasons (system-resumed,
+    // event-loop-stalled) the generic 'continue' signal is sufficient.
+    const continuationContent = 'Do not re-read the file or repeat the completed analysis.Please continue the task from where you left off last time and proceed according to the original plan.';
+    return [...modelMessages, { role: 'user', content: continuationContent }];
   }
 
   /**

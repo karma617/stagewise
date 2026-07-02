@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { cn } from '@ui/utils';
 import { IconTriangleWarning } from 'nucleo-micro-bold';
 import { IconLockKeyOutline18 } from 'nucleo-ui-outline-18';
@@ -38,9 +38,6 @@ type GenericRuntimeError = Extract<AgentRuntimeError, { kind?: undefined }>;
 
 const AUTO_SWITCH_MAX_ATTEMPTS = 3;
 const AUTO_SWITCH_RETRY_DELAY_MS = 800;
-
-const GENERIC_AUTO_RETRY_MAX = 3;
-const GENERIC_AUTO_RETRY_DELAY_MS = 2000;
 
 /** Check if an error message indicates an API authorization failure */
 function isAuthorizationError(error: GenericRuntimeError): boolean {
@@ -109,13 +106,14 @@ export function MessageRuntimeError({
   const continueAfterError = useKartonProcedure(
     (p) => p.agents.continueAfterError,
   );
-  // All error kinds use continueAfterError to preserve full history.
-  // Falls back to onRetry (retryLastUserMessage) only if the agent is gone.
-  const retryAction = () => {
-    void continueAfterError(agentInstanceId).catch(() => {
-      onRetry();
-    });
-  };
+  const retryAction =
+    error.kind === 'plan-limit-exceeded'
+      ? () => {
+          void continueAfterError(agentInstanceId).catch(() => {
+            onRetry();
+          });
+        }
+      : onRetry;
 
   const { setRef: retryRef, isWinner: retryIsWinner } = useCmdEnterTarget({
     id: `message-runtime-error-retry-${agentInstanceId}`,
@@ -544,23 +542,6 @@ function WaitingForConnectionError({
   );
 }
 
-/** Detect transient network/connection errors that are safe to auto-retry */
-function isNetworkConnectionError(error: GenericRuntimeError): boolean {
-  const msg = error.message.toLowerCase();
-  return (
-    msg.includes('cannot connect') ||
-    msg.includes('other side closed') ||
-    msg.includes('connection refused') ||
-    msg.includes('connection reset') ||
-    msg.includes('failed to fetch') ||
-    msg.includes('network error') ||
-    msg.includes('econnrefused') ||
-    msg.includes('econnreset') ||
-    msg.includes('etimedout') ||
-    msg.includes('socket hang up')
-  );
-}
-
 function GenericError({
   agentInstanceId,
   error,
@@ -576,32 +557,6 @@ function GenericError({
 } & RetryActionProps) {
   const { t } = useI18n();
   const [helpExpanded, setHelpExpanded] = useState(false);
-  const [autoRetryCount, setAutoRetryCount] = useState(0);
-  const [autoRetryMsg, setAutoRetryMsg] = useState<string | null>(null);
-  const autoRetryDoneRef = useRef(false);
-  const onRetryRef = useRef(onRetry);
-  onRetryRef.current = onRetry;
-
-  // Auto-retry transient network errors up to GENERIC_AUTO_RETRY_MAX times
-  useEffect(() => {
-    if (autoRetryDoneRef.current) return;
-    if (!canRetry) return;
-    if (!isNetworkConnectionError(error)) return;
-    autoRetryDoneRef.current = true;
-
-    const run = async () => {
-      for (let i = 1; i <= GENERIC_AUTO_RETRY_MAX; i++) {
-        setAutoRetryMsg(`连接失败，自动重试 ${i}/${GENERIC_AUTO_RETRY_MAX}…`);
-        await wait(GENERIC_AUTO_RETRY_DELAY_MS);
-        setAutoRetryCount(i);
-        onRetryRef.current();
-        // Give the agent time to start; if another error fires the component
-        // remounts and the next error's own effect handles further retries.
-        return;
-      }
-    };
-    void run();
-  }, [canRetry, error]);
   const openExternalUrl = useKartonProcedure((p) => p.openExternalUrl);
   const [hasCopied, setHasCopied] = useState(false);
   const [openAgent] = useOpenAgent();
@@ -720,9 +675,6 @@ function GenericError({
           </span>
         )}
       </div>
-      {autoRetryMsg && (
-        <div className="text-muted-foreground text-xs">{autoRetryMsg}</div>
-      )}
 
       <Collapsible open={helpExpanded} onOpenChange={setHelpExpanded}>
         <CollapsibleTrigger
@@ -775,3 +727,4 @@ function GenericError({
     </div>
   );
 }
+
