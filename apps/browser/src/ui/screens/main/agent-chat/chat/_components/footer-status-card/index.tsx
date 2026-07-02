@@ -562,6 +562,7 @@ export function StatusCard() {
 
     const userQuestionSection = UserQuestionSection({
       pendingQuestion: pendingUserQuestion,
+      t,
       onSubmitStep: async (questionId, answers) => {
         if (!openAgentId) return;
         await submitUserQuestionStep(openAgentId, questionId, answers);

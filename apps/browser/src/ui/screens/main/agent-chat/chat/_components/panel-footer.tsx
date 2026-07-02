@@ -29,6 +29,7 @@ import {
 import { useHotKeyListener } from '@ui/hooks/use-hotkey-listener';
 import { useEventListener } from '@ui/hooks/use-event-listener';
 import { useTrack } from '@ui/hooks/use-track';
+import { useI18n } from '@ui/hooks/use-i18n';
 import {
   ChatInput,
   ChatInputActions,
@@ -477,6 +478,7 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
     clearSelectedElementsProc();
   }, [clearFileAttachments, clearSelectedElementsProc]);
 
+  const { t } = useI18n();
   const track = useTrack();
 
   // Live ref for the set of selected elements so telemetry on stop can
@@ -1773,7 +1775,7 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
             onSubmit={handleSubmit}
             disabled={!enableInputField}
             placeholder={
-              hasPendingQuestion ? 'Write a message instead' : undefined
+              hasPendingQuestion ? t('chat.writeMessageInstead') : undefined
             }
             attachmentCount={fileAttachments.length}
             showModelSelect

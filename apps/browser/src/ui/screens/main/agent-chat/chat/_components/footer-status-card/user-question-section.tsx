@@ -32,6 +32,29 @@ import { HotkeyActions } from '@shared/hotkeys';
 import { IconHelpChatOutline18 } from 'nucleo-ui-outline-18';
 import { useI18n } from '@ui/hooks/use-i18n';
 
+type TranslateFn = (key: string) => string;
+
+const userQuestionTextI18nKeys: Record<string, string> = {
+  'Alias Limit Error Details': 'chat.userQuestion.aliasLimit.title',
+  'What exact error message appears in the logs when the parent email has reached its alias creation limit? (e.g. `user_register_http_400: ...` or `create_account_http_400: ...` or something else)':
+    'chat.userQuestion.aliasLimit.description',
+  'Error message text': 'chat.userQuestion.aliasLimit.errorMessageLabel',
+  'Paste the exact error string from logs':
+    'chat.userQuestion.aliasLimit.errorMessagePlaceholder',
+};
+
+function translateQuestionText(text: string, t: TranslateFn): string {
+  const key = userQuestionTextI18nKeys[text];
+  return key ? t(key) : text;
+}
+
+function translateOptionalQuestionText(
+  text: string | undefined,
+  t: TranslateFn,
+): string | undefined {
+  return text ? translateQuestionText(text, t) : undefined;
+}
+
 /**
  * Module-level store for the current form draft answers.
  * Read by panel-footer when interrupting the question with a user message.
@@ -44,6 +67,7 @@ export function getCurrentDraftAnswers(): Record<string, QuestionAnswerValue> {
 
 export interface UserQuestionSectionProps {
   pendingQuestion: PendingUserQuestion | null;
+  t: TranslateFn;
   onSubmitStep: (
     questionId: string,
     answers: Record<string, QuestionAnswerValue>,
@@ -55,45 +79,53 @@ export interface UserQuestionSectionProps {
 function validateField(
   field: QuestionField,
   value: QuestionAnswerValue | undefined,
+  t: TranslateFn,
 ): string | null {
   if (field.type === 'input') {
     const strValue = String(value ?? '').trim();
-    if (field.required && strValue === '') return 'This field is required';
+    if (field.required && strValue === '') return t('validation.fieldRequired');
     if (
       field.inputType === 'email' &&
       strValue &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(strValue)
     )
-      return 'Invalid email format';
+      return t('validation.invalidEmail');
     if (field.inputType === 'number' && strValue) {
       const num = Number(strValue);
-      if (Number.isNaN(num)) return 'Must be a number';
+      if (Number.isNaN(num)) return t('validation.mustBeNumber');
       if (field.min !== undefined && num < field.min)
-        return `Min value is ${field.min}`;
+        return t('validation.minValue').replace('{min}', String(field.min));
       if (field.max !== undefined && num > field.max)
-        return `Max value is ${field.max}`;
+        return t('validation.maxValue').replace('{max}', String(field.max));
     }
     if (field.minLength !== undefined && strValue.length < field.minLength)
-      return `Min length is ${field.minLength}`;
+      return t('validation.minLength').replace(
+        '{min}',
+        String(field.minLength),
+      );
     if (field.maxLength !== undefined && strValue.length > field.maxLength)
-      return `Max length is ${field.maxLength}`;
+      return t('validation.maxLength').replace(
+        '{max}',
+        String(field.maxLength),
+      );
   }
 
   if (field.type === 'radio-group') {
     if (field.required && (value === undefined || value === ''))
-      return 'Please select an option';
+      return t('validation.selectOption');
     // Validate "Other" option: custom text must not be empty after trimming
     if (
       typeof value === 'string' &&
       value.startsWith('__other__:') &&
       value.slice('__other__:'.length).trim() === ''
     )
-      return 'Please enter a value';
+      return t('validation.enterValue');
   }
 
   if (field.type === 'checkbox-group') {
     const arr = Array.isArray(value) ? value : [];
-    if (field.required && arr.length === 0) return 'Select at least one option';
+    if (field.required && arr.length === 0)
+      return t('validation.selectAtLeastOne');
   }
 
   return null;
@@ -224,7 +256,7 @@ function UserQuestionForm({
     // Validate all fields
     const newErrors: Record<string, string> = {};
     for (const field of currentStepData.fields) {
-      const error = validateField(field, formValues[field.questionId]);
+      const error = validateField(field, formValues[field.questionId], t);
       if (error) newErrors[field.questionId] = error;
     }
 
@@ -245,15 +277,16 @@ function UserQuestionForm({
     isSubmitting,
     onSubmitStep,
     pendingQuestion.id,
+    t,
   ]);
 
   // Check if all fields on the current step pass validation (for button enabled state)
   const isStepComplete = useMemo(() => {
     if (!currentStepData) return false;
     return currentStepData.fields.every(
-      (field) => validateField(field, formValues[field.questionId]) === null,
+      (field) => validateField(field, formValues[field.questionId], t) === null,
     );
-  }, [currentStepData, formValues]);
+  }, [currentStepData, formValues, t]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -341,7 +374,7 @@ function UserQuestionForm({
         {currentStepData.description && (
           <span className="shrink-0 text-muted-foreground text-xs [&_p]:m-0 [&_p]:inline">
             <Streamdown isAnimating={false}>
-              {currentStepData.description}
+              {translateQuestionText(currentStepData.description, t)}
             </Streamdown>
           </span>
         )}
@@ -439,10 +472,10 @@ function FieldRenderer({
   const handleQuestionBlur = useCallback(
     (e: React.FocusEvent) => {
       if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-        onBlur?.(field.questionId, validateField(field, value));
+        onBlur?.(field.questionId, validateField(field, value, t));
       }
     },
-    [field, value, onBlur],
+    [field, value, onBlur, t],
   );
 
   /** Schedule a RAF and track the handle for cleanup. */
@@ -465,18 +498,22 @@ function FieldRenderer({
           onBlur={handleQuestionBlur}
         >
           <span className="font-medium text-foreground text-xs">
-            <InlineMarkdown>{field.label}</InlineMarkdown>
+            <InlineMarkdown>
+              {translateQuestionText(field.label, t)}
+            </InlineMarkdown>
             {field.required && <span className="text-error-solid"> *</span>}
           </span>
           {field.description && (
             <span className="text-2xs text-muted-foreground">
-              <InlineMarkdown>{field.description}</InlineMarkdown>
+              <InlineMarkdown>
+                {translateQuestionText(field.description, t)}
+              </InlineMarkdown>
             </span>
           )}
           <Input
             size="xs"
             type={field.inputType ?? 'text'}
-            placeholder={field.placeholder}
+            placeholder={translateOptionalQuestionText(field.placeholder, t)}
             value={String(value ?? '')}
             onValueChange={(val) =>
               onChange(
@@ -545,12 +582,16 @@ function FieldRenderer({
           }}
         >
           <span className="font-medium text-foreground text-xs">
-            <InlineMarkdown>{field.label}</InlineMarkdown>
+            <InlineMarkdown>
+              {translateQuestionText(field.label, t)}
+            </InlineMarkdown>
             {field.required && <span className="text-error-solid"> *</span>}
           </span>
           {field.description && (
             <span className="text-2xs text-muted-foreground">
-              <InlineMarkdown>{field.description}</InlineMarkdown>
+              <InlineMarkdown>
+                {translateQuestionText(field.description, t)}
+              </InlineMarkdown>
             </span>
           )}
           <RadioGroup
@@ -568,7 +609,9 @@ function FieldRenderer({
               <RadioLabel key={opt.value}>
                 <Radio value={opt.value} className="size-3.5 p-1" />
                 <span className="text-xs">
-                  <InlineMarkdown>{opt.label}</InlineMarkdown>
+                  <InlineMarkdown>
+                    {translateQuestionText(opt.label, t)}
+                  </InlineMarkdown>
                 </span>
               </RadioLabel>
             ))}
@@ -658,12 +701,16 @@ function FieldRenderer({
               onCheckedChange={(checked) => onChange(checked)}
             />
             <span className="text-foreground text-xs">
-              <InlineMarkdown>{field.label}</InlineMarkdown>
+              <InlineMarkdown>
+                {translateQuestionText(field.label, t)}
+              </InlineMarkdown>
             </span>
           </label>
           {field.description && (
             <span className="pl-5.5 text-2xs text-muted-foreground">
-              <InlineMarkdown>{field.description}</InlineMarkdown>
+              <InlineMarkdown>
+                {translateQuestionText(field.description, t)}
+              </InlineMarkdown>
             </span>
           )}
         </div>
@@ -679,12 +726,16 @@ function FieldRenderer({
           onBlur={handleQuestionBlur}
         >
           <span className="font-medium text-foreground text-xs">
-            <InlineMarkdown>{field.label}</InlineMarkdown>
+            <InlineMarkdown>
+              {translateQuestionText(field.label, t)}
+            </InlineMarkdown>
             {field.required && <span className="text-error-solid"> *</span>}
           </span>
           {field.description && (
             <span className="text-2xs text-muted-foreground">
-              <InlineMarkdown>{field.description}</InlineMarkdown>
+              <InlineMarkdown>
+                {translateQuestionText(field.description, t)}
+              </InlineMarkdown>
             </span>
           )}
           <div className="flex flex-col gap-1.5">
@@ -707,7 +758,9 @@ function FieldRenderer({
                   }}
                 />
                 <span className="text-xs">
-                  <InlineMarkdown>{opt.label}</InlineMarkdown>
+                  <InlineMarkdown>
+                    {translateQuestionText(opt.label, t)}
+                  </InlineMarkdown>
                 </span>
               </label>
             ))}
@@ -749,7 +802,7 @@ export function UserQuestionSection(
           />
           <IconHelpChatOutline18 className="size-3 shrink-0" />
           <span className="truncate">
-            {pendingQuestion.title}
+            {translateQuestionText(pendingQuestion.title, props.t)}
             {stepIndicator}
           </span>
         </div>

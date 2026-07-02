@@ -299,3 +299,74 @@
 - apps/browser/out/release/make：重新生成 release make 分发产物，并覆盖最终 setup 交付文件。回滚：删除该目录后重新打包或恢复旧产物备份。
 - progress.md：追加本轮提示词放开后的最终打包执行与产物验证记录。回滚：删除本条记录。
 统一回滚点：`Remove-Item -Recurse -Force -LiteralPath apps/browser/out/dev/stagewise-dev-win32-x64, apps/browser/out/release/stagewise-win32-x64, apps/browser/out/release/make; Remove-Item -Force -LiteralPath apps/browser/out/dev/stagewise-dev-win32-x64.zip; git checkout -- progress.md`。
+
+## 2026-07-02 - Task: 红框内用户问题表单文本 i18n
+
+### What was done
+- 将截图红框内用户问题表单的已知英文标题、说明、字段名和占位符接入 i18n 映射，在中文界面显示中文文案，在英文界面保留原英文文案。
+- 保留 pending question 的原始数据协议不变；未知动态问题文本继续原样显示，避免误翻译 agent 临时生成内容。
+- 补齐用户问题表单校验时对当前语言 `t` 的依赖，确保语言切换后校验和按钮完成状态使用最新文案。
+
+### Testing
+- `pnpm -F stagewise exec biome check src/ui/screens/main/agent-chat/chat/_components/footer-status-card/user-question-section.tsx` 退出码 0。
+- `git diff --check` 退出码 0；仅提示 `panel-footer.tsx` 下次由 Git 触碰时 CRLF 会替换为 LF。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 未通过：既有 `src/ui/screens/main/_components/sidebar-experience-survey.tsx` 的 `experienceSurvey`、`survey`、`founderCallSurvey`、`firstUsedAt`、`founderCall`、`totalAgentCount` contract 字段缺失阻塞，报错文件不在本轮改动范围内。
+- `pnpm -F stagewise exec biome check src/ui/screens/main/agent-chat/chat/_components/footer-status-card/user-question-section.tsx src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx src/ui/i18n/dict/chat.ts src/ui/i18n/dict/common.ts src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx` 未通过：`chat.ts`、`common.ts`、`panel-footer.tsx` 存在既有格式差异；为避免全文件格式化扩大 diff，本轮只确认直接改动的 `user-question-section.tsx` 单文件通过。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/user-question-section.tsx：为用户问题表单增加已知源文本到 i18n key 的 UI 层映射，并让标题、说明、字段、占位符和校验文案走当前语言。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/user-question-section.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx：向用户问题表单 section 传入已有 `t`，用于标题翻译。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：新增红框内 alias limit 表单标题、说明、字段名和占位符的中英文词条。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- progress.md：追加本轮 i18n 改动与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/user-question-section.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx apps/browser/src/ui/i18n/dict/chat.ts progress.md`。
+
+## 2026-07-02 - Task: 修复 sidebar experience survey typecheck 阻塞
+
+### What was done
+- 补齐用户体验 survey 的共享 contract、默认状态和持久化 JSON 名称，恢复 UI 对 `experienceSurvey`、`founderCallSurvey`、`firstUsedAt` 和 `totalAgentCount` 的类型访问。
+- 为 sidebar survey UI 调用的 answer、dismiss、submit feedback、open founder call、dismiss founder call procedure 增加后台 handler，避免点击动作只有 UI 声明但无运行时接线。
+- 增加相关 telemetry 事件类型，并记录 survey 状态和验证入口文档。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise test -- experience` 退出码 0，`1` 个 test file / `9` 个 tests 全部通过。
+- `pnpm -F stagewise exec biome check src/shared/karton-contracts/ui/index.ts src/backend/services/experience.ts src/backend/services/telemetry.ts src/backend/utils/paths.ts src/ui/screens/main/_components/sidebar-experience-survey.tsx` 退出码 0。
+- `git diff --check` 退出码 0；仅提示 `panel-footer.tsx` 下次由 Git 触碰时 CRLF 会替换为 LF。
+
+### Notes
+改动文件清单：
+- apps/browser/src/shared/karton-contracts/ui/index.ts：新增 survey 状态 schema、StoredExperienceData 字段、默认值和 userExperience survey procedure 合同。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/backend/services/experience.ts：注册 survey/founder call procedure handler，读写 survey 状态和 first-used-at，并同步 storedExperienceData。回滚：`git checkout -- apps/browser/src/backend/services/experience.ts`。
+- apps/browser/src/backend/services/telemetry.ts：新增 survey 相关 telemetry event 类型。回滚：`git checkout -- apps/browser/src/backend/services/telemetry.ts`。
+- apps/browser/src/backend/utils/paths.ts：新增 `experience-surveys` 和 `first-used-at` 持久化 JSON 名称。回滚：`git checkout -- apps/browser/src/backend/utils/paths.ts`。
+- docs/user-experience-surveys.md：新增 survey 状态、procedure 和验证命令说明。回滚：删除该文件。
+- progress.md：追加本轮 typecheck 阻塞修复与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/backend/services/experience.ts apps/browser/src/backend/services/telemetry.ts apps/browser/src/backend/utils/paths.ts progress.md; Remove-Item -LiteralPath docs/user-experience-surveys.md`。
+
+## 2026-07-02 - Task: 移除 sidebar 体验调查弹窗和触发逻辑
+
+### What was done
+- 移除 sidebar 中 “Do you enjoy your experience with stagewise?” 体验调查弹窗挂载，保留通知、额度提醒和 worktree 清理提示。
+- 删除 `SidebarExperienceSurvey` 组件，连同首轮体验调查、创始人通话调查、冷却时间、使用天数、agent 数量阈值等触发逻辑一起移除。
+- 清理 Storybook mock 状态里的 survey 字段残留，避免后续维护误以为该弹窗仍有运行路径。
+- 回收上轮为该弹窗补的 survey contract/backend/docs 接线，当前 `apps/browser/src` 和 `docs` 中已无 survey 触发关键词残留。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise test -- experience` 退出码 0，`1` 个 test file / `9` 个 tests 全部通过。
+- `pnpm -F stagewise exec biome lint src/ui/screens/main/sidebar/index.tsx src/ui/screens/main/agent-chat/chat/_components/agent/stories/agent-lifecycle-scenarios.stories.tsx src/ui/screens/main/agent-chat/chat/_components/agent/stories/agent-messages.stories.tsx src/ui/screens/main/agent-chat/chat/_components/agent/stories/copy-tool.stories.tsx src/ui/screens/main/agent-chat/chat/_components/agent/stories/delete-tool.stories.tsx src/ui/screens/main/agent-chat/chat/_components/agent/stories/list-files-tool.stories.tsx src/ui/screens/main/agent-chat/chat/_components/agent/stories/mkdir-tool.stories.tsx src/ui/screens/main/agent-chat/chat/_components/agent/stories/sandbox-tool.stories.tsx src/ui/screens/main/agent-chat/chat/_components/agent/stories/shell-tool.stories.tsx` 退出码 0。
+- `rg -n "SidebarExperienceSurvey|experienceSurvey|founderCallSurvey|firstUsedAt|totalAgentCount|experience-surveys|first-used-at|experience-survey|founder-call-survey|userExperience\\.survey|userExperience\\.founderCall" apps\\browser\\src docs -S` 退出码 1，无残留匹配。
+- `git diff --check` 退出码 0；仅提示被触碰的 story/sidebar 文件和既有 `panel-footer.tsx` 下次由 Git 触碰时 CRLF 会替换为 LF。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/sidebar/index.tsx：移除 `SidebarExperienceSurvey` import 和 sidebar 挂载点。回滚：`git checkout -- apps/browser/src/ui/screens/main/sidebar/index.tsx`。
+- apps/browser/src/ui/screens/main/_components/sidebar-experience-survey.tsx：删除体验调查弹窗组件及其触发判断。回滚：`git checkout -- apps/browser/src/ui/screens/main/_components/sidebar-experience-survey.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/agent/stories/*.stories.tsx：移除 Storybook mock 中的 survey 状态残留。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/agent/stories`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts、apps/browser/src/backend/services/experience.ts、apps/browser/src/backend/services/telemetry.ts、apps/browser/src/backend/utils/paths.ts：回收上轮未提交的 survey contract/backend/docs 接线，当前不再保留该弹窗的运行时触发链路。回滚：若需要恢复该弹窗，需重新实现对应 contract、handler 和持久化键。
+- docs/user-experience-surveys.md：移除上轮未提交的 survey 文档。回滚：从上轮 diff 恢复该文件。
+- progress.md：追加本轮移除记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/sidebar/index.tsx apps/browser/src/ui/screens/main/_components/sidebar-experience-survey.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/agent/stories progress.md`；如需恢复上轮 survey contract/backend/docs 接线，还需重新应用对应未提交 diff。

@@ -503,6 +503,25 @@ export const chatDict: Dict = {
   'chat.attachments.record': { 'zh-CN': '记录', en: 'Record' },
   'chat.queue.removeFromQueue': { 'zh-CN': '从队列中移除', en: 'Remove from queue' },
   'chat.userQuestion.otherPlease': { 'zh-CN': '其他（请填写）...', en: 'Other (please enter)...' },
+  'chat.userQuestion.aliasLimit.title': {
+    'zh-CN': '别名限制错误详情',
+    en: 'Alias Limit Error Details',
+  },
+  'chat.userQuestion.aliasLimit.description': {
+    'zh-CN':
+      '父邮箱达到别名创建上限时，日志中会出现哪条确切错误信息？（例如 `user_register_http_400: ...`、`create_account_http_400: ...`，或其他内容）',
+    en:
+      'What exact error message appears in the logs when the parent email has reached its alias creation limit? ' +
+      '(e.g. `user_register_http_400: ...` or `create_account_http_400: ...` or something else)',
+  },
+  'chat.userQuestion.aliasLimit.errorMessageLabel': {
+    'zh-CN': '错误消息文本',
+    en: 'Error message text',
+  },
+  'chat.userQuestion.aliasLimit.errorMessagePlaceholder': {
+    'zh-CN': '粘贴日志中的确切错误字符串',
+    en: 'Paste the exact error string from logs',
+  },
   'chat.runtimeError.notLoggedIn': { 'zh-CN': '未登录', en: 'Not logged in' },
   'chat.runtimeError.error': { 'zh-CN': '错误', en: 'Error' },
   'chat.runtimeError.whatToDo': { 'zh-CN': '如果问题持续怎么办？', en: 'What to do if the issue persists?' },
