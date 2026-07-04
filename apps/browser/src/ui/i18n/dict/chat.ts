@@ -642,6 +642,22 @@ export const chatDict: Dict = {
   'chat.workspaceSelect.skills': { 'zh-CN': '技能', en: 'Skills' },
   'chat.workspaceSelect.worktree': { 'zh-CN': '工作树', en: 'Worktree' },
   'chat.workspaceSelect.branch': { 'zh-CN': '分支', en: 'Branch' },
+  'chat.emptySuggestions.connect': {
+    'zh-CN': '连接 {workspace}',
+    en: 'Connect {workspace}',
+  },
+  'chat.emptySuggestions.connecting': {
+    'zh-CN': '正在连接 {workspace}...',
+    en: 'Connecting {workspace}...',
+  },
+  'chat.emptySuggestions.dismiss': {
+    'zh-CN': '关闭建议',
+    en: 'Dismiss suggestion',
+  },
+  'chat.emptySuggestions.workspaceNoMount': {
+    'zh-CN': '未能连接工作区：路径可能不存在，或后台挂载没有完成。',
+    en: 'Workspace was not connected. The path may be missing, or the mount did not finish.',
+  },
   'settings.autoRegister.captcha.2captcha': { 'zh-CN': '2Captcha API', en: '2Captcha API' },
   'settings.autoRegister.captcha.capsolver': { 'zh-CN': 'CapSolver API', en: 'CapSolver API' },
   'settings.autoRegister.captcha.yescaptcha': { 'zh-CN': 'YesCaptcha API', en: 'YesCaptcha API' },

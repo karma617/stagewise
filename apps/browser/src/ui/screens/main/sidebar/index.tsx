@@ -73,7 +73,7 @@ export function Sidebar() {
       onCollapse={() => setCollapsed(true)}
       onExpand={() => setCollapsed(false)}
       data-tutorial="sidebar-panel"
-      className={`${SIDEBAR_PANEL_CLASS_NAME} data-[panel-size='0.0']:min-w-0`}
+      className={`${SIDEBAR_PANEL_CLASS_NAME} bg-background text-foreground data-[panel-size='0.0']:min-w-0`}
     >
       <SidebarTitlebarRow absolute />
       {!collapsed && (

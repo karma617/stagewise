@@ -956,8 +956,19 @@ export class AuthService extends DisposableService {
             };
           });
         } else {
+          const fallbackUser = this._credentials?.user;
           this.updateAuthState((draft) => {
-            draft.userAccount.status = 'server_unreachable';
+            draft.userAccount = {
+              ...draft.userAccount,
+              status: 'server_unreachable',
+              machineId: this.identifierService.getMachineId(),
+              user: fallbackUser
+                ? {
+                    id: fallbackUser.id,
+                    email: fallbackUser.email ?? '',
+                  }
+                : draft.userAccount.user,
+            };
           });
         }
         return;
@@ -965,25 +976,35 @@ export class AuthService extends DisposableService {
 
       const user = data.user;
       const credentials = this._credentials;
+      const fallbackUser = credentials?.user;
       if (user && credentials && credentials.token === tokenAtStart) {
         this.persistCredentials({
           ...credentials,
           user: {
             id: user.id,
-            email: user.email ?? undefined,
+            email: user.email ?? fallbackUser?.email,
             name: user.name ?? undefined,
           },
         });
       }
+      const resolvedUser = user
+        ? {
+            id: user.id,
+            email: user.email ?? fallbackUser?.email ?? '',
+          }
+        : fallbackUser
+          ? {
+              id: fallbackUser.id,
+              email: fallbackUser.email ?? '',
+            }
+          : undefined;
 
       this.updateAuthState((draft) => {
         draft.userAccount = {
           ...draft.userAccount,
           status: 'authenticated',
           machineId: this.identifierService.getMachineId(),
-          user: user
-            ? { id: user.id, email: user.email ?? '' }
-            : draft.userAccount.user,
+          user: resolvedUser ?? draft.userAccount.user,
         };
       });
 
@@ -993,8 +1014,19 @@ export class AuthService extends DisposableService {
       }
     } catch (err) {
       this.logger.error(`[AuthService] Failed to refresh session: ${err}`);
+      const fallbackUser = this._credentials?.user;
       this.updateAuthState((draft) => {
-        draft.userAccount.status = 'server_unreachable';
+        draft.userAccount = {
+          ...draft.userAccount,
+          status: 'server_unreachable',
+          machineId: this.identifierService.getMachineId(),
+          user: fallbackUser
+            ? {
+                id: fallbackUser.id,
+                email: fallbackUser.email ?? '',
+              }
+            : draft.userAccount.user,
+        };
       });
     }
   }

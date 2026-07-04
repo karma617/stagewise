@@ -2,6 +2,185 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { MessagePortProxy } from '@stagewise/karton/client';
 import type { KartonMessage } from '@stagewise/karton/shared';
 
+type StartupProfilerConfig = {
+  enabled: true;
+  startedAt: number;
+  durationMs: number;
+  flushIntervalMs: number;
+};
+
+type StartupProfilerEvent = Record<string, unknown> & {
+  type: string;
+  at: number;
+  uptimeMs: number;
+};
+
+const RENDERER_LONG_TASK_THRESHOLD_MS = 50;
+const RENDERER_FREEZE_THRESHOLD_MS = 1_000;
+const RENDERER_BATCH_SIZE = 100;
+
+function createStartupProfilerEvent(
+  type: string,
+  data: Record<string, unknown> = {},
+): StartupProfilerEvent {
+  return {
+    type,
+    at: Date.now(),
+    uptimeMs: Math.round(performance.now()),
+    ...data,
+  };
+}
+
+function startRendererStartupProfiler() {
+  void ipcRenderer
+    .invoke('startup-profiler:get-config')
+    .then((config: StartupProfilerConfig | null) => {
+      if (!config?.enabled) return;
+
+      const events: StartupProfilerEvent[] = [];
+      const summary = {
+        longTaskCount: 0,
+        worstLongTaskMs: 0,
+        rafGapCount: 0,
+        worstRafGapMs: 0,
+      };
+      let flushTimer: NodeJS.Timeout | null = null;
+      let stopTimer: NodeJS.Timeout | null = null;
+      let rafId: number | null = null;
+      let longTaskObserver: PerformanceObserver | null = null;
+      let stopped = false;
+
+      const flush = () => {
+        if (events.length === 0) return;
+        ipcRenderer.send('startup-profiler:renderer-events', {
+          events: events.splice(0),
+        });
+      };
+
+      const queue = (event: StartupProfilerEvent) => {
+        events.push(event);
+        if (events.length >= RENDERER_BATCH_SIZE) flush();
+      };
+
+      const stop = (reason: string) => {
+        if (stopped) return;
+        stopped = true;
+        if (flushTimer) clearInterval(flushTimer);
+        if (stopTimer) clearTimeout(stopTimer);
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        longTaskObserver?.disconnect();
+        queue(
+          createStartupProfilerEvent('renderer-summary', {
+            reason,
+            ...summary,
+          }),
+        );
+        flush();
+      };
+
+      queue(
+        createStartupProfilerEvent('renderer-profiler-started', {
+          durationMs: config.durationMs,
+        }),
+      );
+
+      const navEntry = performance.getEntriesByType('navigation')[0] as
+        | PerformanceNavigationTiming
+        | undefined;
+      if (navEntry) {
+        queue(
+          createStartupProfilerEvent('navigation-timing', {
+            domContentLoadedMs: Math.round(navEntry.domContentLoadedEventEnd),
+            loadMs: Math.round(navEntry.loadEventEnd),
+            responseEndMs: Math.round(navEntry.responseEnd),
+          }),
+        );
+      }
+
+      window.addEventListener(
+        'DOMContentLoaded',
+        () => queue(createStartupProfilerEvent('dom-content-loaded')),
+        { once: true },
+      );
+      window.addEventListener(
+        'load',
+        () => queue(createStartupProfilerEvent('window-load')),
+        { once: true },
+      );
+      document.addEventListener('visibilitychange', () => {
+        queue(
+          createStartupProfilerEvent('visibility-change', {
+            visibilityState: document.visibilityState,
+          }),
+        );
+      });
+
+      try {
+        longTaskObserver = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (entry.duration < RENDERER_LONG_TASK_THRESHOLD_MS) continue;
+
+            const durationMs = Math.round(entry.duration);
+            summary.longTaskCount += 1;
+            summary.worstLongTaskMs = Math.max(
+              summary.worstLongTaskMs,
+              durationMs,
+            );
+            queue(
+              createStartupProfilerEvent('long-task', {
+                durationMs,
+                startTimeMs: Math.round(entry.startTime),
+                name: entry.name,
+              }),
+            );
+          }
+        });
+        longTaskObserver.observe({ entryTypes: ['longtask'] });
+      } catch (error) {
+        queue(
+          createStartupProfilerEvent('long-task-observer-failed', {
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }
+
+      let lastFrameAt = performance.now();
+      const recordFrame = (frameAt: number) => {
+        const gapMs = Math.round(frameAt - lastFrameAt);
+        lastFrameAt = frameAt;
+
+        if (gapMs >= RENDERER_LONG_TASK_THRESHOLD_MS) {
+          summary.rafGapCount += 1;
+          summary.worstRafGapMs = Math.max(summary.worstRafGapMs, gapMs);
+          queue(
+            createStartupProfilerEvent('raf-gap', {
+              gapMs,
+              severity:
+                gapMs >= RENDERER_FREEZE_THRESHOLD_MS ? 'freeze' : 'jank',
+            }),
+          );
+        }
+
+        rafId = requestAnimationFrame(recordFrame);
+      };
+      rafId = requestAnimationFrame(recordFrame);
+
+      flushTimer = setInterval(flush, config.flushIntervalMs);
+      stopTimer = setTimeout(() => stop('timeout'), config.durationMs);
+      window.addEventListener('beforeunload', () => stop('beforeunload'), {
+        once: true,
+      });
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('No handler registered')) {
+        console.warn('[startup-profiler] Renderer profiler failed', error);
+      }
+    });
+}
+
+startRendererStartupProfiler();
+
 /**
  * Reconnection configuration
  */

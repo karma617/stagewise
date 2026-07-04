@@ -248,11 +248,33 @@ export const WebContentsBoundsSyncer = () => {
       'data-command-center-modal-active',
       'data-element-selector-overlay',
     ];
+    const nodeContainsContainer = (node: Node) => {
+      if (!(node instanceof Element)) return false;
+      if (node.id === containerId) return true;
+      return node.querySelector(`[id="${containerId}"]`) !== null;
+    };
+
     const mutationObserver = new MutationObserver((mutations) => {
       let containerChanged = false;
       let exclusionChanged = false;
       for (const m of mutations) {
-        if (m.type === 'childList') containerChanged = true;
+        if (m.type === 'childList') {
+          m.addedNodes.forEach((node) => {
+            if (nodeContainsContainer(node)) {
+              containerChanged = true;
+            }
+          });
+          if (!containerChanged && containerElement) {
+            m.removedNodes.forEach((node) => {
+              if (
+                node instanceof Element &&
+                (node === containerElement || node.contains(containerElement))
+              ) {
+                containerChanged = true;
+              }
+            });
+          }
+        }
         if (
           m.type === 'attributes' &&
           exclusionAttributes.includes(m.attributeName!)

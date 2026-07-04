@@ -28,11 +28,16 @@ type PoolEntry = {
 };
 
 /** Mirrors the logic in account-pool-section to count available accounts. */
-function computePoolStats(pool: PoolEntry[]): { total: number; available: number } {
+function computePoolStats(pool: PoolEntry[]): {
+  total: number;
+  available: number;
+} {
   let available = 0;
   for (const entry of pool) {
     if (entry.status === 'banned' || entry.status === 'throttled') continue;
-    const exceeded = entry.usage?.windows.some((w) => w.exceeded || w.usedPercent >= 100);
+    const exceeded = entry.usage?.windows.some(
+      (w) => w.exceeded || w.usedPercent >= 100,
+    );
     if (!exceeded) available += 1;
   }
   return { total: pool.length, available };
@@ -46,7 +51,9 @@ export function SidebarAuthFooter() {
   const toggleClosedLidSleep = useKartonProcedure(
     (p) => p.closedLidSleep.toggle,
   );
-  const getAccountPool = useKartonProcedure((p) => p.userAccount.getAccountPool);
+  const getAccountPool = useKartonProcedure(
+    (p) => p.userAccount.getAccountPool,
+  );
   const getAccountPoolRef = useRef(getAccountPool);
   getAccountPoolRef.current = getAccountPool;
 
@@ -55,7 +62,10 @@ export function SidebarAuthFooter() {
   const isMacOs = useKartonState((s) => s.appInfo.platform === 'darwin');
   const closedLidSleep = useKartonState((s) => s.closedLidSleep);
 
-  const [poolStats, setPoolStats] = useState<{ total: number; available: number } | null>(null);
+  const [poolStats, setPoolStats] = useState<{
+    total: number;
+    available: number;
+  } | null>(null);
 
   // Fetch pool once on mount; ignore errors (pool may be empty or unavailable).
   useEffect(() => {
@@ -111,8 +121,8 @@ export function SidebarAuthFooter() {
   return (
     <div className="mt-2 flex shrink-0 flex-col gap-2">
       {poolStats !== null && poolStats.total > 0 && (
-        <div className="flex flex-row items-center gap-3 rounded-lg bg-surface-2 px-2 py-1">
-          <span className="flex items-center gap-1 text-xs">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center rounded-lg bg-surface-2 px-2 py-1">
+          <span className="flex items-center justify-center gap-1 text-xs">
             <span className="font-medium text-info-foreground tabular-nums">
               {poolStats.total}
             </span>
@@ -121,7 +131,7 @@ export function SidebarAuthFooter() {
             </span>
           </span>
           <span className="h-3 w-px bg-border-subtle" />
-          <span className="flex items-center gap-1 text-xs">
+          <span className="flex items-center justify-center gap-1 text-xs">
             <span className="font-medium text-success-foreground tabular-nums">
               {poolStats.available}
             </span>

@@ -35,7 +35,7 @@ export function SettingsSidebar() {
   );
 
   return (
-    <div className="flex h-full flex-col items-stretch">
+    <div className="flex h-full flex-col items-stretch bg-background text-foreground">
       <SidebarTitlebarRow absolute showSidebarToggle={false}>
         <div className="pl-2">
           <Button

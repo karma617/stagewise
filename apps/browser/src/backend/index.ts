@@ -133,16 +133,28 @@ app.on('ready', async () => {
   // machines without system-wide VC++ redistributable.
   if (started) return;
 
+  const startupProfiler =
+    process.env.STAGEWISE_STARTUP_PROFILING === '1'
+      ? await import('./utils/startup-profiler').then((module) =>
+          module.startStartupProfiler(),
+        )
+      : null;
+  startupProfiler?.mark('app-ready');
+
   if (isSmokeTest) {
     // Validate the full import tree is intact, then exit.
     await import('./main');
     console.log('[smoke-test] App ready — all modules loaded successfully.');
+    await startupProfiler?.stop('smoke-test');
     app.exit(0);
     return;
   }
 
+  startupProfiler?.mark('main-import-start');
   const { main } = await import('./main');
+  startupProfiler?.mark('main-import-end');
   main({ launchOptions: { verbose: true } });
+  startupProfiler?.mark('main-called');
 });
 
 // Quit when all windows are closed, except on macOS. There, it's common

@@ -1414,7 +1414,7 @@ export const settingsDict: Dict = {
     en: 'Registration cancelled.',
   },
   'settings.account.authenticated.unknownUser': {
-    'zh-CN': 'Unknown user',
+    'zh-CN': '未知用户',
     en: 'Unknown user',
   },
   'settings.account.authenticated.signedIn': {

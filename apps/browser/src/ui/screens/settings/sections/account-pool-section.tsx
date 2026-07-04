@@ -10,13 +10,15 @@ import {
 } from '@stagewise/stage-ui/components/dialog';
 import { useKartonProcedure, useKartonState } from '@ui/hooks/use-karton';
 import {
+  memo,
   useState,
   useRef,
   useCallback,
   useEffect,
+  useMemo,
   type ChangeEvent,
 } from 'react';
-import { OverlayScrollbar } from '@stagewise/stage-ui/components/overlay-scrollbar';
+import { Virtuoso } from 'react-virtuoso';
 import {
   DownloadIcon,
   RefreshCwIcon,
@@ -277,10 +279,7 @@ function UsageDisplay({
                 </span>
                 <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-surface-2 ring-1 ring-border-subtle">
                   <div
-                    className={cn(
-                      'h-full rounded-full transition-all duration-500',
-                      bar,
-                    )}
+                    className={cn('h-full rounded-full', bar)}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -337,6 +336,154 @@ type AccountPoolTransferResult =
       skipped: number;
       error?: string;
     };
+
+const EMPTY_REFRESH_LOGS: string[] = [];
+
+type AccountPoolListItem =
+  | { kind: 'header' }
+  | { kind: 'account'; entry: PoolEntry }
+  | { kind: 'footer' };
+
+const AccountPoolRow = memo(function AccountPoolRow({
+  entry,
+  currentEmailLower,
+  actionEmail,
+  refreshingEmail,
+  refreshLogs,
+  isHealthChecking,
+  onRefresh,
+  onSwitch,
+  onRemove,
+  onClearRefreshLogs,
+}: {
+  entry: PoolEntry;
+  currentEmailLower?: string;
+  actionEmail: string | null;
+  refreshingEmail: string | null;
+  refreshLogs: string[];
+  isHealthChecking: boolean;
+  onRefresh: (email: string) => void;
+  onSwitch: (email: string) => void;
+  onRemove: (email: string) => void;
+  onClearRefreshLogs: (email: string) => void;
+}) {
+  const { t } = useI18n();
+  const isCurrent = entry.email?.trim().toLowerCase() === currentEmailLower;
+  const isActing = actionEmail === entry.email;
+  const isLimited =
+    entry.status === 'throttled' || !!getLimitWindow(entry.usage);
+  const throttledResetsAt = getEffectiveThrottledResetsAt(entry);
+
+  return (
+    <div className="pb-2.5">
+      <div
+        className={cn(
+          'flex flex-col gap-2 rounded-xl bg-background px-4 py-3.5 ring-1 ring-border-subtle hover:ring-border dark:bg-surface-1',
+          isCurrent &&
+            'bg-primary-solid/5 ring-2 ring-primary-solid dark:bg-primary-solid/10',
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className={cn(
+                'break-all font-medium text-sm',
+                isCurrent ? 'text-primary-foreground' : 'text-foreground',
+              )}
+            >
+              {entry.email}
+            </span>
+            {isCurrent && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary-solid px-2 py-0.5 font-medium text-solid-foreground text-xs">
+                <span className="size-1.5 shrink-0 rounded-full bg-solid-foreground" />
+                {t('settings.accountPool.current')}
+              </span>
+            )}
+            <EffectiveStatusBadge entry={entry} />
+            {isHealthChecking && (
+              <span className="inline-flex shrink-0 items-center rounded-md bg-info-background px-2 py-0.5 font-medium text-info-foreground text-xs ring-1 ring-info-solid/20">
+                <span className="mr-1.5 size-1.5 shrink-0 animate-pulse-full rounded-full bg-info-solid" />
+                {t('settings.accountPool.healthTask.rowChecking')}
+              </span>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-1.5">
+            <Button
+              variant="ghost"
+              size="xs"
+              disabled={refreshingEmail === entry.email}
+              onClick={() => onRefresh(entry.email)}
+            >
+              {refreshingEmail === entry.email
+                ? t('settings.accountPool.refreshing')
+                : t('settings.accountPool.refresh')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              disabled={isCurrent || !entry.token || isActing || isLimited}
+              onClick={() => onSwitch(entry.email)}
+            >
+              {isActing
+                ? t('settings.accountPool.switching')
+                : t('settings.accountPool.switch')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              disabled={isActing}
+              onClick={() => onRemove(entry.email)}
+            >
+              {t('settings.accountPool.remove')}
+            </Button>
+          </div>
+        </div>
+        {entry.status === 'throttled' && throttledResetsAt && (
+          <p className="text-muted-foreground text-xs">
+            {t('settings.accountPool.throttledResetsAt')}
+            {formatResetsAt(throttledResetsAt)}
+          </p>
+        )}
+        <UsageDisplay usage={entry.usage} checkedAt={entry.usageCheckedAt} />
+        {entry.lastCheckedAt && (
+          <p className="text-muted-foreground text-xs">
+            {t('settings.accountPool.lastCheckedAt')}
+            {new Date(entry.lastCheckedAt).toLocaleString()}
+          </p>
+        )}
+        {refreshLogs.length > 0 && (
+          <div className="mt-1 flex flex-col gap-2 rounded-md bg-surface-2 p-2 ring-1 ring-border-subtle">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-foreground text-xs">
+                {t('settings.accountPool.refreshLog.title')}
+              </span>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => onClearRefreshLogs(entry.email)}
+              >
+                {t('settings.accountPool.batchTask.close')}
+              </Button>
+            </div>
+            <div className="max-h-32 overflow-auto font-mono text-xs">
+              {refreshLogs.map((line, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    'whitespace-pre-wrap break-words',
+                    getLogLineClassName(line),
+                  )}
+                >
+                  {line}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export function AccountPoolSection() {
   const { t } = useI18n();
@@ -606,36 +753,39 @@ export function AccountPoolSection() {
       });
   };
 
-  const handleRefreshOne = (email: string) => {
-    setRefreshingEmail(email);
-    setSwitchResult(null);
-    setRefreshLogsByEmail((prev) => ({
-      ...prev,
-      [email]: [t('settings.accountPool.refreshLog.starting')],
-    }));
-    void refreshAccountUsageRef
-      .current(email)
-      .then((result) => {
-        setPool(result.accounts as PoolEntry[]);
-        setRefreshLogsByEmail((prev) => ({
-          ...prev,
-          [email]: result.logs,
-        }));
-      })
-      .catch((err) => {
-        const message = err instanceof Error ? err.message : String(err);
-        setRefreshLogsByEmail((prev) => ({
-          ...prev,
-          [email]: [
-            t('settings.accountPool.refreshLog.failed').replace(
-              '{message}',
-              message,
-            ),
-          ],
-        }));
-      })
-      .finally(() => setRefreshingEmail(null));
-  };
+  const handleRefreshOne = useCallback(
+    (email: string) => {
+      setRefreshingEmail(email);
+      setSwitchResult(null);
+      setRefreshLogsByEmail((prev) => ({
+        ...prev,
+        [email]: [t('settings.accountPool.refreshLog.starting')],
+      }));
+      void refreshAccountUsageRef
+        .current(email)
+        .then((result) => {
+          setPool(result.accounts as PoolEntry[]);
+          setRefreshLogsByEmail((prev) => ({
+            ...prev,
+            [email]: result.logs,
+          }));
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setRefreshLogsByEmail((prev) => ({
+            ...prev,
+            [email]: [
+              t('settings.accountPool.refreshLog.failed').replace(
+                '{message}',
+                message,
+              ),
+            ],
+          }));
+        })
+        .finally(() => setRefreshingEmail(null));
+    },
+    [t],
+  );
 
   const handleCleanupInvalid = () => {
     if (cleaning) return;
@@ -723,15 +873,15 @@ export function AccountPoolSection() {
       .finally(() => setTransferring(null));
   };
 
-  const handleRemove = (email: string) => {
+  const handleRemove = useCallback((email: string) => {
     setActionEmail(email);
     void removeRef
       .current(email)
       .then(() => setPool((prev) => prev.filter((e) => e.email !== email)))
       .finally(() => setActionEmail(null));
-  };
+  }, []);
 
-  const handleSwitch = (email: string) => {
+  const handleSwitch = useCallback((email: string) => {
     setActionEmail(email);
     setSwitchResult(null);
     void switchRef
@@ -745,7 +895,15 @@ export function AccountPoolSection() {
         }
       })
       .finally(() => setActionEmail(null));
-  };
+  }, []);
+
+  const clearRefreshLogs = useCallback((email: string) => {
+    setRefreshLogsByEmail((prev) => {
+      const next = { ...prev };
+      delete next[email];
+      return next;
+    });
+  }, []);
 
   async function getCaptchaToken(): Promise<string | undefined> {
     if (!turnstileEnabled) return undefined;
@@ -834,532 +992,452 @@ export function AccountPoolSection() {
     dismissAccountPoolBatchTask();
   };
 
-  const overview = getAccountPoolOverview(pool);
+  const overview = useMemo(() => getAccountPoolOverview(pool), [pool]);
+  const healthCheckingEmailSet = useMemo(() => {
+    if (healthTask?.status !== 'running') return null;
+    return new Set(healthTask.activeEmails);
+  }, [healthTask?.status, healthTask?.activeEmails]);
+  const accountPoolListItems = useMemo<AccountPoolListItem[]>(
+    () => [
+      { kind: 'header' },
+      ...pool.map((entry) => ({ kind: 'account' as const, entry })),
+      { kind: 'footer' },
+    ],
+    [pool],
+  );
 
   return (
     <div className="h-full w-full">
-      <OverlayScrollbar className="h-full" contentClassName="px-6 pt-24 pb-24">
-        <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-8">
-          <div className="min-w-0">
-            <h1 className="font-semibold text-foreground text-xl">
-              {t('settings.accountPool.title')}
-            </h1>
-            <p className="mt-1 text-muted-foreground text-sm">
-              {t('settings.accountPool.description')}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle sm:grid-cols-3 lg:grid-cols-6 dark:bg-surface-1">
-            {[
-              {
-                label: t('settings.accountPool.overview.total'),
-                value: overview.total,
-                className: 'text-foreground',
-              },
-              {
-                label: t('settings.accountPool.overview.available'),
-                value: overview.available,
-                className: 'text-success-foreground',
-              },
-              {
-                label: t('settings.accountPool.overview.dailyLimit'),
-                value: overview.dailyLimited,
-                className: 'text-warning-foreground',
-              },
-              {
-                label: t('settings.accountPool.overview.weeklyLimit'),
-                value: overview.weeklyLimited,
-                className: 'text-warning-foreground',
-              },
-              {
-                label: t('settings.accountPool.overview.monthlyLimit'),
-                value: overview.monthlyLimited,
-                className: 'text-warning-foreground',
-              },
-              {
-                label: t('settings.accountPool.overview.banned'),
-                value: overview.banned,
-                className: 'text-error-foreground',
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg bg-surface-1 px-3 py-2 ring-1 ring-border-subtle dark:bg-surface-2"
-              >
-                <div className="text-muted-foreground text-xs">
-                  {item.label}
+      <Virtuoso
+        className="virtuoso-contain h-full"
+        data={accountPoolListItems}
+        computeItemKey={(_, item) =>
+          item.kind === 'account' ? item.entry.email : item.kind
+        }
+        increaseViewportBy={{ top: 250, bottom: 350 }}
+        itemContent={(_, item) => {
+          if (item.kind === 'header') {
+            return (
+              <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-8 px-6 pt-24 pb-8">
+                <div className="min-w-0">
+                  <h1 className="font-semibold text-foreground text-xl">
+                    {t('settings.accountPool.title')}
+                  </h1>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    {t('settings.accountPool.description')}
+                  </p>
                 </div>
-                <div
-                  className={cn(
-                    'mt-1 font-semibold text-xl tabular-nums',
-                    item.className,
-                  )}
-                >
-                  {item.value}
-                </div>
-              </div>
-            ))}
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">
-            <input
-              ref={importInputRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={handleImportFile}
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              className="shrink-0 whitespace-nowrap"
-              disabled={transferring === 'import'}
-              onClick={handleImportClick}
-            >
-              <DownloadIcon className="size-3.5" />
-              {transferring === 'import'
-                ? t('settings.accountPool.importing')
-                : t('settings.accountPool.import')}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="shrink-0 whitespace-nowrap"
-              disabled={pool.length === 0 || transferring === 'export'}
-              onClick={handleExport}
-            >
-              <UploadIcon className="size-3.5" />
-              {transferring === 'export'
-                ? t('settings.accountPool.exporting')
-                : t('settings.accountPool.export')}
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              className="shrink-0 whitespace-nowrap"
-              disabled={
-                starting || (task !== null && task.status === 'running')
-              }
-              onClick={() => setShowTaskModal(true)}
-            >
-              <ZapIcon className="size-3.5" />
-              {task !== null && task.status === 'running'
-                ? t('settings.accountPool.startAutoRunning')
-                : t('settings.accountPool.startAuto')}
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              className="shrink-0 whitespace-nowrap"
-              disabled={healthTask?.status === 'running' || pool.length === 0}
-              onClick={handleCheckHealth}
-            >
-              {healthTask?.status === 'running'
-                ? t('settings.accountPool.checking')
-                : t('settings.accountPool.healthCheck')}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="shrink-0 whitespace-nowrap"
-              disabled={cleaning || pool.length === 0}
-              onClick={() => setCleanupConfirmOpen(true)}
-            >
-              {cleaning
-                ? t('settings.accountPool.cleaning')
-                : t('settings.accountPool.cleanup')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0 whitespace-nowrap"
-              disabled={loading}
-              onClick={refresh}
-            >
-              <RefreshCwIcon className="size-3.5" />
-              {loading
-                ? t('settings.accountPool.refreshing')
-                : t('settings.accountPool.refresh')}
-            </Button>
-          </div>
-
-          {switchResult?.error && (
-            <p className="text-error-foreground text-xs">
-              {t('settings.accountPool.switchFailed')}
-              {switchResult.error}
-            </p>
-          )}
-          {switchResult?.email && !switchResult.error && (
-            <p className="text-success-foreground text-xs">
-              {t('settings.accountPool.switchedTo')}
-              {switchResult.email}
-            </p>
-          )}
-          {switchResult?.removed !== undefined && !switchResult.error && (
-            <p className="text-success-foreground text-xs">
-              {t('settings.accountPool.cleanupResult').replace(
-                '{count}',
-                String(switchResult.removed),
-              )}
-            </p>
-          )}
-          {transferResult?.error && (
-            <p className="text-error-foreground text-xs">
-              {t('settings.accountPool.transferFailed')}
-              {transferResult.error}
-            </p>
-          )}
-          {transferResult?.kind === 'export' && !transferResult.error && (
-            <p className="text-success-foreground text-xs">
-              {t('settings.accountPool.exportSuccess').replace(
-                '{count}',
-                String(transferResult.count),
-              )}
-            </p>
-          )}
-          {transferResult?.kind === 'import' && !transferResult.error && (
-            <p className="text-success-foreground text-xs">
-              {t('settings.accountPool.importSuccess')
-                .replace('{imported}', String(transferResult.imported))
-                .replace('{updated}', String(transferResult.updated))
-                .replace('{skipped}', String(transferResult.skipped))}
-            </p>
-          )}
-
-          {healthTask && (
-            <div className="flex flex-col gap-3 rounded-xl bg-background p-4 shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-medium text-foreground text-sm">
-                  {t('settings.accountPool.healthTask.title')}
-                </h3>
-                <div className="flex items-center gap-1">
-                  <span
-                    className={cn(
-                      'inline-flex items-center rounded-md px-2 py-0.5 font-medium text-xs ring-1',
-                      healthTask.status === 'running' &&
-                        'bg-info-background text-info-foreground ring-info-solid/20',
-                      healthTask.status === 'completed' &&
-                        'bg-success-background text-success-foreground ring-success-solid/20',
-                      healthTask.status === 'error' &&
-                        'bg-error-background text-error-foreground ring-error-solid/20',
-                    )}
-                  >
-                    {healthTask.status === 'running' && (
-                      <span className="mr-1.5 size-1.5 shrink-0 animate-pulse-full rounded-full bg-info-solid" />
-                    )}
-                    {healthTask.status === 'running'
-                      ? t('settings.accountPool.healthTask.running')
-                      : healthTask.status === 'completed'
-                        ? t('settings.accountPool.healthTask.completed')
-                        : t('settings.accountPool.healthTask.error')}
-                  </span>
-                  {healthTask.status !== 'running' && (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => setHealthTask(null)}
+                <div className="grid grid-cols-2 gap-2 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle sm:grid-cols-3 lg:grid-cols-6 dark:bg-surface-1">
+                  {[
+                    {
+                      label: t('settings.accountPool.overview.total'),
+                      value: overview.total,
+                      className: 'text-foreground',
+                    },
+                    {
+                      label: t('settings.accountPool.overview.available'),
+                      value: overview.available,
+                      className: 'text-success-foreground',
+                    },
+                    {
+                      label: t('settings.accountPool.overview.dailyLimit'),
+                      value: overview.dailyLimited,
+                      className: 'text-warning-foreground',
+                    },
+                    {
+                      label: t('settings.accountPool.overview.weeklyLimit'),
+                      value: overview.weeklyLimited,
+                      className: 'text-warning-foreground',
+                    },
+                    {
+                      label: t('settings.accountPool.overview.monthlyLimit'),
+                      value: overview.monthlyLimited,
+                      className: 'text-warning-foreground',
+                    },
+                    {
+                      label: t('settings.accountPool.overview.banned'),
+                      value: overview.banned,
+                      className: 'text-error-foreground',
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-lg bg-surface-1 px-3 py-2 ring-1 ring-border-subtle dark:bg-surface-2"
                     >
-                      {t('settings.accountPool.batchTask.close')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-xs">
-                <span>
-                  {t('settings.accountPool.healthTask.progress')}:{' '}
-                  <span className="font-medium text-foreground tabular-nums">
-                    {healthTask.done}
-                  </span>
-                  {' / '}
-                  <span className="tabular-nums">{healthTask.total}</span>
-                </span>
-                {healthTask.failed > 0 && (
-                  <span className="text-error-foreground">
-                    {t('settings.accountPool.healthTask.failed')}:{' '}
-                    <span className="font-medium tabular-nums">
-                      {healthTask.failed}
-                    </span>
-                  </span>
-                )}
-                {healthTask.skipped > 0 && (
-                  <span className="text-warning-foreground">
-                    {t('settings.accountPool.healthTask.skipped')}:{' '}
-                    <span className="font-medium tabular-nums">
-                      {healthTask.skipped}
-                    </span>
-                  </span>
-                )}
-              </div>
-              {healthTask.activeEmails.length > 0 && (
-                <p className="break-all text-muted-foreground text-xs">
-                  {t('settings.accountPool.healthTask.active')}
-                  {healthTask.activeEmails.join(', ')}
-                </p>
-              )}
-              <div
-                ref={healthLogsContainerRef}
-                className="max-h-36 overflow-auto rounded-md bg-surface-2 p-2 font-mono text-xs ring-1 ring-border-subtle"
-              >
-                {healthTask.logs.map((line, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'whitespace-pre-wrap break-words',
-                      getLogLineClassName(line),
-                    )}
-                  >
-                    {line}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {task && (
-            <div className="flex flex-col gap-3 rounded-xl bg-background p-4 shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">
-              <div className="flex items-center justify-between">
-                <h3 className="font-medium text-foreground text-sm">
-                  {t('settings.accountPool.batchTask.title')}
-                </h3>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => void copyLogs()}
-                  >
-                    {copiedLogs
-                      ? t('settings.accountPool.batchTask.copied')
-                      : t('settings.accountPool.batchTask.copy')}
-                  </Button>
-                  {task.status === 'running' ? (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => void cancelTask()}
-                    >
-                      {t('settings.accountPool.batchTask.cancel')}
-                    </Button>
-                  ) : (
-                    <Button variant="ghost" size="xs" onClick={dismissTask}>
-                      {t('settings.accountPool.batchTask.close')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-4 text-muted-foreground text-xs">
-                <span>
-                  {t('settings.accountPool.batchTask.progress')}:{' '}
-                  <span className="font-medium text-foreground tabular-nums">
-                    {task.done}
-                  </span>
-                  {' / '}
-                  <span className="tabular-nums">{task.total}</span>
-                </span>
-                <span>
-                  {t('settings.accountPool.batchTask.success')}:{' '}
-                  <span className="font-medium text-success-foreground tabular-nums">
-                    {task.done}
-                  </span>
-                </span>
-                {task.failed > 0 && (
-                  <span className="text-error-foreground">
-                    {t('settings.accountPool.batchTask.failed')}:{' '}
-                    <span className="font-medium tabular-nums">
-                      {task.failed}
-                    </span>
-                  </span>
-                )}
-                <span
-                  className={cn(
-                    'font-medium',
-                    task.status === 'running' && 'text-info-foreground',
-                    task.status === 'completed' && 'text-success-foreground',
-                    task.status === 'error' && 'text-error-foreground',
-                    task.status === 'cancelled' && 'text-warning-foreground',
-                  )}
-                >
-                  {task.status === 'running' && (
-                    <span className="mr-1.5 inline-block size-1.5 animate-pulse-full rounded-full bg-info-solid align-middle" />
-                  )}
-                  {task.status === 'running'
-                    ? t('settings.accountPool.batchTask.statusRunning')
-                    : task.status === 'completed'
-                      ? t('settings.accountPool.batchTask.statusCompleted')
-                      : task.status === 'cancelled'
-                        ? t('settings.accountPool.batchTask.statusCancelled')
-                        : t('settings.accountPool.batchTask.statusError')}
-                </span>
-              </div>
-              <div
-                ref={logsContainerRef}
-                className="max-h-48 overflow-auto rounded-md bg-surface-2 p-2 font-mono text-xs ring-1 ring-border-subtle"
-              >
-                {task.logs.map((line, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'whitespace-pre-wrap break-words',
-                      getLogLineClassName(line),
-                    )}
-                  >
-                    {line}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {loading && (
-            <p className="rounded-xl bg-background px-4 py-3 text-muted-foreground text-sm shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">
-              {t('settings.accountPool.loading')}
-            </p>
-          )}
-
-          {pool.length === 0 && !loading && (
-            <p className="text-muted-foreground text-sm">
-              {t('settings.accountPool.empty')}
-            </p>
-          )}
-
-          {pool.length > 0 && (
-            <div className="flex flex-col gap-2.5">
-              {pool.map((entry) => {
-                const isCurrent =
-                  entry.email?.trim().toLowerCase() === currentEmailLower;
-                const isActing = actionEmail === entry.email;
-                const isLimited =
-                  entry.status === 'throttled' || !!getLimitWindow(entry.usage);
-                const refreshLogs = refreshLogsByEmail[entry.email] ?? [];
-                const throttledResetsAt = getEffectiveThrottledResetsAt(entry);
-                const isHealthChecking =
-                  healthTask?.status === 'running' &&
-                  healthTask.activeEmails.includes(entry.email);
-                return (
-                  <div
-                    key={entry.email}
-                    className={cn(
-                      'flex flex-col gap-2 rounded-xl bg-background px-4 py-3.5 shadow-elevation-1 ring-1 ring-border-subtle transition-all hover:ring-border dark:bg-surface-1',
-                      isCurrent &&
-                        'bg-primary-solid/5 ring-2 ring-primary-solid dark:bg-primary-solid/10',
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className={cn(
-                            'break-all font-medium text-sm',
-                            isCurrent
-                              ? 'text-primary-foreground'
-                              : 'text-foreground',
-                          )}
-                        >
-                          {entry.email}
-                        </span>
-                        {isCurrent && (
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary-solid px-2 py-0.5 font-medium text-solid-foreground text-xs">
-                            <span className="size-1.5 shrink-0 rounded-full bg-solid-foreground" />
-                            {t('settings.accountPool.current')}
-                          </span>
-                        )}
-                        <EffectiveStatusBadge entry={entry} />
-                        {isHealthChecking && (
-                          <span className="inline-flex shrink-0 items-center rounded-md bg-info-background px-2 py-0.5 font-medium text-info-foreground text-xs ring-1 ring-info-solid/20">
-                            <span className="mr-1.5 size-1.5 shrink-0 animate-pulse-full rounded-full bg-info-solid" />
-                            {t('settings.accountPool.healthTask.rowChecking')}
-                          </span>
-                        )}
+                      <div className="text-muted-foreground text-xs">
+                        {item.label}
                       </div>
-                      <div className="flex shrink-0 gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          disabled={refreshingEmail === entry.email}
-                          onClick={() => handleRefreshOne(entry.email)}
-                        >
-                          {refreshingEmail === entry.email
-                            ? t('settings.accountPool.refreshing')
-                            : t('settings.accountPool.refresh')}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          disabled={
-                            isCurrent || !entry.token || isActing || isLimited
-                          }
-                          onClick={() => handleSwitch(entry.email)}
-                        >
-                          {isActing
-                            ? t('settings.accountPool.switching')
-                            : t('settings.accountPool.switch')}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          disabled={isActing}
-                          onClick={() => handleRemove(entry.email)}
-                        >
-                          {t('settings.accountPool.remove')}
-                        </Button>
+                      <div
+                        className={cn(
+                          'mt-1 font-semibold text-xl tabular-nums',
+                          item.className,
+                        )}
+                      >
+                        {item.value}
                       </div>
                     </div>
-                    {entry.status === 'throttled' && throttledResetsAt && (
-                      <p className="text-muted-foreground text-xs">
-                        {t('settings.accountPool.throttledResetsAt')}
-                        {formatResetsAt(throttledResetsAt)}
-                      </p>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={handleImportFile}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0 whitespace-nowrap"
+                    disabled={transferring === 'import'}
+                    onClick={handleImportClick}
+                  >
+                    <DownloadIcon className="size-3.5" />
+                    {transferring === 'import'
+                      ? t('settings.accountPool.importing')
+                      : t('settings.accountPool.import')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0 whitespace-nowrap"
+                    disabled={pool.length === 0 || transferring === 'export'}
+                    onClick={handleExport}
+                  >
+                    <UploadIcon className="size-3.5" />
+                    {transferring === 'export'
+                      ? t('settings.accountPool.exporting')
+                      : t('settings.accountPool.export')}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="shrink-0 whitespace-nowrap"
+                    disabled={
+                      starting || (task !== null && task.status === 'running')
+                    }
+                    onClick={() => setShowTaskModal(true)}
+                  >
+                    <ZapIcon className="size-3.5" />
+                    {task !== null && task.status === 'running'
+                      ? t('settings.accountPool.startAutoRunning')
+                      : t('settings.accountPool.startAuto')}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="shrink-0 whitespace-nowrap"
+                    disabled={
+                      healthTask?.status === 'running' || pool.length === 0
+                    }
+                    onClick={handleCheckHealth}
+                  >
+                    {healthTask?.status === 'running'
+                      ? t('settings.accountPool.checking')
+                      : t('settings.accountPool.healthCheck')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0 whitespace-nowrap"
+                    disabled={cleaning || pool.length === 0}
+                    onClick={() => setCleanupConfirmOpen(true)}
+                  >
+                    {cleaning
+                      ? t('settings.accountPool.cleaning')
+                      : t('settings.accountPool.cleanup')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 whitespace-nowrap"
+                    disabled={loading}
+                    onClick={refresh}
+                  >
+                    <RefreshCwIcon className="size-3.5" />
+                    {loading
+                      ? t('settings.accountPool.refreshing')
+                      : t('settings.accountPool.refresh')}
+                  </Button>
+                </div>
+
+                {switchResult?.error && (
+                  <p className="text-error-foreground text-xs">
+                    {t('settings.accountPool.switchFailed')}
+                    {switchResult.error}
+                  </p>
+                )}
+                {switchResult?.email && !switchResult.error && (
+                  <p className="text-success-foreground text-xs">
+                    {t('settings.accountPool.switchedTo')}
+                    {switchResult.email}
+                  </p>
+                )}
+                {switchResult?.removed !== undefined && !switchResult.error && (
+                  <p className="text-success-foreground text-xs">
+                    {t('settings.accountPool.cleanupResult').replace(
+                      '{count}',
+                      String(switchResult.removed),
                     )}
-                    <UsageDisplay
-                      usage={entry.usage}
-                      checkedAt={entry.usageCheckedAt}
-                    />
-                    {entry.lastCheckedAt && (
-                      <p className="text-muted-foreground text-xs">
-                        {t('settings.accountPool.lastCheckedAt')}
-                        {new Date(entry.lastCheckedAt).toLocaleString()}
-                      </p>
+                  </p>
+                )}
+                {transferResult?.error && (
+                  <p className="text-error-foreground text-xs">
+                    {t('settings.accountPool.transferFailed')}
+                    {transferResult.error}
+                  </p>
+                )}
+                {transferResult?.kind === 'export' && !transferResult.error && (
+                  <p className="text-success-foreground text-xs">
+                    {t('settings.accountPool.exportSuccess').replace(
+                      '{count}',
+                      String(transferResult.count),
                     )}
-                    {refreshLogs.length > 0 && (
-                      <div className="mt-1 flex flex-col gap-2 rounded-md bg-surface-2 p-2 ring-1 ring-border-subtle">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-foreground text-xs">
-                            {t('settings.accountPool.refreshLog.title')}
-                          </span>
+                  </p>
+                )}
+                {transferResult?.kind === 'import' && !transferResult.error && (
+                  <p className="text-success-foreground text-xs">
+                    {t('settings.accountPool.importSuccess')
+                      .replace('{imported}', String(transferResult.imported))
+                      .replace('{updated}', String(transferResult.updated))
+                      .replace('{skipped}', String(transferResult.skipped))}
+                  </p>
+                )}
+
+                {healthTask && (
+                  <div className="flex flex-col gap-3 rounded-xl bg-background p-4 shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-medium text-foreground text-sm">
+                        {t('settings.accountPool.healthTask.title')}
+                      </h3>
+                      <div className="flex items-center gap-1">
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-md px-2 py-0.5 font-medium text-xs ring-1',
+                            healthTask.status === 'running' &&
+                              'bg-info-background text-info-foreground ring-info-solid/20',
+                            healthTask.status === 'completed' &&
+                              'bg-success-background text-success-foreground ring-success-solid/20',
+                            healthTask.status === 'error' &&
+                              'bg-error-background text-error-foreground ring-error-solid/20',
+                          )}
+                        >
+                          {healthTask.status === 'running' && (
+                            <span className="mr-1.5 size-1.5 shrink-0 animate-pulse-full rounded-full bg-info-solid" />
+                          )}
+                          {healthTask.status === 'running'
+                            ? t('settings.accountPool.healthTask.running')
+                            : healthTask.status === 'completed'
+                              ? t('settings.accountPool.healthTask.completed')
+                              : t('settings.accountPool.healthTask.error')}
+                        </span>
+                        {healthTask.status !== 'running' && (
                           <Button
                             variant="ghost"
                             size="xs"
-                            onClick={() =>
-                              setRefreshLogsByEmail((prev) => {
-                                const next = { ...prev };
-                                delete next[entry.email];
-                                return next;
-                              })
-                            }
+                            onClick={() => setHealthTask(null)}
                           >
                             {t('settings.accountPool.batchTask.close')}
                           </Button>
-                        </div>
-                        <div className="max-h-32 overflow-auto font-mono text-xs">
-                          {refreshLogs.map((line, i) => (
-                            <div
-                              key={i}
-                              className={cn(
-                                'whitespace-pre-wrap break-words',
-                                getLogLineClassName(line),
-                              )}
-                            >
-                              {line}
-                            </div>
-                          ))}
-                        </div>
+                        )}
                       </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-xs">
+                      <span>
+                        {t('settings.accountPool.healthTask.progress')}:{' '}
+                        <span className="font-medium text-foreground tabular-nums">
+                          {healthTask.done}
+                        </span>
+                        {' / '}
+                        <span className="tabular-nums">{healthTask.total}</span>
+                      </span>
+                      {healthTask.failed > 0 && (
+                        <span className="text-error-foreground">
+                          {t('settings.accountPool.healthTask.failed')}:{' '}
+                          <span className="font-medium tabular-nums">
+                            {healthTask.failed}
+                          </span>
+                        </span>
+                      )}
+                      {healthTask.skipped > 0 && (
+                        <span className="text-warning-foreground">
+                          {t('settings.accountPool.healthTask.skipped')}:{' '}
+                          <span className="font-medium tabular-nums">
+                            {healthTask.skipped}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    {healthTask.activeEmails.length > 0 && (
+                      <p className="break-all text-muted-foreground text-xs">
+                        {t('settings.accountPool.healthTask.active')}
+                        {healthTask.activeEmails.join(', ')}
+                      </p>
                     )}
+                    <div
+                      ref={healthLogsContainerRef}
+                      className="max-h-36 overflow-auto rounded-md bg-surface-2 p-2 font-mono text-xs ring-1 ring-border-subtle"
+                    >
+                      {healthTask.logs.map((line, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            'whitespace-pre-wrap break-words',
+                            getLogLineClassName(line),
+                          )}
+                        >
+                          {line}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                );
-              })}
+                )}
+
+                {task && (
+                  <div className="flex flex-col gap-3 rounded-xl bg-background p-4 shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-foreground text-sm">
+                        {t('settings.accountPool.batchTask.title')}
+                      </h3>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => void copyLogs()}
+                        >
+                          {copiedLogs
+                            ? t('settings.accountPool.batchTask.copied')
+                            : t('settings.accountPool.batchTask.copy')}
+                        </Button>
+                        {task.status === 'running' ? (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => void cancelTask()}
+                          >
+                            {t('settings.accountPool.batchTask.cancel')}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={dismissTask}
+                          >
+                            {t('settings.accountPool.batchTask.close')}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-muted-foreground text-xs">
+                      <span>
+                        {t('settings.accountPool.batchTask.progress')}:{' '}
+                        <span className="font-medium text-foreground tabular-nums">
+                          {task.done}
+                        </span>
+                        {' / '}
+                        <span className="tabular-nums">{task.total}</span>
+                      </span>
+                      <span>
+                        {t('settings.accountPool.batchTask.success')}:{' '}
+                        <span className="font-medium text-success-foreground tabular-nums">
+                          {task.done}
+                        </span>
+                      </span>
+                      {task.failed > 0 && (
+                        <span className="text-error-foreground">
+                          {t('settings.accountPool.batchTask.failed')}:{' '}
+                          <span className="font-medium tabular-nums">
+                            {task.failed}
+                          </span>
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          'font-medium',
+                          task.status === 'running' && 'text-info-foreground',
+                          task.status === 'completed' &&
+                            'text-success-foreground',
+                          task.status === 'error' && 'text-error-foreground',
+                          task.status === 'cancelled' &&
+                            'text-warning-foreground',
+                        )}
+                      >
+                        {task.status === 'running' && (
+                          <span className="mr-1.5 inline-block size-1.5 animate-pulse-full rounded-full bg-info-solid align-middle" />
+                        )}
+                        {task.status === 'running'
+                          ? t('settings.accountPool.batchTask.statusRunning')
+                          : task.status === 'completed'
+                            ? t(
+                                'settings.accountPool.batchTask.statusCompleted',
+                              )
+                            : task.status === 'cancelled'
+                              ? t(
+                                  'settings.accountPool.batchTask.statusCancelled',
+                                )
+                              : t('settings.accountPool.batchTask.statusError')}
+                      </span>
+                    </div>
+                    <div
+                      ref={logsContainerRef}
+                      className="max-h-48 overflow-auto rounded-md bg-surface-2 p-2 font-mono text-xs ring-1 ring-border-subtle"
+                    >
+                      {task.logs.map((line, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            'whitespace-pre-wrap break-words',
+                            getLogLineClassName(line),
+                          )}
+                        >
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {loading && (
+                  <p className="rounded-xl bg-background px-4 py-3 text-muted-foreground text-sm shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">
+                    {t('settings.accountPool.loading')}
+                  </p>
+                )}
+
+                {pool.length === 0 && !loading && (
+                  <p className="text-muted-foreground text-sm">
+                    {t('settings.accountPool.empty')}
+                  </p>
+                )}
+              </div>
+            );
+          }
+          if (item.kind === 'footer') return <div className="h-24" />;
+          const { entry } = item;
+          return (
+            <div className="mx-auto w-full max-w-3xl px-6">
+              <AccountPoolRow
+                entry={entry}
+                currentEmailLower={currentEmailLower}
+                actionEmail={actionEmail}
+                refreshingEmail={refreshingEmail}
+                refreshLogs={
+                  refreshLogsByEmail[entry.email] ?? EMPTY_REFRESH_LOGS
+                }
+                isHealthChecking={
+                  healthCheckingEmailSet?.has(entry.email) ?? false
+                }
+                onRefresh={handleRefreshOne}
+                onSwitch={handleSwitch}
+                onRemove={handleRemove}
+                onClearRefreshLogs={clearRefreshLogs}
+              />
             </div>
-          )}
-        </div>
-      </OverlayScrollbar>
+          );
+        }}
+      />
 
       <Dialog open={cleanupConfirmOpen} onOpenChange={setCleanupConfirmOpen}>
         <DialogContent className="sm:max-w-md">

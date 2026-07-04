@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { OverlayScrollbar } from '@stagewise/stage-ui/components/overlay-scrollbar';
 import { Select } from '@stagewise/stage-ui/components/select';
 import { Slider } from '@stagewise/stage-ui/components/slider';
@@ -14,6 +14,7 @@ import type {
 import { useKartonProcedure, useKartonState } from '@ui/hooks/use-karton';
 import { useTrack } from '@ui/hooks/use-track';
 import { applyPersonalizationThemeToRoot } from '@ui/components/personalization-theme-syncer';
+import { syncThemeColorsToMain } from '@ui/utils/theme-color-sync';
 import { produceWithPatches, enablePatches } from 'immer';
 import { NotificationsSetting } from './general-settings-section';
 import { useI18n } from '@ui/hooks/use-i18n';
@@ -106,11 +107,11 @@ function UiSizeSetting() {
     <div className="flex items-center justify-between gap-4">
       <div>
         <h3 className="font-medium text-base text-foreground">
-                  {t('settings.personalization.uiSize.title')}
-                </h3>
-                <p className="text-muted-foreground text-sm">
-                  {t('settings.personalization.uiSize.description')}
-                </p>
+          {t('settings.personalization.uiSize.title')}
+        </h3>
+        <p className="text-muted-foreground text-sm">
+          {t('settings.personalization.uiSize.description')}
+        </p>
       </div>
 
       <div className="w-36 space-y-1">
@@ -126,8 +127,8 @@ function UiSizeSetting() {
         />
         <div className="flex justify-between text-[11px] text-muted-foreground">
           <span>{t('settings.personalization.uiSize.small')}</span>
-                    <span>{t('settings.personalization.uiSize.default')}</span>
-                    <span>{t('settings.personalization.uiSize.large')}</span>
+          <span>{t('settings.personalization.uiSize.default')}</span>
+          <span>{t('settings.personalization.uiSize.large')}</span>
         </div>
       </div>
     </div>
@@ -282,32 +283,92 @@ const APP_COLOR_SCHEME_ITEMS: {
 
 function AppColorSchemeSetting() {
   const { t } = useI18n();
-  const appColorScheme = useKartonState(
+  const persistedAppColorScheme = useKartonState(
     (s) => s.globalConfig.appColorScheme ?? 'system',
   );
   const setGlobalConfig = useKartonProcedure((p) => p.config.set);
-  const localizedColorSchemeItems = APP_COLOR_SCHEME_ITEMS.map((item) => ({
-    value: item.value,
-    label: t(`settings.personalization.appearance.${item.value}`),
-  }));
+  const [currentAppColorScheme, setCurrentAppColorScheme] = useState(
+    persistedAppColorScheme,
+  );
+  const currentAppColorSchemeRef = useRef(persistedAppColorScheme);
+  const latestSaveRequestIdRef = useRef(0);
+  const latestRequestedAppColorSchemeRef = useRef<AppColorScheme | undefined>(
+    undefined,
+  );
+  const persistedAppColorSchemeRef = useRef(persistedAppColorScheme);
+  persistedAppColorSchemeRef.current = persistedAppColorScheme;
 
-  const handleAppColorSchemeChange = async (value: AppColorScheme) => {
-    await setGlobalConfig({ appColorScheme: value });
+  const localizedColorSchemeItems = useMemo(
+    () =>
+      APP_COLOR_SCHEME_ITEMS.map((item) => ({
+        value: item.value,
+        label: t(`settings.personalization.appearance.${item.value}`),
+      })),
+    [t],
+  );
+
+  const setCurrentScheme = (value: AppColorScheme) => {
+    currentAppColorSchemeRef.current = value;
+    setCurrentAppColorScheme(value);
+  };
+
+  useEffect(() => {
+    const latestRequested = latestRequestedAppColorSchemeRef.current;
+
+    if (latestRequested !== undefined) {
+      if (persistedAppColorScheme !== latestRequested) {
+        return;
+      }
+
+      latestRequestedAppColorSchemeRef.current = undefined;
+    }
+
+    setCurrentScheme(persistedAppColorScheme);
+  }, [persistedAppColorScheme]);
+
+  const handleAppColorSchemeChange = (value: AppColorScheme) => {
+    if (!APP_COLOR_SCHEME_ITEMS.some((item) => item.value === value)) {
+      return;
+    }
+
+    const previousScheme = currentAppColorSchemeRef.current;
+    if (value === previousScheme) {
+      return;
+    }
+
+    const saveRequestId = latestSaveRequestIdRef.current + 1;
+    latestSaveRequestIdRef.current = saveRequestId;
+    latestRequestedAppColorSchemeRef.current = value;
+
+    setCurrentScheme(value);
+    applyAppColorSchemeToRoot(value);
+
+    void setGlobalConfig({ appColorScheme: value }).catch((error) => {
+      if (latestSaveRequestIdRef.current !== saveRequestId) {
+        return;
+      }
+
+      latestRequestedAppColorSchemeRef.current = undefined;
+      const groundTruth = persistedAppColorSchemeRef.current;
+      setCurrentScheme(groundTruth);
+      applyAppColorSchemeToRoot(groundTruth);
+      console.error('Failed to save app color scheme preference', error);
+    });
   };
 
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
         <h3 className="font-medium text-base text-foreground">
-                  {t('settings.personalization.appearance.title')}
-                </h3>
-                <p className="text-muted-foreground text-sm">
-                  {t('settings.personalization.appearance.description')}
-                </p>
+          {t('settings.personalization.appearance.title')}
+        </h3>
+        <p className="text-muted-foreground text-sm">
+          {t('settings.personalization.appearance.description')}
+        </p>
       </div>
 
       <Select
-        value={appColorScheme}
+        value={currentAppColorScheme}
         onValueChange={(value) =>
           handleAppColorSchemeChange(value as AppColorScheme)
         }
@@ -320,6 +381,20 @@ function AppColorSchemeSetting() {
       />
     </div>
   );
+}
+
+function applyAppColorSchemeToRoot(value: AppColorScheme) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return;
+  }
+
+  const shouldUseDark =
+    value === 'dark' ||
+    (value === 'system' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  document.documentElement.classList.toggle('dark', shouldUseDark);
+  window.requestAnimationFrame(syncThemeColorsToMain);
 }
 
 function ThemeSetting() {
@@ -401,11 +476,11 @@ function ThemeSetting() {
     <div className="space-y-4">
       <div>
         <h3 className="font-medium text-base text-foreground">
-                  {t('settings.personalization.colorScheme.title')}
-                </h3>
-                <p className="text-muted-foreground text-sm">
-                  {t('settings.personalization.colorScheme.description')}
-                </p>
+          {t('settings.personalization.colorScheme.title')}
+        </h3>
+        <p className="text-muted-foreground text-sm">
+          {t('settings.personalization.colorScheme.description')}
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-3" role="radiogroup">
@@ -418,7 +493,10 @@ function ThemeSetting() {
               className="group rounded-lg"
               onClick={() => handleThemeChange(theme.id)}
               aria-checked={active}
-              aria-label={t('settings.personalization.theme.useAria').replace('{name}', t(`settings.personalization.theme.${theme.id}`))}
+              aria-label={t('settings.personalization.theme.useAria').replace(
+                '{name}',
+                t(`settings.personalization.theme.${theme.id}`),
+              )}
               role="radio"
               title={t(`settings.personalization.theme.${theme.id}`)}
             >

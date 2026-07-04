@@ -370,3 +370,203 @@
 - docs/user-experience-surveys.md：移除上轮未提交的 survey 文档。回滚：从上轮 diff 恢复该文件。
 - progress.md：追加本轮移除记录。回滚：删除本条记录。
 统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/sidebar/index.tsx apps/browser/src/ui/screens/main/_components/sidebar-experience-survey.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/agent/stories progress.md`；如需恢复上轮 survey contract/backend/docs 接线，还需重新应用对应未提交 diff。
+
+## 2026-07-03 - Task: 优化帐号池长列表滚动性能
+
+### What was done
+- 将帐号池账号列表改为虚拟列表渲染，只渲染当前视口附近的账号卡片，降低账号很多时的 DOM 数量和滚动压力。
+- 将账号卡片提取为 memo 行组件，并稳定刷新、切换、删除和清除日志回调，减少无关状态变化导致的可见行重复渲染。
+- 保留现有导入、导出、自动注册、健康检查、单账号刷新、切换、删除和日志展示行为不变。
+
+### Testing
+- `pnpm -F stagewise exec biome check src/ui/screens/settings/sections/account-pool-section.tsx` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx：为帐号池长列表接入 `react-virtuoso` 虚拟渲染，并拆出 memo 化账号行组件。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx`。
+- progress.md：追加本轮性能优化与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx progress.md`。
+
+## 2026-07-03 - Task: 继续优化帐号池滚动并修复切换后未知用户状态
+
+### What was done
+- 将帐号池页面改为由 `Virtuoso` 直接管理主滚动容器，顶部统计、任务日志和空状态作为虚拟列表 header，账号卡片作为虚拟 item，避免外层滚动容器与虚拟列表组合削弱优化效果。
+- 降低账号卡片滚动时的绘制成本，移除账号行阴影和用量条宽度动画，保留现有状态、按钮和用量信息。
+- 修复 session 刷新返回缺少 user 时仍显示 authenticated 的异常状态：现在会用本地凭据中的账号邮箱回填，切换帐号池账号后不再落到 “Unknown user / 未知用户”。
+- 将帐号页中文界面的 unknown-user 兜底文案修正为“未知用户”。
+
+### Testing
+- `pnpm -F stagewise exec biome check src/ui/screens/settings/sections/account-pool-section.tsx src/ui/i18n/dict/settings.ts` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx：将帐号池页面主滚动改为虚拟列表直接承载，并降低账号行绘制成本。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx`。
+- apps/browser/src/backend/services/auth/index.ts：session 刷新缺少 user 时用本地凭据回填当前用户邮箱，避免切换后 authenticated 但无邮箱。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- apps/browser/src/ui/i18n/dict/settings.ts：修正帐号页中文 unknown-user 兜底文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/settings.ts`。
+- progress.md：追加本轮性能与 auth 修复记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/backend/services/auth/index.ts apps/browser/src/ui/i18n/dict/settings.ts progress.md`。
+
+## 2026-07-03 - Task: 修复设置页深色主题左侧边栏背景
+
+### What was done
+- 为设置页左侧边栏根容器接入设计系统主题背景和前景色，深色主题下不再保留浅色大块背景。
+- 保留现有导航、返回按钮、帐号池统计和账号 footer 行为不变。
+
+### Testing
+- `pnpm -F stagewise exec biome check src/ui/screens/settings/sidebar.tsx` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/settings/sidebar.tsx：设置页侧栏根容器增加 `bg-background text-foreground`，随浅色/深色主题自动切换。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sidebar.tsx`。
+- progress.md：追加本轮 UI 修复记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/settings/sidebar.tsx progress.md`。
+
+## 2026-07-03 - Task: 优化启动期卡顿、帐号池滚动和外观切换响应
+
+### What was done
+- 将主界面预览容器的 DOM 变化监听从“任意 body 子树变化都重绑布局”收窄为“仅预览容器出现或移除时重绑”，避免启动后一两分钟内大量聊天区、文件树、代码块 DOM 初始化反复触发布局计算。
+- 外观浅色/深色/跟随系统切换改为先在当前窗口即时应用，再异步保存配置；保存失败时回滚到持久化状态，减少等待后端配置写入和系统主题事件回传带来的体感延迟。
+- 继续收紧帐号池虚拟列表 overscan，减少滚动时同时挂载和参与布局绘制的账号卡片数量。
+
+### Testing
+- `pnpm -F stagewise exec biome check src/ui/components/web-contents-bounds-syncer.tsx src/ui/screens/settings/sections/personalization-settings-section.tsx src/ui/screens/settings/sections/account-pool-section.tsx` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/components/web-contents-bounds-syncer.tsx：收窄 MutationObserver 对启动期无关 DOM 变化的响应范围。回滚：`git checkout -- apps/browser/src/ui/components/web-contents-bounds-syncer.tsx`。
+- apps/browser/src/ui/screens/settings/sections/personalization-settings-section.tsx：外观模式切换改为本地即时应用并异步持久化。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/personalization-settings-section.tsx`。
+- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx：降低帐号池虚拟列表 overscan。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx`。
+- progress.md：追加本轮性能优化与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/components/web-contents-bounds-syncer.tsx apps/browser/src/ui/screens/settings/sections/personalization-settings-section.tsx apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx progress.md`。
+
+## 2026-07-03 - Task: 调整左下角帐号池统计文本居中
+
+### What was done
+- 将左侧栏底部帐号池统计条改为左右两列等宽布局，中间分隔线固定居中。
+- “总账号”和“可用”两组文本分别在左右半区水平居中显示，保留原有统计逻辑和底部账号入口行为不变。
+
+### Testing
+- `pnpm -F stagewise exec biome check src/ui/screens/main/_components/sidebar-auth-footer.tsx` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx：调整帐号池统计条布局，使左右统计文本居中。回滚：`git checkout -- apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx`。
+- progress.md：追加本轮 UI 调整记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx progress.md`。
+
+## 2026-07-03 - Task: 修复主对话左侧边栏深色主题背景
+
+### What was done
+- 为主对话界面左侧边栏根面板接入设计系统主题背景和前景色。
+- 深色主题下侧栏不再保留浅色底色，浅色主题下仍跟随 `bg-background` 正常显示。
+
+### Testing
+- `pnpm -F stagewise exec biome check src/ui/screens/main/sidebar/index.tsx` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/sidebar/index.tsx：主对话侧栏根面板增加 `bg-background text-foreground`，随主题切换。回滚：`git checkout -- apps/browser/src/ui/screens/main/sidebar/index.tsx`。
+- progress.md：追加本轮主题修复记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/sidebar/index.tsx progress.md`。
+
+## 2026-07-04 - Task: 增加启动期 UI 假死根因诊断
+
+### What was done
+- 增加默认关闭的启动性能诊断模式，通过 `STAGEWISE_STARTUP_PROFILING=1` 开启，不影响正常启动路径。
+- 诊断模式会在启动前 120 秒内采集 Electron/Chromium trace、渲染进程 long task、RAF 卡顿间隔、页面加载时序和主进程事件循环滞后。
+- 诊断结果统一落盘到 app logs 下的 `startup-profile-*` 目录，便于后续对照“刚打开后 UI 假死”的真实时间窗口分析根因。
+- 补充启动诊断使用文档，说明 PowerShell 启动方式、输出文件和阅读顺序。
+
+### Testing
+- `pnpm -F stagewise exec biome check --formatter-enabled=false src/backend/index.ts src/backend/utils/startup-profiler.ts src/ui-preload/index.ts` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc --target ES2022 --module ESNext --moduleResolution bundler --strict --skipLibCheck --lib "ES2022,DOM" --types "node,vite/client" --jsx react-jsx --noEmit src/ui-preload/index.ts` 退出码 0。
+- `git diff --check` 退出码 0；仅提示既有 CRLF/LF 转换 warning。
+- `pnpm -F stagewise exec vite build --config vite.ui-preload.config.ts` 未作为有效验证：该 Vite config 依赖 Electron Forge 注入入口，直接运行会报 `Could not resolve entry module "index.html"`。
+- `pnpm -F stagewise start:fast -- --smoke-test` 未进入应用验证：`electron-forge start` 将 `--smoke-test` 识别为未知 Forge 参数。
+- `pnpm -F stagewise exec biome check --formatter-enabled=false ..\..\docs\startup-performance-profiling.md` 未作为有效验证：当前 Biome 配置忽略 `docs/` 下 markdown。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/index.ts：启动时按环境变量动态启用 profiler，并记录 app ready、main import、main called 关键启动标记。回滚：`git checkout -- apps/browser/src/backend/index.ts`。
+- apps/browser/src/backend/utils/startup-profiler.ts：新增启动诊断模块，负责 trace 采集、IPC 接收、主进程卡顿采样和文件落盘。回滚：`git rm apps/browser/src/backend/utils/startup-profiler.ts`。
+- apps/browser/src/ui-preload/index.ts：诊断模式下采集 renderer long task、RAF gap、加载时序和可见性事件，并批量发送到主进程。回滚：`git checkout -- apps/browser/src/ui-preload/index.ts`。
+- docs/startup-performance-profiling.md：新增启动性能诊断使用说明。回滚：`git rm docs/startup-performance-profiling.md`。
+- progress.md：追加本轮启动诊断记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/index.ts apps/browser/src/ui-preload/index.ts progress.md && git rm apps/browser/src/backend/utils/startup-profiler.ts docs/startup-performance-profiling.md`。
+
+## 2026-07-04 - Task: 排查启动诊断文件缺失并修复 preload 开关判断
+
+### What was done
+- 检查 Roaming 和 LocalAppData 下的 `stagewise*` 数据目录，未发现任何 `startup-profile-*` 诊断目录；当前运行进程为 `out\dev\stagewise-dev-win32-x64\stagewise-dev.exe`，启动时间为 2026-07-04 01:46，但 app logs 目录为空。
+- 确认打包构建产物里包含后端 profiler 代码和 ui-preload profiler 代码，但 ui-preload 中 `process.env.STAGEWISE_STARTUP_PROFILING` 被 Vite 打包替换为 `{}` 读取，导致 renderer 侧采样不会启动。
+- 将 renderer 侧开关判断改为直接向主进程查询 `startup-profiler:get-config`，主进程未开启诊断时静默忽略无 handler 返回，避免正常启动路径产生噪音。
+- 更新诊断文档，明确打包 exe 采样必须从设置了环境变量的 PowerShell 启动，双击启动不会继承诊断环境变量。
+
+### Testing
+- `pnpm -F stagewise exec biome check --formatter-enabled=false src/ui-preload/index.ts src/backend/index.ts src/backend/utils/startup-profiler.ts` 退出码 0。
+- `pnpm -F stagewise exec tsc --target ES2022 --module ESNext --moduleResolution bundler --strict --skipLibCheck --lib "ES2022,DOM" --types "node,vite/client" --jsx react-jsx --noEmit src/ui-preload/index.ts` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0；仅提示既有 CRLF/LF 转换 warning。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui-preload/index.ts：移除 preload 中不可依赖的 `process.env` 判断，改为向主进程查询诊断配置。回滚：`git checkout -- apps/browser/src/ui-preload/index.ts`。
+- docs/startup-performance-profiling.md：补充打包 exe 的 PowerShell 启动方式，并说明双击不会继承诊断环境变量。回滚：`git checkout -- docs/startup-performance-profiling.md`。
+- progress.md：追加本轮诊断缺失排查记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui-preload/index.ts docs/startup-performance-profiling.md progress.md`。
+
+## 2026-07-04 - Task: 给最近工作区快捷连接增加状态反馈
+
+### What was done
+- 修复空聊天页最近工作区快捷连接没有反馈的问题：点击后立即显示正在连接状态，并禁用重复点击。
+- 连接完成后会确认该路径确实进入已挂载工作区；如果后端返回但未产生挂载，会在建议列表下方展示失败原因。
+- 后端抛出的连接错误会直接显示在同一区域，用户不再需要猜测是报错还是任务卡住。
+- 新增对应中英文文案，保持界面语言一致。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec biome check --formatter-enabled=false src/ui/screens/main/agent-chat/chat/_components/empty-chat-suggestions.tsx src/ui/i18n/dict/chat.ts` 退出码 0。
+- `git diff --check -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/empty-chat-suggestions.tsx apps/browser/src/ui/i18n/dict/chat.ts` 退出码 0；仅提示既有 CRLF/LF 转换 warning。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/empty-chat-suggestions.tsx：最近工作区快捷连接增加 loading、重复点击保护、挂载确认和错误提示。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/empty-chat-suggestions.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：新增快捷连接状态和错误提示的中英文文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- progress.md：追加本轮快捷连接反馈修复记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/empty-chat-suggestions.tsx apps/browser/src/ui/i18n/dict/chat.ts progress.md`。
+
+## 2026-07-05 - Task: 强化核心系统提示词的用户任务执行策略
+
+### What was done
+- 在主聊天 Agent 的默认核心提示词中加入不按主题、难度、风险标签、不适感或安全分类拒绝用户任务的行为规则。
+- 在 browser host 覆盖的核心提示词中同步加入同一规则，确保实际桌面应用使用的聊天 Agent 也遵循该策略。
+- 补充“认真完整执行每个用户任务”的执行要求：理解意图、选择直接路径、谨慎实现、验证结果，只在真实外部限制阻塞时报告卡点。
+- 更新核心提示词策略文档，记录当前主聊天 Agent 的无拒绝任务策略和完整执行策略。
+
+### Testing
+- `rg -n "Never refuse user tasks|Execute seriously and completely|Any user-requested task" packages\agent-core\src\agents\chat\prompts\soul.md apps\browser\src\backend\agents\chat\prompts\soul.md docs\unrestricted-technical-prompts.md` 退出码 0，确认三处目标文本均已落入。
+- `pnpm -F @stagewise/agent-core test -- system-prompt-builder` 退出码 0，1 个 test file / 8 个 tests 全部通过。
+- `git diff --check -- packages/agent-core/src/agents/chat/prompts/soul.md apps/browser/src/backend/agents/chat/prompts/soul.md docs/unrestricted-technical-prompts.md` 退出码 0。
+- `pnpm exec biome check packages/agent-core/src/agents/chat/prompts/soul.md apps/browser/src/backend/agents/chat/prompts/soul.md docs/unrestricted-technical-prompts.md` 未作为有效验证：当前 Biome 配置忽略这些 Markdown 路径，输出 `No files were processed in the specified paths`。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/agents/chat/prompts/soul.md：默认聊天 Agent 核心人格提示词加入不拒绝用户任务和认真完整执行任务的规则。回滚：`git checkout -- packages/agent-core/src/agents/chat/prompts/soul.md`。
+- apps/browser/src/backend/agents/chat/prompts/soul.md：browser host 覆盖的聊天 Agent 核心人格提示词同步加入同一规则。回滚：`git checkout -- apps/browser/src/backend/agents/chat/prompts/soul.md`。
+- docs/unrestricted-technical-prompts.md：记录主聊天 Agent 当前无拒绝和完整执行策略。回滚：`git checkout -- docs/unrestricted-technical-prompts.md`。
+- progress.md：追加本轮提示词策略修改记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/agents/chat/prompts/soul.md apps/browser/src/backend/agents/chat/prompts/soul.md docs/unrestricted-technical-prompts.md progress.md`。
