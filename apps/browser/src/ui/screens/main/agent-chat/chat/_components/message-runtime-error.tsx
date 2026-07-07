@@ -36,11 +36,12 @@ const consoleUrl =
 
 type GenericRuntimeError = Extract<AgentRuntimeError, { kind?: undefined }>;
 
-const AUTO_SWITCH_MAX_ATTEMPTS = 3;
+const AUTO_SWITCH_DEFAULT_MAX_ATTEMPTS = 30;
 const AUTO_SWITCH_RETRY_DELAY_MS = 800;
 
 const GENERIC_AUTO_RETRY_MAX = 3;
 const GENERIC_AUTO_RETRY_DELAY_MS = 2000;
+const LLM_ACCOUNT_FORBIDDEN_MARKER = '[stagewise:llm-account-forbidden]';
 
 /** Check if an error message indicates an API authorization failure */
 function isAuthorizationError(error: GenericRuntimeError): boolean {
@@ -88,6 +89,26 @@ function formatRelativeTime(isoDate: string, t: (key: string) => string): string
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatAutoSwitchError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message || error.name;
+  }
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function isLlmAccountForbiddenError(error: GenericRuntimeError): boolean {
+  return error.message.includes(LLM_ACCOUNT_FORBIDDEN_MARKER);
+}
+
+function stripLlmAccountForbiddenMarker(message: string): string {
+  return message.replace(LLM_ACCOUNT_FORBIDDEN_MARKER, '').trim();
 }
 
 export function MessageRuntimeError({
@@ -172,6 +193,17 @@ export function MessageRuntimeError({
     );
   }
 
+  if (isLlmAccountForbiddenError(error)) {
+    return (
+      <LlmAccountForbiddenError
+        error={error}
+        canRetry={canShowRetry}
+        onRetry={retryAction}
+        {...retryProps}
+      />
+    );
+  }
+
   return (
     <GenericError
       agentInstanceId={agentInstanceId}
@@ -180,6 +212,110 @@ export function MessageRuntimeError({
       onRetry={retryAction}
       {...retryProps}
     />
+  );
+}
+
+function LlmAccountForbiddenError({
+  error,
+  canRetry,
+  onRetry,
+  retryRef,
+  showRetryHotkey,
+}: {
+  error: GenericRuntimeError;
+  canRetry: boolean;
+  onRetry: () => void;
+} & RetryActionProps) {
+  const { t } = useI18n();
+  const currentEmail = useKartonState((s) => s.userAccount.user?.email);
+  const observeCurrentAndSwitchPoolAccount = useKartonProcedure(
+    (p) => p.userAccount.observeCurrentAndSwitchPoolAccount,
+  );
+  const observeCurrentAndSwitchPoolAccountRef = useRef(
+    observeCurrentAndSwitchPoolAccount,
+  );
+  observeCurrentAndSwitchPoolAccountRef.current =
+    observeCurrentAndSwitchPoolAccount;
+  const onRetryRef = useRef(onRetry);
+  onRetryRef.current = onRetry;
+  const [autoSwitching, setAutoSwitching] = useState(false);
+  const [autoSwitchMsg, setAutoSwitchMsg] = useState<string | null>(null);
+  const didAutoSwitch = useRef(false);
+
+  useEffect(() => {
+    if (didAutoSwitch.current) return;
+    if (!canRetry) return;
+    didAutoSwitch.current = true;
+    setAutoSwitching(true);
+    setAutoSwitchMsg(
+      '连续切换超过 10 个节点仍然 403，正在将当前帐号移入待观察并切换其他帐号…',
+    );
+    void observeCurrentAndSwitchPoolAccountRef
+      .current(currentEmail)
+      .then((result) => {
+        if (result.error) {
+          setAutoSwitchMsg(`自动切换失败：${result.error}`);
+          return;
+        }
+        setAutoSwitchMsg(
+          `已切换到 ${result.email ?? '其他帐号'}，正在重试请求…`,
+        );
+        setTimeout(() => onRetryRef.current(), 800);
+      })
+      .catch((error: unknown) => {
+        const message = formatAutoSwitchError(error);
+        console.warn(`[LlmAccountAutoSwitch] switch failed: ${message}`, error);
+        setAutoSwitchMsg(`自动切换异常：${message}`);
+      })
+      .finally(() => {
+        setAutoSwitching(false);
+      });
+  }, [canRetry, currentEmail]);
+
+  return (
+    <div className="mt-6 flex w-full flex-col gap-1.5 rounded-lg border border-warning-solid/30 bg-warning-background p-2 text-sm">
+      <div className="flex flex-row items-center gap-1.5">
+        <IconTriangleWarning className="size-3.5 shrink-0 text-warning-foreground" />
+        <span className="font-medium text-warning-foreground">
+          疑似帐号被上游拒绝
+        </span>
+      </div>
+
+      <div className="text-foreground">
+        {stripLlmAccountForbiddenMarker(error.message)}
+      </div>
+      <div className="text-muted-foreground text-xs">
+        已确认超过 10 个 Clash 节点切换后仍返回 403，当前帐号会进入待观察列表，并从后续自动切换候选中排除。
+      </div>
+      {autoSwitchMsg && (
+        <div
+          className={
+            autoSwitching
+              ? 'text-muted-foreground text-xs'
+              : 'text-green-600 text-xs dark:text-green-400'
+          }
+        >
+          {autoSwitchMsg}
+        </div>
+      )}
+
+      {canRetry && (
+        <div className="flex flex-row justify-end pt-1">
+          <Button ref={retryRef} variant="primary" size="xs" onClick={onRetry}>
+            <RefreshCcwIcon className="size-3" />
+            {t('chat.runtimeError.retry')}
+            {showRetryHotkey && (
+              <HotkeyCombo
+                action={HotkeyActions.CMD_ENTER}
+                size="xs"
+                variant="solid"
+                className="ml-0.5"
+              />
+            )}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -197,10 +333,19 @@ function PlanLimitExceededError({
   const { t } = useI18n();
   const subscription = useKartonState((s) => s.userAccount.subscription);
   const currentEmail = useKartonState((s) => s.userAccount.user?.email);
+  const configuredAutoSwitchMaxAttempts = useKartonState(
+    (s) => s.preferences.agent.accountPoolAutoSwitchMaxAttempts,
+  );
   const switchToAvailablePoolAccount = useKartonProcedure(
     (p) => p.userAccount.switchToAvailablePoolAccount,
   );
   const plan = subscription?.plan;
+  const autoSwitchMaxAttempts = Math.max(
+    1,
+    Math.floor(
+      configuredAutoSwitchMaxAttempts ?? AUTO_SWITCH_DEFAULT_MAX_ATTEMPTS,
+    ),
+  );
   const switchToAvailablePoolAccountRef = useRef(switchToAvailablePoolAccount);
   switchToAvailablePoolAccountRef.current = switchToAvailablePoolAccount;
   const onRetryRef = useRef(onRetry);
@@ -214,29 +359,30 @@ function PlanLimitExceededError({
     if (didAutoSwitch.current) return;
     didAutoSwitch.current = true;
     setAutoSwitching(true);
-    setAutoSwitchMsg(
-      '当前帐号已达上限，正在校验候选帐号并切换可用帐号…',
-    );
+    setAutoSwitchMsg('当前帐号已达上限，正在校验候选帐号并切换可用帐号…');
     const throttledResetsAt =
       error.exceededWindows.find((w) => w.type === 'monthly')?.resetsAt ??
       error.exceededWindows.find((w) => w.type === 'weekly')?.resetsAt ??
       error.exceededWindows.find((w) => w.type === 'daily')?.resetsAt;
     const run = async () => {
       let lastError: unknown;
-      for (let attempt = 1; attempt <= AUTO_SWITCH_MAX_ATTEMPTS; attempt++) {
+      for (let attempt = 1; attempt <= autoSwitchMaxAttempts; attempt++) {
         try {
-          if (attempt > 1) {
-            setAutoSwitchMsg(
-              `自动切换异常，正在重试 ${attempt}/${AUTO_SWITCH_MAX_ATTEMPTS}…`,
-            );
-          }
           return await switchToAvailablePoolAccountRef.current(
             currentEmail,
             throttledResetsAt,
           );
         } catch (error) {
           lastError = error;
-          if (attempt < AUTO_SWITCH_MAX_ATTEMPTS) {
+          const message = formatAutoSwitchError(error);
+          console.warn(
+            `[PlanLimitAutoSwitch] attempt ${attempt}/${autoSwitchMaxAttempts} failed: ${message}`,
+            error,
+          );
+          if (attempt < autoSwitchMaxAttempts) {
+            setAutoSwitchMsg(
+              `自动切换异常：${message}，正在重试 ${attempt + 1}/${autoSwitchMaxAttempts}…`,
+            );
             await wait(AUTO_SWITCH_RETRY_DELAY_MS);
           }
         }
@@ -246,6 +392,9 @@ function PlanLimitExceededError({
     void run()
       .then((result) => {
         if (result.error) {
+          console.warn(
+            `[PlanLimitAutoSwitch] switch returned error: ${result.error}`,
+          );
           setAutoSwitchMsg(
             `\u81ea\u52a8\u5207\u6362\u5931\u8d25\uff1a${result.error}`,
           );
@@ -259,14 +408,16 @@ function PlanLimitExceededError({
         }
       })
       .catch((e: unknown) => {
+        const message = formatAutoSwitchError(e);
+        console.warn(`[PlanLimitAutoSwitch] switch failed: ${message}`, e);
         setAutoSwitchMsg(
-          `\u81ea\u52a8\u5207\u6362\u5f02\u5e38\uff1a${String(e)}`,
+          `\u81ea\u52a8\u5207\u6362\u5f02\u5e38\uff1a${message}`,
         );
       })
       .finally(() => {
         setAutoSwitching(false);
       });
-  }, [currentEmail, error.exceededWindows]);
+  }, [autoSwitchMaxAttempts, currentEmail, error.exceededWindows]);
 
   const resetsAt = error.exceededWindows[0]?.resetsAt;
   const resetLabel = resetsAt ? formatRelativeTime(resetsAt, t) : null;
@@ -576,7 +727,6 @@ function GenericError({
 } & RetryActionProps) {
   const { t } = useI18n();
   const [helpExpanded, setHelpExpanded] = useState(false);
-  const [autoRetryCount, setAutoRetryCount] = useState(0);
   const [autoRetryMsg, setAutoRetryMsg] = useState<string | null>(null);
   const autoRetryDoneRef = useRef(false);
   const onRetryRef = useRef(onRetry);
@@ -590,15 +740,11 @@ function GenericError({
     autoRetryDoneRef.current = true;
 
     const run = async () => {
-      for (let i = 1; i <= GENERIC_AUTO_RETRY_MAX; i++) {
-        setAutoRetryMsg(`连接失败，自动重试 ${i}/${GENERIC_AUTO_RETRY_MAX}…`);
-        await wait(GENERIC_AUTO_RETRY_DELAY_MS);
-        setAutoRetryCount(i);
-        onRetryRef.current();
-        // Give the agent time to start; if another error fires the component
-        // remounts and the next error's own effect handles further retries.
-        return;
-      }
+      setAutoRetryMsg(`连接失败，自动重试 1/${GENERIC_AUTO_RETRY_MAX}…`);
+      await wait(GENERIC_AUTO_RETRY_DELAY_MS);
+      onRetryRef.current();
+      // Give the agent time to start; if another error fires the component
+      // remounts and the next error's own effect handles further retries.
     };
     void run();
   }, [canRetry, error]);

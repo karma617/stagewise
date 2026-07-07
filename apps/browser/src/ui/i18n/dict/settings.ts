@@ -131,6 +131,44 @@ export const settingsDict: Dict = {
       '在 macOS 上即使使用电池供电（包括合盖场景），要避免休眠，请在侧边栏右下角启用“保持活跃”模式。',
     en: 'To prevent sleep in battery mode on macOS, including when the lid is closed, enable Keep awake mode in the bottom-right corner of the sidebar.',
   },
+  'settings.general.llmNetwork.title': {
+    'zh-CN': '对话请求网络',
+    en: 'Chat request network',
+  },
+  'settings.general.llmNetwork.description': {
+    'zh-CN':
+      '所有 LLM 对话请求会走这里配置的本地代理；遇到 Forbidden 时可通过 Clash 接口切换节点后自动重试。默认使用本机 7897 代理和 9097 Clash Controller。',
+    en: 'All LLM chat requests use this local proxy. When Forbidden occurs, Stagewise can ask Clash to switch nodes and retry automatically. Defaults use local proxy 7897 and Clash controller 9097.',
+  },
+  'settings.general.llmNetwork.proxyUrl': {
+    'zh-CN': '本地 HTTP 代理',
+    en: 'Local HTTP proxy',
+  },
+  'settings.general.llmNetwork.clashApiUrl': {
+    'zh-CN': 'Clash Controller 地址',
+    en: 'Clash controller URL',
+  },
+  'settings.general.llmNetwork.clashSecret': {
+    'zh-CN': 'Clash Secret',
+    en: 'Clash secret',
+  },
+  'settings.general.llmNetwork.clashSecretPlaceholder': {
+    'zh-CN': '默认已设置；留空时使用默认 Secret',
+    en: 'Set by default; empty value uses the default secret',
+  },
+  'settings.general.llmNetwork.clashProxyGroup': {
+    'zh-CN': 'Clash 代理组名',
+    en: 'Clash proxy group',
+  },
+  'settings.general.llmNetwork.clashProxyGroupPlaceholder': {
+    'zh-CN': '默认 GLOBAL，也可填写节点选择等代理组',
+    en: 'Defaults to GLOBAL; enter another selector group if needed',
+  },
+  'settings.general.llmNetwork.note': {
+    'zh-CN':
+      '自动切换只在 LLM 请求返回 403/Forbidden 时触发；地址、Secret 或代理组留空时会使用默认值，默认代理组是 GLOBAL。',
+    en: 'Automatic switching only triggers on 403/Forbidden LLM responses. Empty URL, secret, or group values use defaults; the default group is GLOBAL.',
+  },
   'settings.general.notifications.loudness': {
     'zh-CN': '音量',
     en: 'Loudness',
@@ -595,6 +633,15 @@ export const settingsDict: Dict = {
       '支持批量添加、地区标记和启停用；自动注册时只会从启用代理里随机选择一个。未配置则使用系统代理或直连。',
     en: 'Add proxies in bulk, tag them by region, and toggle them on or off. Auto-register picks one randomly from the enabled list; otherwise it uses the system proxy or a direct connection.',
   },
+  'settings.proxyPool.llmSwitch.title': {
+    'zh-CN': 'LLM 对话优先使用代理池',
+    en: 'Prefer proxy pool for LLM chat',
+  },
+  'settings.proxyPool.llmSwitch.description': {
+    'zh-CN':
+      '默认关闭。打开后，LLM 对话请求会优先从启用代理里随机选择；没有可用代理时回落到本地系统代理配置。',
+    en: 'Off by default. When enabled, LLM chat requests pick randomly from enabled proxies first, then fall back to the local system proxy setting when none are available.',
+  },
   'settings.proxyPool.metric.total': {
     'zh-CN': '总数',
     en: 'Total',
@@ -993,6 +1040,10 @@ export const settingsDict: Dict = {
     'zh-CN': '已封禁',
     en: 'Banned',
   },
+  'settings.accountPool.status.observing': {
+    'zh-CN': '待观察',
+    en: 'Observing',
+  },
   'settings.accountPool.window.daily': {
     'zh-CN': '日额度',
     en: 'Daily quota',
@@ -1060,6 +1111,19 @@ export const settingsDict: Dict = {
   'settings.accountPool.overview.banned': {
     'zh-CN': '已封禁数',
     en: 'Banned',
+  },
+  'settings.accountPool.overview.observing': {
+    'zh-CN': '待观察数',
+    en: 'Observing',
+  },
+  'settings.accountPool.autoSwitchRetry.title': {
+    'zh-CN': '自动切换失败重试次数',
+    en: 'Auto-switch retry attempts',
+  },
+  'settings.accountPool.autoSwitchRetry.description': {
+    'zh-CN':
+      '当前帐号达到额度上限后，自动切换可用帐号异常时最多重试这么多次。默认 30 次。',
+    en: 'When the current account reaches its quota, retry automatic account switching this many times after failures. Default: 30.',
   },
   'settings.accountPool.import': {
     'zh-CN': '\u5bfc\u5165\u8d26\u53f7',

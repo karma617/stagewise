@@ -28,8 +28,12 @@ import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { createVertex } from '@ai-sdk/google-vertex';
 import { createStagewise } from './stagewise-provider';
+import { createLlmFetch } from './llm-network';
+import type { LlmNetworkStatus } from '@shared/karton-contracts/ui';
 import type { AuthService } from '@/services/auth';
 import type { PreferencesService } from '@/services/preferences';
+import type { Logger } from '@/services/logger';
+import { dbLoadConfig } from '@/services/auth/account-data-sqlite';
 import type { streamText, LanguageModelMiddleware } from 'ai';
 import { wrapLanguageModel } from 'ai';
 import { MODEL_REQUEST_PURPOSE_METADATA_KEY } from '@stagewise/agent-core/host';
@@ -97,15 +101,23 @@ export class ModelProviderService {
   private readonly telemetryService: TelemetryService;
   private readonly authService: AuthService;
   private readonly preferencesService: PreferencesService;
+  private readonly logger: Logger;
+  private readonly onLlmNetworkStatus?: (
+    status: LlmNetworkStatus | null,
+  ) => void;
 
   public constructor(
     telemetryService: TelemetryService,
     authService: AuthService,
     preferencesService: PreferencesService,
+    logger: Logger,
+    onLlmNetworkStatus?: (status: LlmNetworkStatus | null) => void,
   ) {
     this.telemetryService = telemetryService;
     this.authService = authService;
     this.preferencesService = preferencesService;
+    this.logger = logger;
+    this.onLlmNetworkStatus = onLlmNetworkStatus;
   }
 
   private report(
@@ -118,6 +130,30 @@ export class ModelProviderService {
       operation,
       ...extra,
     });
+  }
+
+  private createLlmFetch(
+    extraHeaders?: Record<string, string>,
+  ): typeof globalThis.fetch {
+    const { agent } = this.preferencesService.get();
+    return createLlmFetch(
+      {
+        proxyUrl: agent.chatProxyUrl,
+        useProxyPool: agent.llmUseProxyPool,
+        loadProxyPool: async () => {
+          const config = await dbLoadConfig();
+          return typeof config?.proxyPool === 'string'
+            ? config.proxyPool
+            : undefined;
+        },
+        clashApiUrl: agent.clashApiUrl,
+        clashApiSecret: agent.clashApiSecret,
+        clashProxyGroup: agent.clashProxyGroup,
+        onStatus: this.onLlmNetworkStatus,
+        onLog: (message) => this.logger.info(message),
+      },
+      extraHeaders,
+    );
   }
 
   /**
@@ -416,6 +452,7 @@ export class ModelProviderService {
       const stagewiseProvider = createStagewise({
         apiKey: this.authService.accessToken ?? '',
         baseURL: proxyBaseUrl,
+        fetch: this.createLlmFetch(),
       });
 
       const model = wrapLanguageModel({
@@ -542,7 +579,11 @@ export class ModelProviderService {
 
     switch (provider) {
       case 'anthropic': {
-        const p = createAnthropic({ apiKey, baseURL });
+        const p = createAnthropic({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             p(toNativeAnthropicModelId(modelId) as any),
@@ -557,7 +598,11 @@ export class ModelProviderService {
         };
       }
       case 'openai': {
-        const p = createOpenAI({ apiKey, baseURL });
+        const p = createOpenAI({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             p(modelId as any),
@@ -572,7 +617,11 @@ export class ModelProviderService {
         };
       }
       case 'google': {
-        const p = createGoogleGenerativeAI({ apiKey, baseURL });
+        const p = createGoogleGenerativeAI({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             p(modelId as any),
@@ -590,6 +639,7 @@ export class ModelProviderService {
         const p = createOpenAI({
           apiKey,
           baseURL: baseURL ?? 'https://api.moonshot.ai/v1',
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -611,6 +661,7 @@ export class ModelProviderService {
           apiKey,
           baseURL:
             baseURL ?? 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -630,6 +681,7 @@ export class ModelProviderService {
         const p = createOpenAI({
           apiKey,
           baseURL: baseURL ?? 'https://api.deepseek.com/v1',
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -649,6 +701,7 @@ export class ModelProviderService {
         const p = createOpenAI({
           apiKey,
           baseURL: baseURL ?? 'https://api.z.ai/api/paas/v4',
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -668,6 +721,7 @@ export class ModelProviderService {
         const p = createOpenAI({
           apiKey,
           baseURL: baseURL ?? 'https://api.minimax.io/v1',
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -687,6 +741,7 @@ export class ModelProviderService {
         const p = createOpenAI({
           apiKey,
           baseURL: baseURL ?? 'https://api.xiaomimimo.com/v1',
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -707,6 +762,7 @@ export class ModelProviderService {
         const p = createOpenAI({
           apiKey,
           baseURL: baseURL ?? 'https://api.mistral.ai/v1',
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -758,7 +814,11 @@ export class ModelProviderService {
 
     switch (apiSpec) {
       case 'anthropic': {
-        const provider = createAnthropic({ apiKey, baseURL });
+        const provider = createAnthropic({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             provider(toNativeAnthropicModelId(modelId) as any),
@@ -772,7 +832,11 @@ export class ModelProviderService {
       }
 
       case 'openai-chat-completions': {
-        const provider = createOpenAI({ apiKey, baseURL });
+        const provider = createOpenAI({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             provider.chat(modelId as any),
@@ -786,7 +850,11 @@ export class ModelProviderService {
       }
 
       case 'openai-responses': {
-        const provider = createOpenAI({ apiKey, baseURL });
+        const provider = createOpenAI({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             provider.responses(modelId as any),
@@ -800,7 +868,11 @@ export class ModelProviderService {
       }
 
       case 'google': {
-        const provider = createGoogleGenerativeAI({ apiKey, baseURL });
+        const provider = createGoogleGenerativeAI({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             provider(modelId as any),
@@ -819,6 +891,7 @@ export class ModelProviderService {
           baseURL,
           resourceName: endpoint.resourceName,
           apiVersion: endpoint.apiVersion,
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -851,6 +924,7 @@ export class ModelProviderService {
         const vertexProvider = createVertex({
           project: endpoint.projectId ?? '',
           location: endpoint.location ?? 'us-central1',
+          fetch: this.createLlmFetch(),
           googleAuthOptions: endpoint.encryptedGoogleCredentials
             ? {
                 credentials: JSON.parse(
@@ -943,7 +1017,11 @@ export class ModelProviderService {
 
     switch (apiSpec) {
       case 'anthropic': {
-        const provider = createAnthropic({ apiKey, baseURL });
+        const provider = createAnthropic({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             provider(toNativeAnthropicModelId(customModel.modelId) as any),
@@ -957,7 +1035,11 @@ export class ModelProviderService {
       }
 
       case 'openai-chat-completions': {
-        const provider = createOpenAI({ apiKey, baseURL });
+        const provider = createOpenAI({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             provider.chat(customModel.modelId as any),
@@ -971,7 +1053,11 @@ export class ModelProviderService {
       }
 
       case 'openai-responses': {
-        const provider = createOpenAI({ apiKey, baseURL });
+        const provider = createOpenAI({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             provider.responses(customModel.modelId as any),
@@ -985,7 +1071,11 @@ export class ModelProviderService {
       }
 
       case 'google': {
-        const provider = createGoogleGenerativeAI({ apiKey, baseURL });
+        const provider = createGoogleGenerativeAI({
+          apiKey,
+          baseURL,
+          fetch: this.createLlmFetch(),
+        });
         return {
           model: this.telemetryService.withTracing(
             provider(customModel.modelId as any),
@@ -1005,6 +1095,7 @@ export class ModelProviderService {
           baseURL,
           resourceName: ep.resourceName,
           apiVersion: ep.apiVersion,
+          fetch: this.createLlmFetch(),
         });
         return {
           model: this.telemetryService.withTracing(
@@ -1039,6 +1130,7 @@ export class ModelProviderService {
         const vertexProvider = createVertex({
           project: ep.projectId ?? '',
           location: ep.location ?? 'us-central1',
+          fetch: this.createLlmFetch(),
           googleAuthOptions: ep.encryptedGoogleCredentials
             ? {
                 credentials: JSON.parse(

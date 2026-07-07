@@ -331,10 +331,19 @@ export class AuthServerInterop {
     this.logger = logger;
   }
 
-  public async getSubscription(accessToken: string) {
-    const client = createApiClient(API_URL, {
+  private createAuthenticatedClient(
+    accessToken: string,
+    proxyUrl?: string,
+  ) {
+    return createApiClient(API_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      fetcher: (input, init) =>
+        fetchWithRegistrationFallback(input, init, proxyUrl),
     });
+  }
+
+  public async getSubscription(accessToken: string, proxyUrl?: string) {
+    const client = this.createAuthenticatedClient(accessToken, proxyUrl);
 
     const SUBSCRIPTION_TIMEOUT_MS = 15_000;
     const subscriptionData = await Promise.race([
@@ -364,10 +373,9 @@ export class AuthServerInterop {
 
   public async getUsageCurrent(
     accessToken: string,
+    proxyUrl?: string,
   ): Promise<CurrentUsageResponse> {
-    const client = createApiClient(API_URL, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const client = this.createAuthenticatedClient(accessToken, proxyUrl);
 
     const { data, error } = await client.v1.usage.current.get();
     if (error) {
@@ -391,10 +399,9 @@ export class AuthServerInterop {
   public async getUsageHistory(
     accessToken: string,
     days = 30,
+    proxyUrl?: string,
   ): Promise<UsageHistoryResponse> {
-    const client = createApiClient(API_URL, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const client = this.createAuthenticatedClient(accessToken, proxyUrl);
 
     const { data, error } = await client.v1.usage.history.get({
       query: { days: String(days) },

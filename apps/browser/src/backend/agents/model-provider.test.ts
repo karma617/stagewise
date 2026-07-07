@@ -58,6 +58,9 @@ function createTestModelProviderService({
       get: vi.fn(() => preferences),
       decryptProviderApiKey: vi.fn(() => 'provider-api-key'),
     } as any,
+    {
+      info: vi.fn(),
+    } as any,
   );
 }
 

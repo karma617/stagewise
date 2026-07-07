@@ -1,12 +1,14 @@
 import { Button } from '@stagewise/stage-ui/components/button';
 import { OverlayScrollbar } from '@stagewise/stage-ui/components/overlay-scrollbar';
-import { useKartonProcedure } from '@ui/hooks/use-karton';
+import { Switch } from '@stagewise/stage-ui/components/switch';
+import { useKartonProcedure, useKartonState } from '@ui/hooks/use-karton';
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@ui/hooks/use-i18n';
 import {
   normalizeAutoRegisterConfig,
   type AutoRegisterConfig,
 } from './auto-register-config';
+import type { Patch } from 'immer';
 
 type ProxyEntry = {
   id: string;
@@ -86,6 +88,9 @@ function parseStoredProxyPool(value: string | null): ProxyEntry[] {
 
 export function ProxyPoolSection() {
   const { t } = useI18n();
+  const llmUseProxyPool = useKartonState(
+    (s) => s.preferences.agent.llmUseProxyPool,
+  );
   const [proxies, setProxies] = useState<ProxyEntry[]>([]);
   const [newProxy, setNewProxy] = useState('');
   const [region, setRegion] = useState('');
@@ -100,6 +105,7 @@ export function ProxyPoolSection() {
   const loadAutoRegisterConfig = useKartonProcedure(
     (p) => p.userAccount.loadAutoRegisterConfig,
   );
+  const updatePreferences = useKartonProcedure((p) => p.preferences.update);
   const saveConfigRef = useRef(saveAutoRegisterConfig);
   saveConfigRef.current = saveAutoRegisterConfig;
   const loadConfigRef = useRef(loadAutoRegisterConfig);
@@ -121,6 +127,17 @@ export function ProxyPoolSection() {
     0,
   );
   const activeCount = proxies.filter((item) => item.isActive).length;
+
+  const setLlmUseProxyPool = (checked: boolean) => {
+    const patches: Patch[] = [
+      {
+        op: 'replace',
+        path: ['agent', 'llmUseProxyPool'],
+        value: checked,
+      },
+    ];
+    void updatePreferences(patches);
+  };
 
   const showNotice = (message: string) => {
     setNotice(message);
@@ -272,6 +289,24 @@ export function ProxyPoolSection() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-surface-1 p-4">
+            <label className="min-w-0 flex-1" htmlFor="llm-use-proxy-pool">
+              <h2 className="font-medium text-foreground text-sm">
+                {t('settings.proxyPool.llmSwitch.title')}
+              </h2>
+              <p className="mt-1 text-muted-foreground text-xs">
+                {t('settings.proxyPool.llmSwitch.description')}
+              </p>
+            </label>
+            <Switch
+              id="llm-use-proxy-pool"
+              checked={llmUseProxyPool}
+              onCheckedChange={setLlmUseProxyPool}
+              size="xs"
+              className="mt-1 shrink-0"
+            />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">

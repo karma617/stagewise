@@ -11,6 +11,7 @@ export interface SlashItem {
   id: string;
   label: string;
   description?: string;
+  descriptionKey?: string;
   group: string;
   /** When set, this is a synthetic "Show N more" trigger, not a real command. */
   expandGroup?: string;

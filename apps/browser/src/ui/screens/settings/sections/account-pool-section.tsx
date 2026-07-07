@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@stagewise/stage-ui/components/dialog';
+import { Input } from '@stagewise/stage-ui/components/input';
 import { useKartonProcedure, useKartonState } from '@ui/hooks/use-karton';
 import {
   memo,
@@ -16,6 +17,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  startTransition,
   type ChangeEvent,
 } from 'react';
 import { Virtuoso } from 'react-virtuoso';
@@ -29,6 +31,7 @@ import {
 import { useTurnstile } from '@ui/hooks/use-turnstile';
 import { useI18n } from '@ui/hooks/use-i18n';
 import { cn } from '@ui/utils';
+import type { Patch } from 'immer';
 import type { CurrentUsageResponse } from '@shared/karton-contracts/pages-api/types';
 import {
   cancelAccountPoolBatchTask,
@@ -45,7 +48,7 @@ import {
 type PoolEntry = {
   email: string;
   token?: string;
-  status: 'normal' | 'throttled' | 'banned';
+  status: 'normal' | 'throttled' | 'banned' | 'observing';
   addedAt: string;
   lastCheckedAt?: string;
   throttledSince?: string;
@@ -69,6 +72,14 @@ function StatusBadge({ status }: { status: PoolEntry['status'] }) {
       <span className="inline-flex items-center rounded-md bg-warning-background px-2 py-0.5 font-medium text-warning-foreground text-xs ring-1 ring-warning-solid/20">
         <span className="mr-1.5 size-1.5 shrink-0 rounded-full bg-warning-solid" />
         {t('settings.accountPool.status.throttled')}
+      </span>
+    );
+  }
+  if (status === 'observing') {
+    return (
+      <span className="inline-flex items-center rounded-md bg-warning-background px-2 py-0.5 font-medium text-warning-foreground text-xs ring-1 ring-warning-solid/20">
+        <span className="mr-1.5 size-1.5 shrink-0 rounded-full bg-warning-solid" />
+        {t('settings.accountPool.status.observing')}
       </span>
     );
   }
@@ -100,12 +111,17 @@ function getAccountPoolOverview(pool: PoolEntry[]) {
     dailyLimited: 0,
     weeklyLimited: 0,
     monthlyLimited: 0,
+    observing: 0,
     banned: 0,
   };
 
   for (const entry of pool) {
     if (entry.status === 'banned') {
       overview.banned += 1;
+      continue;
+    }
+    if (entry.status === 'observing') {
+      overview.observing += 1;
       continue;
     }
 
@@ -133,6 +149,7 @@ function EffectiveStatusBadge({ entry }: { entry: PoolEntry }) {
   const { t } = useI18n();
   const limitWindow = getLimitWindow(entry.usage);
   if (entry.status === 'banned') return <StatusBadge status="banned" />;
+  if (entry.status === 'observing') return <StatusBadge status="observing" />;
   if (entry.status === 'throttled' || limitWindow) {
     const label =
       limitWindow === 'monthly'
@@ -338,6 +355,7 @@ type AccountPoolTransferResult =
     };
 
 const EMPTY_REFRESH_LOGS: string[] = [];
+const ACCOUNT_POOL_USAGE_SYNC_DELAYS_MS = [1500, 4000, 8000];
 
 type AccountPoolListItem =
   | { kind: 'header' }
@@ -371,7 +389,9 @@ const AccountPoolRow = memo(function AccountPoolRow({
   const isCurrent = entry.email?.trim().toLowerCase() === currentEmailLower;
   const isActing = actionEmail === entry.email;
   const isLimited =
-    entry.status === 'throttled' || !!getLimitWindow(entry.usage);
+    entry.status === 'throttled' ||
+    entry.status === 'observing' ||
+    !!getLimitWindow(entry.usage);
   const throttledResetsAt = getEffectiveThrottledResetsAt(entry);
 
   return (
@@ -488,6 +508,9 @@ const AccountPoolRow = memo(function AccountPoolRow({
 export function AccountPoolSection() {
   const { t } = useI18n();
   const currentEmail = useKartonState((s) => s.userAccount?.user?.email);
+  const autoSwitchMaxAttempts = useKartonState(
+    (s) => s.preferences.agent.accountPoolAutoSwitchMaxAttempts,
+  );
   // Email comparison is case-insensitive — the server may return a
   // differently-cased email than what is stored in the pool.
   const currentEmailLower = currentEmail?.trim().toLowerCase();
@@ -533,6 +556,7 @@ export function AccountPoolSection() {
   const cancelBatchTask = useKartonProcedure(
     (p) => p.userAccount.cancelBatchTask,
   );
+  const updatePreferences = useKartonProcedure((p) => p.preferences.update);
 
   const getRef = useRef(getAccountPool);
   getRef.current = getAccountPool;
@@ -558,6 +582,20 @@ export function AccountPoolSection() {
   refreshAccountUsageRef.current = refreshPoolAccountUsage;
   const cleanupInvalidRef = useRef(cleanupInvalidPoolAccounts);
   cleanupInvalidRef.current = cleanupInvalidPoolAccounts;
+
+  const updateAutoSwitchMaxAttempts = (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    const nextValue = Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+    const patches: Patch[] = [
+      {
+        op: 'replace',
+        path: ['agent', 'accountPoolAutoSwitchMaxAttempts'],
+        value: nextValue,
+      },
+    ];
+    void updatePreferences(patches);
+  };
+
   const {
     containerRef: turnstileRef,
     token: turnstileToken,
@@ -600,6 +638,32 @@ export function AccountPoolSection() {
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const healthLogsContainerRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const usageSyncTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const applyPoolEntries = useCallback((entries: PoolEntry[]) => {
+    startTransition(() => {
+      setPool(entries);
+    });
+  }, []);
+
+  const clearUsageSyncTimeouts = useCallback(() => {
+    for (const timeout of usageSyncTimeoutsRef.current) {
+      clearTimeout(timeout);
+    }
+    usageSyncTimeoutsRef.current = [];
+  }, []);
+
+  const scheduleUsageSync = useCallback(() => {
+    clearUsageSyncTimeouts();
+    usageSyncTimeoutsRef.current = ACCOUNT_POOL_USAGE_SYNC_DELAYS_MS.map(
+      (delayMs) =>
+        setTimeout(() => {
+          void getRef
+            .current()
+            .then((entries) => applyPoolEntries(entries as PoolEntry[]));
+        }, delayMs),
+    );
+  }, [applyPoolEntries, clearUsageSyncTimeouts]);
 
   useEffect(() => {
     const el = logsContainerRef.current;
@@ -619,9 +683,9 @@ export function AccountPoolSection() {
     setLoading(true);
     void getRef
       .current()
-      .then((entries) => setPool(entries as PoolEntry[]))
+      .then((entries) => applyPoolEntries(entries as PoolEntry[]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [applyPoolEntries]);
 
   const lastSyncedBatchProgressRef = useRef('');
 
@@ -643,7 +707,7 @@ export function AccountPoolSection() {
     setLoading(true);
     void getRef
       .current()
-      .then((entries) => setPool(entries as PoolEntry[]))
+      .then((entries) => applyPoolEntries(entries as PoolEntry[]))
       .finally(() => setLoading(false));
   }
 
@@ -654,7 +718,10 @@ export function AccountPoolSection() {
     void refreshUsageRef
       .current()
       .then((entries) => {
-        if (!cancelled) setPool(entries as PoolEntry[]);
+        if (!cancelled) {
+          applyPoolEntries(entries as PoolEntry[]);
+          scheduleUsageSync();
+        }
       })
       .catch(() => {
         // ignore: network/auth blip should not break the page
@@ -662,15 +729,16 @@ export function AccountPoolSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyPoolEntries, scheduleUsageSync]);
 
   // Cleanup health-check polling on unmount. Batch registration polling is
   // global and must survive leaving this settings page.
   useEffect(() => {
     return () => {
       if (healthPollRef.current) clearInterval(healthPollRef.current);
+      clearUsageSyncTimeouts();
     };
-  }, []);
+  }, [clearUsageSyncTimeouts]);
 
   const handleCheckHealth = () => {
     if (healthTask?.status === 'running') return;
@@ -1028,7 +1096,7 @@ export function AccountPoolSection() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle sm:grid-cols-3 lg:grid-cols-6 dark:bg-surface-1">
+                <div className="grid grid-cols-2 gap-2 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle sm:grid-cols-3 lg:grid-cols-7 dark:bg-surface-1">
                   {[
                     {
                       label: t('settings.accountPool.overview.total'),
@@ -1056,6 +1124,11 @@ export function AccountPoolSection() {
                       className: 'text-warning-foreground',
                     },
                     {
+                      label: t('settings.accountPool.overview.observing'),
+                      value: overview.observing,
+                      className: 'text-warning-foreground',
+                    },
+                    {
                       label: t('settings.accountPool.overview.banned'),
                       value: overview.banned,
                       className: 'text-error-foreground',
@@ -1078,6 +1151,29 @@ export function AccountPoolSection() {
                       </div>
                     </div>
                   ))}
+                </div>
+
+                <div className="flex flex-col gap-3 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle sm:flex-row sm:items-center sm:justify-between dark:bg-surface-1">
+                  <div className="min-w-0">
+                    <label
+                      htmlFor="account-pool-auto-switch-max-attempts"
+                      className="font-medium text-foreground text-sm"
+                    >
+                      {t('settings.accountPool.autoSwitchRetry.title')}
+                    </label>
+                    <p className="mt-1 text-muted-foreground text-xs">
+                      {t('settings.accountPool.autoSwitchRetry.description')}
+                    </p>
+                  </div>
+                  <Input
+                    id="account-pool-auto-switch-max-attempts"
+                    type="number"
+                    min={1}
+                    size="sm"
+                    className="w-28 shrink-0"
+                    value={String(autoSwitchMaxAttempts)}
+                    onValueChange={updateAutoSwitchMaxAttempts}
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle dark:bg-surface-1">

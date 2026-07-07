@@ -967,6 +967,15 @@ export type PendingUserQuestion = {
   answers: Record<string, QuestionAnswerValue>;
 };
 
+export type LlmNetworkStatus = {
+  phase: 'reading-clash-nodes' | 'switching-clash-node' | 'retrying-request';
+  groupName?: string;
+  nodeName?: string;
+  attempt?: number;
+  total?: number;
+  updatedAt: number;
+};
+
 export type AppState = {
   appScreen: {
     mode: 'main' | 'settings';
@@ -1048,7 +1057,13 @@ export type AppState = {
     registrationSteps?: Array<{ ts: number; msg: string }>;
     /** Whether an auto-register flow is currently running */
     registrationRunning?: boolean;
+    accountPoolStats?: {
+      total: number;
+      available: number;
+    };
   };
+  /** Live status for LLM network fallback work, such as Clash node switching. */
+  llmNetworkStatus: LlmNetworkStatus | null;
   // Current stagewise app runtime information
   appInfo: {
     baseName: string; // Base name (e.g., 'stagewise-dev', 'stagewise-prerelease', 'stagewise').
@@ -1601,7 +1616,7 @@ export type KartonContract = {
         Array<{
           email: string;
           token?: string;
-          status: 'normal' | 'throttled' | 'banned';
+          status: 'normal' | 'throttled' | 'banned' | 'observing';
           addedAt: string;
           lastCheckedAt?: string;
           throttledSince?: string;
@@ -1617,7 +1632,7 @@ export type KartonContract = {
         accounts: Array<{
           email: string;
           token: string;
-          status: 'normal' | 'throttled' | 'banned';
+          status: 'normal' | 'throttled' | 'banned' | 'observing';
           addedAt: string;
         }>;
       }>;
@@ -1630,7 +1645,7 @@ export type KartonContract = {
         accounts: Array<{
           email: string;
           token?: string;
-          status: 'normal' | 'throttled' | 'banned';
+          status: 'normal' | 'throttled' | 'banned' | 'observing';
           addedAt: string;
           lastCheckedAt?: string;
           throttledSince?: string;
@@ -1646,7 +1661,7 @@ export type KartonContract = {
         Array<{
           email: string;
           token?: string;
-          status: 'normal' | 'throttled' | 'banned';
+          status: 'normal' | 'throttled' | 'banned' | 'observing';
           addedAt: string;
           lastCheckedAt?: string;
           throttledSince?: string;
@@ -1670,7 +1685,7 @@ export type KartonContract = {
         accounts: Array<{
           email: string;
           token?: string;
-          status: 'normal' | 'throttled' | 'banned';
+          status: 'normal' | 'throttled' | 'banned' | 'observing';
           addedAt: string;
           lastCheckedAt?: string;
           throttledSince?: string;
@@ -1685,7 +1700,7 @@ export type KartonContract = {
         Array<{
           email: string;
           token?: string;
-          status: 'normal' | 'throttled' | 'banned';
+          status: 'normal' | 'throttled' | 'banned' | 'observing';
           addedAt: string;
           lastCheckedAt?: string;
           throttledSince?: string;
@@ -1699,7 +1714,7 @@ export type KartonContract = {
         accounts: Array<{
           email: string;
           token?: string;
-          status: 'normal' | 'throttled' | 'banned';
+          status: 'normal' | 'throttled' | 'banned' | 'observing';
           addedAt: string;
           lastCheckedAt?: string;
           throttledSince?: string;
@@ -1715,7 +1730,7 @@ export type KartonContract = {
         accounts: Array<{
           email: string;
           token?: string;
-          status: 'normal' | 'throttled' | 'banned';
+          status: 'normal' | 'throttled' | 'banned' | 'observing';
           addedAt: string;
           lastCheckedAt?: string;
           throttledSince?: string;
@@ -1732,6 +1747,10 @@ export type KartonContract = {
       switchToAvailablePoolAccount: (
         currentEmail?: string,
         throttledResetsAt?: string,
+      ) => Promise<{ error?: string; email?: string }>;
+      /** Mark current account for observation and switch to another pool account */
+      observeCurrentAndSwitchPoolAccount: (
+        currentEmail?: string,
       ) => Promise<{ error?: string; email?: string }>;
       /** Auto-switch on quota exceeded: use pool account or register new */
       autoSwitchOnQuotaExceeded: (
@@ -2225,6 +2244,10 @@ export type KartonContract = {
       setVisible: (visible: boolean) => Promise<void>;
       setActiveWorkspace: (workspaceKey: string | null) => Promise<void>;
       setViewMode: (mode: 'files' | 'diff') => Promise<void>;
+      createFile: (
+        workspaceKey: string,
+        directoryPath: string,
+      ) => Promise<FileTreeOperationResult>;
       recreateDeletedFile: (
         workspaceKey: string,
         relativePath: string,
@@ -2397,7 +2420,9 @@ export const defaultState: KartonContract['state'] = {
     status: 'unauthenticated',
     registrationSteps: [],
     registrationRunning: false,
+    accountPoolStats: { total: 0, available: 0 },
   },
+  llmNetworkStatus: null,
   appInfo: {
     baseName: __APP_BASE_NAME__,
     name: __APP_NAME__,

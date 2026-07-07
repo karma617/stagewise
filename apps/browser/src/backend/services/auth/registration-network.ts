@@ -140,12 +140,18 @@ export function logRegistrationStep(msg: string): void {
   traceNetwork(msg);
 }
 
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
+
 export async function fetchWithRegistrationNetwork(
-  input: string | URL,
+  input: RequestInfo | URL,
   init: RequestInit = {},
   proxyUrl?: string,
 ): Promise<Response> {
-  const url = typeof input === 'string' ? input : input.toString();
+  const url = requestUrl(input);
   const method = (init.method as string) || 'GET';
   const proxyTag = proxyUrl ? '(proxy)' : '(direct)';
   traceNetwork(`--> ${method} ${url} ${proxyTag}`);
@@ -230,11 +236,11 @@ function isTransientProxyStatus(status: number): boolean {
  * contract errors such as 404 from transport failures.
  */
 export async function fetchWithRegistrationFallback(
-  input: string | URL,
+  input: RequestInfo | URL,
   init: RequestInit = {},
   primaryProxyUrl?: string,
 ): Promise<Response> {
-  const url = typeof input === 'string' ? input : input.toString();
+  const url = requestUrl(input);
   const method = (init.method as string) || 'GET';
   const candidates = await buildRegistrationProxyCandidates(
     primaryProxyUrl,

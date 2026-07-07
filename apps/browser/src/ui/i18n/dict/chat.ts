@@ -33,6 +33,96 @@ export const chatDict: Dict = {
     'zh-CN': '发送消息',
     en: 'Send message',
   },
+  'chat.llmNetwork.readingNodes': {
+    'zh-CN': '正在读取 Clash 可用节点…',
+    en: 'Reading Clash node candidates...',
+  },
+  'chat.llmNetwork.switchingNode': {
+    'zh-CN': '正在切换可用节点 {attempt}：{node}（{group}）…',
+    en: 'Switching node {attempt}: {node} ({group})...',
+  },
+  'chat.llmNetwork.retryingRequest': {
+    'zh-CN': '节点已切换，正在重试对话请求 {attempt}：{node}…',
+    en: 'Node switched. Retrying chat request {attempt}: {node}...',
+  },
+  'chat.slash.group.skills': {
+    'zh-CN': '技能',
+    en: 'Skills',
+  },
+  'chat.slash.group.plugins': {
+    'zh-CN': '插件',
+    en: 'Plugins',
+  },
+  'chat.slash.empty.noCommands': {
+    'zh-CN': '没有命令',
+    en: 'No commands',
+  },
+  'chat.slash.description.plan': {
+    'zh-CN': '编码前创建结构化实施计划',
+    en: 'Create a structured implementation plan before coding',
+  },
+  'chat.slash.description.debug': {
+    'zh-CN': '通过本地日志文件使用日志调用进行深入调试',
+    en: 'Use logging calls for in-depth debugging via local log files',
+  },
+  'chat.slash.description.preview': {
+    'zh-CN': '在浏览器标签页中创建交互式设计预览',
+    en: 'Create an interactive design-preview in a browser tab',
+  },
+  'chat.slash.description.learn': {
+    'zh-CN':
+      '创建、提取或更新技能。适用于从零编写技能、从当前会话提取知识，或在用户意图与技能指导冲突、内容混乱/过时时更新现有技能。',
+    en:
+      'Create, extract, or update a skill. Use when authoring a new skill from scratch, extracting knowledge from the current session, or updating an existing skill when the user\'s intentions contradicted skill guidance or content is confusing/outdated.',
+  },
+  'chat.slash.description.plugin.figma': {
+    'zh-CN':
+      'Figma 插件完整指南，包括 REST API 访问、通过 CDP 实时监控选择内容，以及 figma-app 交互式 UI。用户要求处理 Figma 时应立即阅读。',
+    en:
+      'Complete guide for the Figma plugin — REST API access, real-time selection monitoring via CDP, and the figma-app interactive UI. Read this IMMEDIATELY when the user asks to work with Figma.',
+  },
+  'chat.slash.description.plugin.github': {
+    'zh-CN':
+      'GitHub 插件完整指南，包括使用 GitHub Personal Access Token 通过 REST API 访问仓库、议题、拉取请求、Actions、发布和搜索。',
+    en:
+      'Complete guide for the GitHub plugin — REST API access for repositories, issues, pull requests, actions, releases, and search using a GitHub Personal Access Token.',
+  },
+  'chat.slash.description.plugin.javascriptSandbox': {
+    'zh-CN':
+      '使用 stagewise 内置 JavaScript 沙箱的最佳实践。说明如何访问浏览器调试/交互 API，使用外部依赖、文件系统访问、运行 mini-app 等。',
+    en:
+      'Best practices for using the stagewise built-in JavaScript sandbox. Explains how to access APIs for browser debugging/interaction, use external dependencies, file system access, running mini-apps, etc.',
+  },
+  'chat.slash.description.plugin.miniApps': {
+    'zh-CN':
+      '构建在浏览器标签页中展示的自定义交互式 Web 应用（mini apps）指南，包括脚手架、iframe 约束、与沙箱的双向消息通信和迭代流程。',
+    en:
+      'Guide for building custom interactive web apps ("mini apps") displayed in browser tabs — scaffolding, iframe constraints, bidirectional messaging with the sandbox, and iteration workflows.',
+  },
+  'chat.slash.description.plugin.posthog': {
+    'zh-CN':
+      'PostHog 插件完整指南，包括使用 HogQL 查询分析、管理功能开关、检查事件和用户、读取洞察、实验、群组、问卷等。',
+    en:
+      'Complete guide for the PostHog plugin — REST API access for querying analytics with HogQL, managing feature flags, inspecting events and persons, reading insights, experiments, cohorts, surveys, and more.',
+  },
+  'chat.slash.description.plugin.remotion': {
+    'zh-CN':
+      '使用 Remotion 创建或编辑视频。stagewise 与 Remotion 第一方技能，包含完整视频制作流程。',
+    en:
+      'Create or edit video with Remotion. First-party stagewise + Remotion skill. Contains full video-making process.',
+  },
+  'chat.slash.description.plugin.supabase': {
+    'zh-CN':
+      'Supabase 插件完整指南，包括通过 Management API 运行 SQL 查询、列出项目、管理 Edge Functions、密钥、迁移并检查项目健康状况。',
+    en:
+      'Complete guide for the Supabase plugin — Management API access for running SQL queries, listing projects, managing edge functions, secrets, migrations, and inspecting project health.',
+  },
+  'chat.slash.description.plugin.vercel': {
+    'zh-CN':
+      'Vercel 插件完整指南，包括使用 Vercel Personal Access Token 通过 REST API 访问部署、日志、项目和环境变量。',
+    en:
+      'Complete guide for the Vercel plugin — REST API access for deployments, logs, projects, and environment variables using a Vercel Personal Access Token.',
+  },
   'commandCenter.mode.all': {
     'zh-CN': '全部',
     en: 'All',

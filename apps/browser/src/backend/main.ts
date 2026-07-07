@@ -580,6 +580,12 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
     telemetryService,
     authService,
     preferencesService,
+    logger,
+    (status) => {
+      uiKarton.setState((draft) => {
+        draft.llmNetworkStatus = status;
+      });
+    },
   );
 
   // Wire the model-provider into the toolbox so the shell tool can run the
@@ -918,6 +924,11 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
     'fileTree.deleteEntry',
     async (_cid, workspaceKey: string, relativePath: string) =>
       fileTreeService.deleteEntry(workspaceKey, relativePath),
+  );
+  uiKarton.registerServerProcedureHandler(
+    'fileTree.createFile',
+    async (_cid, workspaceKey: string, directoryPath: string) =>
+      fileTreeService.createFile(workspaceKey, directoryPath),
   );
   uiKarton.registerServerProcedureHandler(
     'fileTree.recreateDeletedFile',

@@ -44,9 +44,9 @@ import {
   importAccountPool,
   removeAccount,
   removeInvalidAccounts,
-  findAvailableAccount,
   markAccountThrottled,
   markAccountBanned,
+  markAccountObserving,
   markAccountNormal,
   getUsageLimitWindow,
   updateAccountUsage,
@@ -106,7 +106,13 @@ function normalizeRegistrationCaptchaProvider(
 }
 
 const SESSION_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const ACCOUNT_POOL_USAGE_REFRESH_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+const ACCOUNT_POOL_USAGE_REFRESH_CONCURRENCY = 16;
 const SOCIAL_AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 export class AuthService extends DisposableService {
   private readonly identifierService: IdentifierService;
@@ -119,6 +125,13 @@ export class AuthService extends DisposableService {
   private authClient: BetterAuthClient;
 
   private _refreshInterval: NodeJS.Timeout | null = null;
+  private _poolUsageRefreshInterval: NodeJS.Timeout | null = null;
+  private _poolUsageRefreshInFlight: Promise<void> | null = null;
+  private availablePoolEmails: string[] = [];
+  private cooldownPoolAccounts: Array<{
+    email: string;
+    resetsAtMs: number;
+  }> = [];
   private authChangeCallbacks: ((newAuthState: AuthState) => void)[] = [];
   // In-memory batch registration tasks keyed by task id.
   private batchTasks: Map<
@@ -194,6 +207,62 @@ export class AuthService extends DisposableService {
     });
   }
 
+  private getAccountPoolStats(pool: AccountEntry[]): {
+    total: number;
+    available: number;
+  } {
+    let available = 0;
+    const now = Date.now();
+    for (const entry of pool) {
+      if (this.isPoolAccountAvailable(entry, now)) available += 1;
+    }
+    return { total: pool.length, available };
+  }
+
+  private syncPoolAvailabilityCaches(pool: AccountEntry[]): void {
+    const now = Date.now();
+    const availableEmails = pool
+      .filter((entry) => this.isPoolAccountAvailable(entry, now))
+      .map((entry) => this.normalizePoolEmail(entry.email));
+    const availableEmailSet = new Set(availableEmails);
+    const keptAvailableEmails = this.availablePoolEmails.filter((email) =>
+      availableEmailSet.has(email),
+    );
+    const keptAvailableEmailSet = new Set(keptAvailableEmails);
+    this.availablePoolEmails = [
+      ...keptAvailableEmails,
+      ...availableEmails.filter((email) => !keptAvailableEmailSet.has(email)),
+    ];
+    this.cooldownPoolAccounts = pool
+      .map((entry) => {
+        const cooldown = this.getPoolCooldownAccount(entry, now);
+        if (!cooldown) return null;
+        return cooldown;
+      })
+      .filter(
+        (entry): entry is { email: string; resetsAtMs: number } =>
+          entry !== null,
+      )
+      .sort((a, b) => a.resetsAtMs - b.resetsAtMs);
+  }
+
+  private syncAccountPoolStats(pool: AccountEntry[]): void {
+    const accountPoolStats = this.getAccountPoolStats(pool);
+    this.syncPoolAvailabilityCaches(pool);
+    this.updateAuthState((draft) => {
+      draft.userAccount = {
+        ...draft.userAccount,
+        accountPoolStats,
+      };
+    });
+  }
+
+  private async loadPoolAndSyncStats(): Promise<AccountEntry[]> {
+    const pool = await loadPool();
+    this.syncAccountPoolStats(pool);
+    return pool;
+  }
+
   private async initialize(): Promise<void> {
     const persisted = await readPersistedData(
       CREDENTIALS_KEY,
@@ -217,6 +286,9 @@ export class AuthService extends DisposableService {
         };
       });
     }
+
+    await this.loadPoolAndSyncStats();
+    this.startAccountPoolUsageRefreshTimer();
 
     this._refreshInterval = setInterval(() => {
       if (this._credentials?.token) {
@@ -326,7 +398,7 @@ export class AuthService extends DisposableService {
     this.uiKarton.registerServerProcedureHandler(
       'userAccount.getAccountPool',
       async (_callingClientId) => {
-        return loadPool();
+        return this.loadPoolAndSyncStats();
       },
     );
 
@@ -340,7 +412,9 @@ export class AuthService extends DisposableService {
     this.uiKarton.registerServerProcedureHandler(
       'userAccount.importAccountPool',
       async (_callingClientId, rawJson) => {
-        return importAccountPool(rawJson);
+        const result = await importAccountPool(rawJson);
+        this.syncAccountPoolStats(result.accounts);
+        return result;
       },
     );
 
@@ -405,6 +479,7 @@ export class AuthService extends DisposableService {
       'userAccount.removeFromPool',
       async (_callingClientId, email) => {
         await removeAccount(email);
+        await this.loadPoolAndSyncStats();
         return { ok: true };
       },
     );
@@ -423,6 +498,13 @@ export class AuthService extends DisposableService {
           currentEmail,
           throttledResetsAt,
         );
+      },
+    );
+
+    this.uiKarton.registerServerProcedureHandler(
+      'userAccount.observeCurrentAndSwitchPoolAccount',
+      async (_callingClientId, currentEmail) => {
+        return this.observeCurrentAndSwitchPoolAccount(currentEmail);
       },
     );
 
@@ -496,6 +578,10 @@ export class AuthService extends DisposableService {
       clearInterval(this._refreshInterval);
       this._refreshInterval = null;
     }
+    if (this._poolUsageRefreshInterval) {
+      clearInterval(this._poolUsageRefreshInterval);
+      this._poolUsageRefreshInterval = null;
+    }
 
     await this.cancelPendingHandoffAuth({
       error: 'Sign-in was cancelled.',
@@ -543,6 +629,9 @@ export class AuthService extends DisposableService {
     this.uiKarton.removeServerProcedureHandler('userAccount.switchToAccount');
     this.uiKarton.removeServerProcedureHandler(
       'userAccount.switchToAvailablePoolAccount',
+    );
+    this.uiKarton.removeServerProcedureHandler(
+      'userAccount.observeCurrentAndSwitchPoolAccount',
     );
     this.uiKarton.removeServerProcedureHandler(
       'userAccount.autoSwitchOnQuotaExceeded',
@@ -1150,6 +1239,7 @@ export class AuthService extends DisposableService {
       // No token means we cannot restore this session; mark it banned so the
       // pool scheduler stops offering it and UI health checks reflect reality.
       await markAccountBanned(email);
+      await this.loadPoolAndSyncStats();
       return { error: 'Account has no stored token, cannot switch' };
     }
     try {
@@ -1166,6 +1256,7 @@ export class AuthService extends DisposableService {
       const postStatus = this.uiKarton.state.userAccount.status;
       if (postStatus === 'unauthenticated') {
         await markAccountBanned(email);
+        await this.loadPoolAndSyncStats();
         this.logger.warn(
           '[AuthService] Pool account token rejected (401/403), banned: ' +
             email,
@@ -1177,6 +1268,7 @@ export class AuthService extends DisposableService {
       }
 
       this.logger.info('[AuthService] Switched to pool account: ' + email);
+      await this.loadPoolAndSyncStats();
       return { email };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1190,46 +1282,24 @@ export class AuthService extends DisposableService {
   ): Promise<{ error?: string; email?: string }> {
     if (currentEmail) {
       await markAccountThrottled(currentEmail, throttledResetsAt);
+      this.removeFromAvailablePool(currentEmail);
+      this.addToCooldownPool(currentEmail, throttledResetsAt);
     }
-    const skippedEmails = new Set<string>();
-    let available: AccountEntry | null = null;
-    while (
-      (available = await findAvailableAccount({
-        currentEmail,
-        excludedEmails: skippedEmails,
-      }))
-    ) {
-      if (!available.token) continue;
-      skippedEmails.add(available.email);
-      try {
-        const usage = await this.serverInterop.getUsageCurrent(
-          available.token,
-        );
-        await updateAccountUsage(available.email, usage);
-        if (!getUsageLimitWindow(usage)) {
-          break;
-        }
-      } catch (err) {
-        if (this.isAuthRejectionError(err)) {
-          await markAccountBanned(available.email);
-          continue;
-        }
-        const message = err instanceof Error ? err.message : String(err);
-        this.logger.warn(
-          '[AuthService] Failed to verify pool account usage before switch: ' +
-            `${available.email}: ${message}`,
-        );
-        await updateAccountUsage(available.email, null);
-        continue;
-      }
+    return this.switchToNextAvailablePoolAccount(currentEmail);
+  }
+
+  public async observeCurrentAndSwitchPoolAccount(
+    currentEmail?: string,
+  ): Promise<{ error?: string; email?: string }> {
+    if (currentEmail) {
+      await markAccountObserving(currentEmail);
+      this.removeFromAvailablePool(currentEmail);
+      await this.loadPoolAndSyncStats();
+      this.logger.warn(
+        `[AuthService] Marked account for observation after repeated LLM 403: ${currentEmail}`,
+      );
     }
-    if (!available?.token) {
-      return {
-        error:
-          '\u5e10\u53f7\u6c60\u6ca1\u6709\u53ef\u7528\u5e10\u53f7\uff0c\u8bf7\u5148\u5728\u5e10\u53f7\u6c60\u6dfb\u52a0\u53ef\u7528\u5e10\u53f7\u3002',
-      };
-    }
-    return this.switchToPoolAccount(available.email);
+    return this.switchToNextAvailablePoolAccount(currentEmail);
   }
 
   /**
@@ -1241,7 +1311,7 @@ export class AuthService extends DisposableService {
   public async checkPoolHealth(): Promise<AccountEntry[]> {
     const pool = await loadPool();
     await this.processPoolUsageRefresh(pool, 12);
-    return loadPool();
+    return this.loadPoolAndSyncStats();
   }
 
   public async startPoolHealthCheck(): Promise<{ taskId: string }> {
@@ -1300,6 +1370,11 @@ export class AuthService extends DisposableService {
     if (!task) return;
     const active = new Set<string>();
     const concurrency = Math.min(12, Math.max(1, pool.length));
+    const proxyUrl = await this.resolveAccountPoolUsageProxy();
+    this.pushPoolHealthLog(
+      taskId,
+      proxyUrl ? `使用代理：${proxyUrl}` : '未使用代理，直连请求',
+    );
     let cursor = 0;
     try {
       const workers = Array.from({ length: concurrency }, async () => {
@@ -1307,6 +1382,14 @@ export class AuthService extends DisposableService {
           const idx = cursor++;
           const entry = pool[idx];
           if (!entry) continue;
+          if (entry.status === 'observing') {
+            task.skipped++;
+            this.pushPoolHealthLog(
+              taskId,
+              `跳过：${entry.email} 已在待观察列表`,
+            );
+            continue;
+          }
           active.add(entry.email);
           task.activeEmails = Array.from(active);
           this.pushPoolHealthLog(
@@ -1333,7 +1416,10 @@ export class AuthService extends DisposableService {
               );
               continue;
             }
-            const usage = await this.serverInterop.getUsageCurrent(entry.token);
+            const usage = await this.serverInterop.getUsageCurrent(
+              entry.token,
+              proxyUrl,
+            );
             await updateAccountUsage(entry.email, usage);
             this.pushPoolHealthAccountLog(
               taskId,
@@ -1410,6 +1496,7 @@ export class AuthService extends DisposableService {
   }> {
     const task = this.poolHealthTasks.get(taskId);
     if (!task) {
+      const accounts = await this.loadPoolAndSyncStats();
       return {
         taskId,
         status: 'error',
@@ -1420,13 +1507,14 @@ export class AuthService extends DisposableService {
         activeEmails: [],
         logs: [],
         logsByEmail: {},
-        accounts: await loadPool(),
+        accounts,
         error: 'Task not found',
       };
     }
     if (task.status !== 'running') {
       setTimeout(() => this.poolHealthTasks.delete(taskId), 60000);
     }
+    const accounts = await this.loadPoolAndSyncStats();
     return {
       taskId,
       status: task.status,
@@ -1442,7 +1530,7 @@ export class AuthService extends DisposableService {
           [...logs],
         ]),
       ),
-      accounts: await loadPool(),
+      accounts,
       error: task.error,
     };
   }
@@ -1454,6 +1542,249 @@ export class AuthService extends DisposableService {
     return /\b(401|403)\b/.test(message);
   }
 
+  private normalizePoolEmail(email?: string): string {
+    return (email ?? '').trim().toLowerCase();
+  }
+
+  private parsePoolTimestamp(value?: string): number | null {
+    if (!value) return null;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+
+  private isPoolUsageLimitStillActive(
+    entry: AccountEntry,
+    now: number,
+  ): boolean {
+    const limitWindow = getUsageLimitWindow(entry.usage);
+    if (!limitWindow || !entry.usage) return false;
+    const resetsAt = entry.usage.windows.find(
+      (window) => window.type === limitWindow,
+    )?.resetsAt;
+    const resetsAtMs = this.parsePoolTimestamp(resetsAt);
+    return resetsAtMs === null || now < resetsAtMs;
+  }
+
+  private getPoolUsageLimitResetsAtMs(entry: AccountEntry): number | null {
+    const limitWindow = getUsageLimitWindow(entry.usage);
+    if (!limitWindow || !entry.usage) return null;
+    const resetsAt = entry.usage.windows.find(
+      (window) => window.type === limitWindow,
+    )?.resetsAt;
+    return this.parsePoolTimestamp(resetsAt);
+  }
+
+  private isPoolThrottleStillActive(
+    entry: AccountEntry,
+    now: number,
+  ): boolean {
+    if (entry.status !== 'throttled') return false;
+    const resetsAtMs = this.parsePoolTimestamp(entry.throttledResetsAt);
+    return resetsAtMs === null || now < resetsAtMs;
+  }
+
+  private isPoolAccountAvailable(
+    entry: AccountEntry,
+    now = Date.now(),
+  ): boolean {
+    if (!entry.token) return false;
+    if (entry.status === 'banned') return false;
+    if (entry.status === 'observing') return false;
+    if (this.isPoolThrottleStillActive(entry, now)) return false;
+    if (this.isPoolUsageLimitStillActive(entry, now)) return false;
+    return true;
+  }
+
+  private getPoolCooldownAccount(
+    entry: AccountEntry,
+    now = Date.now(),
+  ): { email: string; resetsAtMs: number } | null {
+    if (!entry.token || entry.status === 'banned') return null;
+    if (entry.status === 'observing') return null;
+
+    const throttleResetsAtMs =
+      entry.status === 'throttled'
+        ? this.parsePoolTimestamp(entry.throttledResetsAt)
+        : null;
+    if (throttleResetsAtMs === null && entry.status === 'throttled') {
+      return {
+        email: this.normalizePoolEmail(entry.email),
+        resetsAtMs: Number.MAX_SAFE_INTEGER,
+      };
+    }
+    if (throttleResetsAtMs !== null && now < throttleResetsAtMs) {
+      return {
+        email: this.normalizePoolEmail(entry.email),
+        resetsAtMs: throttleResetsAtMs,
+      };
+    }
+
+    const usageResetsAtMs = this.getPoolUsageLimitResetsAtMs(entry);
+    if (usageResetsAtMs === null) return null;
+    if (now >= usageResetsAtMs) return null;
+    return {
+      email: this.normalizePoolEmail(entry.email),
+      resetsAtMs: usageResetsAtMs,
+    };
+  }
+
+  private removeFromAvailablePool(email?: string): void {
+    const normalizedEmail = this.normalizePoolEmail(email);
+    if (!normalizedEmail) return;
+    this.availablePoolEmails = this.availablePoolEmails.filter(
+      (candidate) => candidate !== normalizedEmail,
+    );
+  }
+
+  private addToCooldownPool(email?: string, resetsAt?: string): void {
+    const normalizedEmail = this.normalizePoolEmail(email);
+    if (!normalizedEmail) return;
+    const resetsAtMs =
+      this.parsePoolTimestamp(resetsAt) ?? Number.MAX_SAFE_INTEGER;
+    this.cooldownPoolAccounts = [
+      ...this.cooldownPoolAccounts.filter(
+        (candidate) => candidate.email !== normalizedEmail,
+      ),
+      { email: normalizedEmail, resetsAtMs },
+    ].sort((a, b) => a.resetsAtMs - b.resetsAtMs);
+  }
+
+  private async takeAvailablePoolAccount(
+    currentEmail: string | undefined,
+    skippedEmails: Set<string>,
+  ): Promise<AccountEntry | null> {
+    if (this.availablePoolEmails.length === 0) {
+      this.syncPoolAvailabilityCaches(await loadPool());
+    }
+    if (this.availablePoolEmails.length === 0) return null;
+
+    const poolByEmail = new Map(
+      (await loadPool()).map((entry) => [
+        this.normalizePoolEmail(entry.email),
+        entry,
+      ]),
+    );
+    const now = Date.now();
+    const normalizedCurrentEmail = this.normalizePoolEmail(currentEmail);
+    const limit = this.availablePoolEmails.length;
+    for (let i = 0; i < limit; i += 1) {
+      const email = this.availablePoolEmails.shift();
+      if (!email) continue;
+      const entry = poolByEmail.get(email);
+      if (!entry) continue;
+      if (email === normalizedCurrentEmail) continue;
+      if (skippedEmails.has(email)) continue;
+      if (!this.isPoolAccountAvailable(entry, now)) continue;
+      this.availablePoolEmails.push(email);
+      return entry;
+    }
+    return null;
+  }
+
+  private async switchToNextAvailablePoolAccount(
+    currentEmail?: string,
+  ): Promise<{ error?: string; email?: string }> {
+    const skippedEmails = new Set<string>();
+    let lastSwitchError = '';
+    let available: AccountEntry | null = null;
+    while (true) {
+      available = await this.takeAvailablePoolAccount(
+        currentEmail,
+        skippedEmails,
+      );
+      if (!available) break;
+      const email = this.normalizePoolEmail(available.email);
+      skippedEmails.add(email);
+      if (!available.token) {
+        await markAccountBanned(available.email);
+        this.removeFromAvailablePool(available.email);
+        await this.loadPoolAndSyncStats();
+        continue;
+      }
+
+      const switched = await this.switchToPoolAccount(available.email);
+      if (!switched.error) {
+        return switched;
+      }
+      lastSwitchError = `${available.email}: ${switched.error}`;
+      this.removeFromAvailablePool(available.email);
+      await this.loadPoolAndSyncStats();
+      this.logger.warn(
+        '[AuthService] Failed to switch to cached pool account: ' +
+          lastSwitchError,
+      );
+    }
+    await this.loadPoolAndSyncStats();
+    void this.refreshAccountPoolUsageCache('auto-switch-empty', 'cooldown');
+    const detail = lastSwitchError
+      ? ` 最后一次候选账号切换失败：${lastSwitchError}`
+      : '';
+    return {
+      error:
+        '\u5e10\u53f7\u6c60\u6ca1\u6709\u53ef\u7528\u5e10\u53f7\uff0c\u8bf7\u7b49\u5f85\u540e\u53f0\u989d\u5ea6\u5237\u65b0\u6216\u5728\u5e10\u53f7\u6c60\u6dfb\u52a0\u53ef\u7528\u5e10\u53f7\u3002' +
+        detail,
+    };
+  }
+
+  private startAccountPoolUsageRefreshTimer(): void {
+    if (this._poolUsageRefreshInterval) return;
+    void this.refreshAccountPoolUsageCache('startup', 'all');
+    this._poolUsageRefreshInterval = setInterval(() => {
+      void this.refreshAccountPoolUsageCache('interval', 'cooldown');
+    }, ACCOUNT_POOL_USAGE_REFRESH_INTERVAL_MS);
+  }
+
+  private getCooldownRefreshEntries(pool: AccountEntry[]): AccountEntry[] {
+    const cooldownEmails = new Set(
+      this.cooldownPoolAccounts.map((entry) => entry.email),
+    );
+    if (cooldownEmails.size === 0) return [];
+    return pool.filter((entry) =>
+      cooldownEmails.has(this.normalizePoolEmail(entry.email)),
+    );
+  }
+
+  private async refreshAccountPoolUsageCache(
+    reason: string,
+    scope: 'all' | 'cooldown',
+  ): Promise<void> {
+    if (this._poolUsageRefreshInFlight) {
+      await this._poolUsageRefreshInFlight.catch(() => undefined);
+      return;
+    }
+
+    const task = (async () => {
+      const pool = await loadPool();
+      const entries =
+        scope === 'all' ? pool : this.getCooldownRefreshEntries(pool);
+      if (entries.length > 0) {
+        await this.processPoolUsageRefresh(entries);
+      }
+      const refreshedPool = await this.loadPoolAndSyncStats();
+      this.logger.debug(
+        `[AuthService] Refreshed account-pool usage cache (${reason}): ` +
+          `${this.availablePoolEmails.length}/${refreshedPool.length} available, ` +
+          `${this.cooldownPoolAccounts.length} cooling, ` +
+          `${entries.length} refreshed`,
+      );
+    })();
+
+    this._poolUsageRefreshInFlight = task;
+    try {
+      await task;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `[AuthService] Failed to refresh account-pool usage cache (${reason}): ` +
+          message,
+      );
+    } finally {
+      if (this._poolUsageRefreshInFlight === task) {
+        this._poolUsageRefreshInFlight = null;
+      }
+    }
+  }
+
   private formatUsageWindows(usage: CurrentUsageResponse): string {
     return usage.windows
       .map(
@@ -1463,9 +1794,17 @@ export class AuthService extends DisposableService {
       .join(', ');
   }
 
+  private async resolveAccountPoolUsageProxy(): Promise<string | undefined> {
+    const config = await dbLoadConfig().catch(() => null);
+    const proxyPool =
+      typeof config?.proxyPool === 'string' ? config.proxyPool : undefined;
+    return resolveEffectiveProxyUrl(proxyPool);
+  }
+
   private async refreshOnePoolAccountUsage(
     entry: AccountEntry,
     logs?: string[],
+    proxyUrl?: string,
   ): Promise<void> {
     const pushLog = (message: string) => {
       logs?.push(message);
@@ -1479,7 +1818,10 @@ export class AuthService extends DisposableService {
       return;
     }
     try {
-      const usage = await this.serverInterop.getUsageCurrent(entry.token);
+      const usage = await this.serverInterop.getUsageCurrent(
+        entry.token,
+        proxyUrl,
+      );
       await updateAccountUsage(entry.email, usage);
       pushLog(
         `成功：${entry.email} plan=${usage.plan} prepaid=${usage.prepaidBalance} windows=[${this.formatUsageWindows(usage)}]`,
@@ -1503,28 +1845,22 @@ export class AuthService extends DisposableService {
 
   private async processPoolUsageRefresh(
     entries: AccountEntry[],
-    concurrency: number,
+    concurrency = ACCOUNT_POOL_USAGE_REFRESH_CONCURRENCY,
   ): Promise<void> {
+    const proxyUrl = await this.resolveAccountPoolUsageProxy();
+    const workerCount = Math.max(1, Math.min(concurrency, entries.length));
     let cursor = 0;
-    const workers = Array.from(
-      { length: Math.min(concurrency, entries.length) },
-      async () => {
-        while (cursor < entries.length) {
-          const idx = cursor++;
-          const entry = entries[idx];
-          if (!entry || entry.status === 'banned') continue;
-          await this.refreshOnePoolAccountUsage(entry);
-        }
-      },
-    );
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (cursor < entries.length) {
+        const idx = cursor++;
+        const entry = entries[idx];
+        if (!entry || entry.status === 'banned') continue;
+        if (entry.status === 'observing') continue;
+        await this.refreshOnePoolAccountUsage(entry, undefined, proxyUrl);
+        await yieldToEventLoop();
+      }
+    });
     await Promise.all(workers);
-  }
-
-  private async refreshPoolUsageForAutoSwitch(): Promise<string> {
-    const usageCheckedAfter = new Date().toISOString();
-    const pool = await loadPool();
-    await this.processPoolUsageRefresh(pool, 16);
-    return usageCheckedAfter;
   }
 
   public async refreshPoolAccountUsage(email: string): Promise<{
@@ -1535,12 +1871,15 @@ export class AuthService extends DisposableService {
     const pool = await loadPool();
     const entry = pool.find((e) => e.email === email);
     if (entry) {
-      await this.refreshOnePoolAccountUsage(entry, logs);
+      const proxyUrl = await this.resolveAccountPoolUsageProxy();
+      logs.push(proxyUrl ? `使用代理：${proxyUrl}` : '未使用代理，直连请求');
+      await this.refreshOnePoolAccountUsage(entry, logs, proxyUrl);
     } else {
       logs.push(`错误：账号不存在 ${email}`);
     }
+    const accounts = await this.loadPoolAndSyncStats();
     return {
-      accounts: await loadPool(),
+      accounts,
       logs,
     };
   }
@@ -1550,9 +1889,8 @@ export class AuthService extends DisposableService {
    * Called by the UI when viewing the account pool to populate usage bars.
    */
   public async refreshPoolUsage(): Promise<AccountEntry[]> {
-    const pool = await loadPool();
-    await this.processPoolUsageRefresh(pool, 16);
-    return loadPool();
+    void this.refreshAccountPoolUsageCache('ui-full-refresh', 'all');
+    return this.loadPoolAndSyncStats();
   }
 
   public async cleanupInvalidPoolAccounts(): Promise<{
@@ -1560,7 +1898,7 @@ export class AuthService extends DisposableService {
     accounts: AccountEntry[];
   }> {
     const removed = await removeInvalidAccounts();
-    return { removed, accounts: await loadPool() };
+    return { removed, accounts: await this.loadPoolAndSyncStats() };
   }
 
   /**
@@ -2045,6 +2383,7 @@ export class AuthService extends DisposableService {
         status: 'normal',
         addedAt: new Date().toISOString(),
       });
+      await this.loadPoolAndSyncStats();
 
       this.pushRegistrationStep(
         '注册成功，已入账号池并切换到新账号: ' + claimed.email,
@@ -2165,6 +2504,7 @@ export class AuthService extends DisposableService {
         status: 'normal',
         addedAt: new Date().toISOString(),
       });
+      await this.loadPoolAndSyncStats();
       void mailboxPool.markRegistered(
         activeClaim.baseEmail,
         activeClaim.metadata,
@@ -2468,6 +2808,7 @@ export class AuthService extends DisposableService {
         status: 'normal',
         addedAt: new Date().toISOString(),
       });
+      await this.loadPoolAndSyncStats();
       void mailboxPool.markRegistered(claimed.baseEmail, claimed.metadata);
 
       this.pushRegistrationStep(

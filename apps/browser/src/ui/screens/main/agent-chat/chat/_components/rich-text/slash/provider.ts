@@ -3,6 +3,23 @@ import type { SlashItem } from './types';
 
 const MAX_COLLAPSED = 3;
 
+const SLASH_DESCRIPTION_KEYS: Record<string, string> = {
+  'command:plan': 'chat.slash.description.plan',
+  'command:debug': 'chat.slash.description.debug',
+  'command:preview': 'chat.slash.description.preview',
+  'command:learn': 'chat.slash.description.learn',
+  'plugin:figma:figma': 'chat.slash.description.plugin.figma',
+  'plugin:github:github': 'chat.slash.description.plugin.github',
+  'plugin:javascript-sandbox:javascript-sandbox':
+    'chat.slash.description.plugin.javascriptSandbox',
+  'plugin:mini-apps:mini-apps': 'chat.slash.description.plugin.miniApps',
+  'plugin:posthog:posthog': 'chat.slash.description.plugin.posthog',
+  'plugin:remotion:create-remotion-video':
+    'chat.slash.description.plugin.remotion',
+  'plugin:supabase:supabase': 'chat.slash.description.plugin.supabase',
+  'plugin:vercel:vercel': 'chat.slash.description.plugin.vercel',
+};
+
 /**
  * Module-level ref holding the current list of available skills.
  * Written synchronously by panel-footer during render (same pattern
@@ -49,6 +66,7 @@ export function querySlashItems(query: string): SlashItem[] {
         id: cmd.id,
         label: cmd.displayName,
         description: cmd.description,
+        descriptionKey: SLASH_DESCRIPTION_KEYS[cmd.id],
         group: cmd.source,
       }),
     );

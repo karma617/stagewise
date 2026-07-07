@@ -1,4 +1,5 @@
 import { Button } from '@stagewise/stage-ui/components/button';
+import { Input } from '@stagewise/stage-ui/components/input';
 import { OverlayScrollbar } from '@stagewise/stage-ui/components/overlay-scrollbar';
 import { Select } from '@stagewise/stage-ui/components/select';
 import { Slider } from '@stagewise/stage-ui/components/slider';
@@ -8,6 +9,9 @@ import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { useTrack } from '@ui/hooks/use-track';
 import { PlayIcon, TriangleAlertIcon, UploadIcon } from 'lucide-react';
 import { useI18n } from '@ui/hooks/use-i18n';
+import { enablePatches, produceWithPatches } from 'immer';
+
+enablePatches();
 
 // =============================================================================
 // Interface Language Setting Component
@@ -97,6 +101,105 @@ function PowerSaveBlockerSetting() {
         size="xs"
         className="mt-1 shrink-0"
       />
+    </div>
+  );
+}
+
+// =============================================================================
+// LLM Network Setting Component
+// =============================================================================
+
+type AgentNetworkField =
+  | 'chatProxyUrl'
+  | 'clashApiUrl'
+  | 'clashApiSecret'
+  | 'clashProxyGroup';
+
+function LlmNetworkSetting() {
+  const { t } = useI18n();
+  const preferences = useKartonState((s) => s.preferences);
+  const updatePreferences = useKartonProcedure((p) => p.preferences.update);
+
+  const updateField = (field: AgentNetworkField, value: string) => {
+    const [, patches] = produceWithPatches(preferences, (draft) => {
+      draft.agent[field] = value;
+    });
+    void updatePreferences(patches);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-medium text-base text-foreground">
+          {t('settings.general.llmNetwork.title')}
+        </h3>
+        <p className="text-muted-foreground text-sm">
+          {t('settings.general.llmNetwork.description')}
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1.5" htmlFor="llm-chat-proxy-url">
+          <span className="font-medium text-foreground text-sm">
+            {t('settings.general.llmNetwork.proxyUrl')}
+          </span>
+          <Input
+            id="llm-chat-proxy-url"
+            size="sm"
+            value={preferences.agent.chatProxyUrl}
+            placeholder="http://127.0.0.1:7897"
+            debounce={300}
+            onValueChange={(value) => updateField('chatProxyUrl', value)}
+          />
+        </label>
+
+        <label className="space-y-1.5" htmlFor="llm-clash-api-url">
+          <span className="font-medium text-foreground text-sm">
+            {t('settings.general.llmNetwork.clashApiUrl')}
+          </span>
+          <Input
+            id="llm-clash-api-url"
+            size="sm"
+            value={preferences.agent.clashApiUrl}
+            placeholder="http://127.0.0.1:9097"
+            debounce={300}
+            onValueChange={(value) => updateField('clashApiUrl', value)}
+          />
+        </label>
+
+        <label className="space-y-1.5" htmlFor="llm-clash-api-secret">
+          <span className="font-medium text-foreground text-sm">
+            {t('settings.general.llmNetwork.clashSecret')}
+          </span>
+          <Input
+            id="llm-clash-api-secret"
+            size="sm"
+            type="password"
+            value={preferences.agent.clashApiSecret}
+            placeholder={t('settings.general.llmNetwork.clashSecretPlaceholder')}
+            debounce={300}
+            onValueChange={(value) => updateField('clashApiSecret', value)}
+          />
+        </label>
+
+        <label className="space-y-1.5" htmlFor="llm-clash-proxy-group">
+          <span className="font-medium text-foreground text-sm">
+            {t('settings.general.llmNetwork.clashProxyGroup')}
+          </span>
+          <Input
+            id="llm-clash-proxy-group"
+            size="sm"
+            value={preferences.agent.clashProxyGroup}
+            placeholder={t('settings.general.llmNetwork.clashProxyGroupPlaceholder')}
+            debounce={300}
+            onValueChange={(value) => updateField('clashProxyGroup', value)}
+          />
+        </label>
+      </div>
+
+      <p className="text-muted-foreground text-xs">
+        {t('settings.general.llmNetwork.note')}
+      </p>
     </div>
   );
 }
@@ -353,6 +456,7 @@ export function GeneralSettingsSection() {
           <section className="space-y-6">
             <LanguageSetting />
             <PowerSaveBlockerSetting />
+            <LlmNetworkSetting />
           </section>
         </div>
       </OverlayScrollbar>

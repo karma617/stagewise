@@ -211,6 +211,26 @@ describe('userPreferencesSchema model thinking override defaults', () => {
   });
 });
 
+describe('userPreferencesSchema LLM network defaults', () => {
+  it('defaults chat proxy and Clash settings for legacy agent preferences', () => {
+    const parsed = userPreferencesSchema.parse({
+      agent: {
+        workspaceSettings: {},
+        disabledModelIds: [],
+        disabledPluginIds: [],
+        workspaceGitActionPreferences: { general: {}, repositories: {} },
+        workspaceGitCleanup: { dismissedCandidates: {} },
+      },
+    });
+
+    expect(parsed.agent.chatProxyUrl).toBe('http://127.0.0.1:7897');
+    expect(parsed.agent.llmUseProxyPool).toBe(false);
+    expect(parsed.agent.clashApiUrl).toBe('http://127.0.0.1:9097');
+    expect(parsed.agent.clashApiSecret).toBe('88521617');
+    expect(parsed.agent.clashProxyGroup).toBe('GLOBAL');
+  });
+});
+
 describe('userPreferencesSchema workspace Git action defaults', () => {
   it('defaults workspace Git action preferences when missing', () => {
     const parsed = userPreferencesSchema.parse({

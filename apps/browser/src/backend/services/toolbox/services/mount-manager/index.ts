@@ -1465,9 +1465,7 @@ export class MountManagerService extends DisposableService {
       };
     }
 
-    const status = await this.gitService.getWorktreeStatus(
-      resolvedWorkspacePath,
-    );
+    const status = summary.status;
     if (!status) {
       return {
         candidate: null,
@@ -1495,6 +1493,7 @@ export class MountManagerService extends DisposableService {
     const merged = await this.gitService.findMergedTarget(
       resolvedWorkspacePath,
       currentWorktree.branch,
+      { knownSummary: summary, knownWorktrees: worktrees },
     );
     if (!merged.merged || !merged.target) {
       return {

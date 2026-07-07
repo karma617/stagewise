@@ -17,6 +17,7 @@ import {
   IconSideProfileSparkleOutline18,
 } from 'nucleo-ui-outline-18';
 import { useScrollFadeMask } from '@ui/hooks/use-scroll-fade-mask';
+import { useI18n } from '@ui/hooks/use-i18n';
 import { SuggestionPopupContainer, SuggestionSidePanel } from '../shared';
 import type { SlashItem } from './types';
 
@@ -31,8 +32,8 @@ const COMMAND_ICONS: Record<string, ComponentType<{ className?: string }>> = {
 /** Group labels — `builtin` has no header. */
 const GROUP_LABELS: Record<string, string | null> = {
   builtin: null,
-  workspace: 'Skills',
-  plugin: 'Plugins',
+  workspace: 'chat.slash.group.skills',
+  plugin: 'chat.slash.group.plugins',
 };
 
 /** Render order for groups. */
@@ -51,6 +52,14 @@ interface SlashSuggestionPopupProps {
   clientRect: (() => DOMRect | null) | null;
 }
 
+function getSlashDescription(
+  item: SlashItem | undefined,
+  t: (key: string) => string,
+) {
+  if (!item) return undefined;
+  return item.descriptionKey ? t(item.descriptionKey) : item.description;
+}
+
 const SlashSuggestionItem = memo(
   function SlashSuggestionItem({
     item,
@@ -65,8 +74,10 @@ const SlashSuggestionItem = memo(
     onMouseEnter: () => void;
     onRef: (el: HTMLButtonElement | null) => void;
   }) {
+    const { t } = useI18n();
     const isBuiltin = item.group === 'builtin';
     const isSynthetic = Boolean(item.expandGroup);
+    const description = getSlashDescription(item, t);
     const Icon =
       isBuiltin && !isSynthetic
         ? (COMMAND_ICONS[item.id] ?? TerminalSquareIcon)
@@ -99,9 +110,9 @@ const SlashSuggestionItem = memo(
             <span className="min-w-0 truncate font-medium">
               {`/${item.label}`}
             </span>
-            {item.description && (
+            {description && (
               <span className="min-w-0 flex-1 truncate font-normal text-subtle-foreground text-xs">
-                {item.description}
+                {description}
               </span>
             )}
           </>
@@ -140,6 +151,7 @@ const ShowMoreSidePanel = forwardRef<
   },
   ref,
 ) {
+  const { t } = useI18n();
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
   const nestedPanelRef = useRef<HTMLDivElement>(null);
@@ -159,9 +171,10 @@ const ShowMoreSidePanel = forwardRef<
 
   // Position the nested (third-level) description panel.
   const activeItem = isPanelFocused ? hiddenItems[panelIndex] : undefined;
+  const activeDescription = getSlashDescription(activeItem, t);
 
   useLayoutEffect(() => {
-    if (!activeItem?.description) return;
+    if (!activeDescription) return;
     const itemEl = itemRefs.current.get(panelIndex);
     const container = scrollRef.current;
     const panel = nestedPanelRef.current;
@@ -179,7 +192,7 @@ const ShowMoreSidePanel = forwardRef<
     off = Math.min(off, containerHeight - panelHeight);
 
     setNestedPanelOffset(off);
-  }, [panelIndex, activeItem]);
+  }, [panelIndex, activeDescription]);
 
   return (
     <SuggestionSidePanel
@@ -216,9 +229,9 @@ const ShowMoreSidePanel = forwardRef<
                 <span className="truncate font-medium text-foreground text-xs">
                   {hi.label}
                 </span>
-                {hi.description && (
+                {getSlashDescription(hi, t) && (
                   <span className="truncate text-[11px] text-subtle-foreground">
-                    {hi.description}
+                    {getSlashDescription(hi, t)}
                   </span>
                 )}
               </div>
@@ -227,7 +240,7 @@ const ShowMoreSidePanel = forwardRef<
         </div>
 
         {/* Third-level description panel — outside scroll container to avoid overflow clipping */}
-        {activeItem?.description && (
+        {activeItem && activeDescription && (
           <SuggestionSidePanel
             ref={nestedPanelRef}
             offset={nestedPanelOffset}
@@ -237,7 +250,7 @@ const ShowMoreSidePanel = forwardRef<
               {activeItem.label}
             </span>
             <span className="text-subtle-foreground text-xs leading-relaxed">
-              {activeItem.description}
+              {activeDescription}
             </span>
           </SuggestionSidePanel>
         )}
@@ -319,6 +332,7 @@ export function SlashSuggestionPopup({
   const itemRefs = useRef<Map<number, HTMLButtonElement | null>>(new Map());
   const sidePanelRef = useRef<HTMLDivElement>(null);
   const [sidePanelOffset, setSidePanelOffset] = useState(0);
+  const { t } = useI18n();
 
   const rows = useGroupedItems(items);
 
@@ -329,6 +343,7 @@ export function SlashSuggestionPopup({
   }, [selectedIndex, selectionSource]);
 
   const selectedItem = items[selectedIndex] as SlashItem | undefined;
+  const selectedDescription = getSlashDescription(selectedItem, t);
 
   useLayoutEffect(() => {
     const itemEl = itemRefs.current.get(selectedIndex);
@@ -354,7 +369,7 @@ export function SlashSuggestionPopup({
     return (
       <SuggestionPopupContainer clientRect={clientRect} ref={containerRef}>
         <div className="px-2 py-1 text-muted-foreground text-xs">
-          No commands
+          {t('chat.slash.empty.noCommands')}
         </div>
       </SuggestionPopupContainer>
     );
@@ -377,13 +392,13 @@ export function SlashSuggestionPopup({
             onSelectPanelItem={onSelect}
             onHoverPanelIndex={onHoverPanelIndex}
           />
-        ) : selectedItem?.description && !selectedItem.expandGroup ? (
+        ) : selectedItem && selectedDescription && !selectedItem.expandGroup ? (
           <SuggestionSidePanel ref={sidePanelRef} offset={sidePanelOffset}>
             <span className="font-medium text-foreground text-xs">
               /{selectedItem.label}
             </span>
             <span className="text-subtle-foreground text-xs leading-relaxed">
-              {selectedItem.description}
+              {selectedDescription}
             </span>
           </SuggestionSidePanel>
         ) : null
@@ -396,7 +411,7 @@ export function SlashSuggestionPopup({
               key={`hdr-${row.label}`}
               className="mt-1 px-2 pt-1 pb-0.5 font-normal text-subtle-foreground text-xs first:mt-0"
             >
-              {row.label}
+              {t(row.label)}
             </div>
           );
         }

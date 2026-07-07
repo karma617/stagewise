@@ -559,6 +559,18 @@ export const userPreferencesSchema = z.object({
         .record(z.string(), modelThinkingOverrideSchema)
         .default({})
         .catch({}),
+      /** HTTP proxy used by LLM chat requests. */
+      chatProxyUrl: z.string().default('http://127.0.0.1:7897'),
+      /** Prefer enabled proxy-pool entries for LLM chat requests. */
+      llmUseProxyPool: z.boolean().default(false),
+      /** Clash external controller URL used to switch nodes after 403s. */
+      clashApiUrl: z.string().default('http://127.0.0.1:9097'),
+      /** Optional Clash external controller secret. */
+      clashApiSecret: z.string().default('88521617'),
+      /** Clash selector/proxy group to rotate when LLM requests are forbidden. */
+      clashProxyGroup: z.string().default('GLOBAL'),
+      /** Max attempts for automatic account-pool switching after quota errors. */
+      accountPoolAutoSwitchMaxAttempts: z.number().int().min(1).default(30),
       /**
        * External global skill directories the user has opted in to.
        * Contains mount prefixes (e.g. `globalskills-codex`,
@@ -581,6 +593,12 @@ export const userPreferencesSchema = z.object({
       workspaceGitActionPreferences: defaultWorkspaceGitActionPreferences,
       workspaceGitCleanup: defaultWorkspaceGitCleanupPreferences,
       modelThinkingOverrides: {},
+      chatProxyUrl: 'http://127.0.0.1:7897',
+      llmUseProxyPool: false,
+      clashApiUrl: 'http://127.0.0.1:9097',
+      clashApiSecret: '88521617',
+      clashProxyGroup: 'GLOBAL',
+      accountPoolAutoSwitchMaxAttempts: 30,
       enabledGlobalSkillDirs: [],
       disabledGlobalSkills: [],
     }),
@@ -697,6 +715,12 @@ export const defaultUserPreferences: UserPreferences = {
     workspaceGitActionPreferences: defaultWorkspaceGitActionPreferences,
     workspaceGitCleanup: defaultWorkspaceGitCleanupPreferences,
     modelThinkingOverrides: {},
+    chatProxyUrl: 'http://127.0.0.1:7897',
+    llmUseProxyPool: false,
+    clashApiUrl: 'http://127.0.0.1:9097',
+    clashApiSecret: '88521617',
+    clashProxyGroup: 'GLOBAL',
+    accountPoolAutoSwitchMaxAttempts: 30,
     enabledGlobalSkillDirs: [],
     disabledGlobalSkills: [],
   },

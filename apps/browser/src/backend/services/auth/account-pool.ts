@@ -17,12 +17,14 @@ import {
   type PoolAccountRow,
 } from './account-data-sqlite';
 
-export type AccountStatus = 'normal' | 'throttled' | 'banned';
+export type AccountStatus = 'normal' | 'throttled' | 'banned' | 'observing';
 
 export const accountEntrySchema = z.object({
   email: z.string(),
   token: z.string().optional(),
-  status: z.enum(['normal', 'throttled', 'banned']).default('normal'),
+  status: z
+    .enum(['normal', 'throttled', 'banned', 'observing'])
+    .default('normal'),
   addedAt: z.string().default(() => new Date().toISOString()),
   lastCheckedAt: z.string().optional(),
   throttledSince: z.string().optional(),
@@ -65,7 +67,7 @@ const POOL_KEY = 'account-pool' as const;
 const importAccountSchema = z.object({
   email: z.string().trim().email(),
   token: z.string().trim().min(1),
-  status: z.enum(['normal', 'throttled', 'banned']).optional(),
+  status: z.enum(['normal', 'throttled', 'banned', 'observing']).optional(),
   addedAt: z.string().optional(),
 });
 
@@ -262,6 +264,11 @@ export async function markAccountBanned(email: string): Promise<void> {
   await dbUpdateAccountStatus(email, 'banned');
 }
 
+/** Mark account as suspicious after repeated LLM 403 responses. */
+export async function markAccountObserving(email: string): Promise<void> {
+  await dbUpdateAccountStatus(email, 'observing');
+}
+
 /** Mark account as normal */
 export async function markAccountNormal(email: string): Promise<void> {
   await dbUpdateAccountStatus(email, 'normal');
@@ -294,11 +301,15 @@ export async function updateAccountUsage(
   email: string,
   usage: CurrentUsageResponse | null,
 ): Promise<void> {
+  const current = (await loadPool()).find(
+    (entry) => normalizeEmail(entry.email) === normalizeEmail(email),
+  );
   await dbUpdateAccountUsage(
     email,
     usage ? JSON.stringify(usage) : null,
     new Date().toISOString(),
   );
+  if (current?.status === 'observing') return;
   const limitWindow = getUsageLimitWindow(usage);
   if (usage && limitWindow) {
     await markAccountThrottled(
@@ -362,7 +373,7 @@ export async function findAvailableAccount(
       await markAccountBanned(entry.email);
       continue;
     }
-    if (entry.status === 'banned') continue;
+    if (entry.status === 'banned' || entry.status === 'observing') continue;
     if (!wasUsageCheckedAfter(entry, options.usageCheckedAfter)) continue;
     if (getUsageLimitWindow(entry.usage)) {
       const limitWindow = getUsageLimitWindow(entry.usage);

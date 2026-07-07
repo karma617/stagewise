@@ -68,7 +68,8 @@ type WorkspacePreparationKind = 'worktree' | 'branch';
 type LoadingIndicatorState =
   | { kind: 'working' }
   | { kind: 'preparing-worktree' }
-  | { kind: 'preparing-branch' };
+  | { kind: 'preparing-branch' }
+  | { kind: 'llm-network'; label: string };
 
 type DisplayMessage = AgentMessage & {
   _optimistic?: boolean;
@@ -84,6 +85,7 @@ type OptimisticMessage = DisplayMessage & {
 };
 
 function getLoadingIndicatorLabel(indicator: LoadingIndicatorState): string {
+  if (indicator.kind === 'llm-network') return indicator.label;
   switch (indicator.kind) {
     case 'preparing-worktree':
       return 'Preparing worktree...';
@@ -103,8 +105,39 @@ function getLoadingIndicatorVariant(
     case 'preparing-branch':
       return 'branch';
     case 'working':
+    case 'llm-network':
       return 'working';
   }
+}
+
+function formatLlmNetworkStatusLabel(
+  status: {
+    phase: 'reading-clash-nodes' | 'switching-clash-node' | 'retrying-request';
+    groupName?: string;
+    nodeName?: string;
+    attempt?: number;
+    total?: number;
+  },
+  t: (key: string) => string,
+): string {
+  if (status.phase === 'reading-clash-nodes') {
+    return t('chat.llmNetwork.readingNodes');
+  }
+
+  const attempt =
+    status.attempt !== undefined && status.total !== undefined
+      ? `${status.attempt}/${status.total}`
+      : '';
+  const nodeName = status.nodeName ?? '';
+  const groupName = status.groupName ?? '';
+  const key =
+    status.phase === 'switching-clash-node'
+      ? 'chat.llmNetwork.switchingNode'
+      : 'chat.llmNetwork.retryingRequest';
+  return t(key)
+    .replace('{attempt}', attempt)
+    .replace('{node}', nodeName)
+    .replace('{group}', groupName);
 }
 
 // Custom event types for optimistic messaging
@@ -341,6 +374,7 @@ export const ChatHistory = () => {
   const isWorking = useKartonState((s) =>
     openAgent ? s.agents.instances[openAgent]?.state.isWorking : false,
   );
+  const llmNetworkStatus = useKartonState((s) => s.llmNetworkStatus);
   const history = useKartonState((s) =>
     openAgent
       ? (s.agents.instances[openAgent]?.state.history ?? EMPTY_HISTORY)
@@ -866,6 +900,12 @@ export const ChatHistory = () => {
   const loadingIndicator = useMemo<LoadingIndicatorState | null>(() => {
     const lastMessage = filteredMessages[filteredMessages.length - 1];
     if (!lastMessage) return null;
+    if (isWorking && llmNetworkStatus) {
+      return {
+        kind: 'llm-network',
+        label: formatLlmNetworkStatusLabel(llmNetworkStatus, t),
+      };
+    }
     const optimisticClientId = lastMessage._clientId;
     const isOptimistic = lastMessage._optimistic === true;
     if (isOptimistic && workspacePreparation) {
@@ -887,7 +927,10 @@ export const ChatHistory = () => {
     )
       return { kind: 'working' };
     return null;
-  }, [isWorking, filteredMessages, workspacePreparation]);
+  }, [isWorking, filteredMessages, workspacePreparation, llmNetworkStatus, t]);
+  const loadingIndicatorCacheKey = loadingIndicator
+    ? `${loadingIndicator.kind}:${getLoadingIndicatorLabel(loadingIndicator)}`
+    : null;
 
   // Show between-steps indicator inside the last assistant message
   const showBetweenStepsIndicator = useMemo(() => {
@@ -1018,7 +1061,7 @@ export const ChatHistory = () => {
   const userMsgIdsInCacheRef = useRef(new Set<string>());
   const cacheGenRef = useRef(0);
   const prevIsWorkingCacheRef = useRef(isWorking);
-  const prevLoadingIndicatorKindRef = useRef(loadingIndicator?.kind ?? null);
+  const prevLoadingIndicatorKeyRef = useRef(loadingIndicatorCacheKey);
   const prevStructuralDepsRef = useRef({
     msgLen: filteredMessages.length,
     paddingRight,
@@ -1035,17 +1078,16 @@ export const ChatHistory = () => {
       prev.msgLen !== filteredMessages.length ||
       prev.paddingRight !== paddingRight ||
       prev.openAgent !== openAgent;
-    const loadingIndicatorKind = loadingIndicator?.kind ?? null;
     const isWorkingChange = prevIsWorkingCacheRef.current !== isWorking;
     const loadingIndicatorChange =
-      prevLoadingIndicatorKindRef.current !== loadingIndicatorKind;
+      prevLoadingIndicatorKeyRef.current !== loadingIndicatorCacheKey;
     prevStructuralDepsRef.current = {
       msgLen: filteredMessages.length,
       paddingRight,
       openAgent,
     };
     prevIsWorkingCacheRef.current = isWorking;
-    prevLoadingIndicatorKindRef.current = loadingIndicatorKind;
+    prevLoadingIndicatorKeyRef.current = loadingIndicatorCacheKey;
 
     if (structuralChange) {
       elementCacheRef.current.clear();
@@ -1074,7 +1116,7 @@ export const ChatHistory = () => {
     paddingRight,
     openAgent,
     isWorking,
-    loadingIndicator?.kind,
+    loadingIndicatorCacheKey,
   ]);
   // Keep the gen ref in sync (unused directly, but ensures the dep is used)
   cacheGenRef.current = cacheGen;

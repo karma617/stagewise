@@ -12,11 +12,13 @@ declare const __APP_VERSION__: string;
  * Creates a fetch wrapper that attaches the stagewise client identifier
  * header for observability / request logging on the API server.
  */
-function createClientFetch(): typeof globalThis.fetch {
+function createClientFetch(
+  fetchImpl: typeof globalThis.fetch,
+): typeof globalThis.fetch {
   return async (input, init) => {
     const headers = new Headers(init?.headers);
     headers.set('X-Stagewise-Client', `electron/${__APP_VERSION__}`);
-    return globalThis.fetch(input, { ...init, headers });
+    return fetchImpl(input, { ...init, headers });
   };
 }
 
@@ -227,6 +229,7 @@ const stagewiseMetadataExtractor: MetadataExtractor = {
 export type StagewiseProviderSettings = {
   apiKey: string;
   baseURL: string;
+  fetch?: typeof globalThis.fetch;
 };
 
 /**
@@ -249,7 +252,7 @@ export function createStagewise(
     name: 'stagewise',
     apiKey: settings.apiKey,
     baseURL: settings.baseURL,
-    fetch: createClientFetch(),
+    fetch: createClientFetch(settings.fetch ?? globalThis.fetch),
     metadataExtractor: stagewiseMetadataExtractor,
     includeUsage: true,
     supportsStructuredOutputs: true,

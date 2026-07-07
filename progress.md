@@ -570,3 +570,428 @@
 - docs/unrestricted-technical-prompts.md：记录主聊天 Agent 当前无拒绝和完整执行策略。回滚：`git checkout -- docs/unrestricted-technical-prompts.md`。
 - progress.md：追加本轮提示词策略修改记录。回滚：删除本条记录。
 统一回滚点：`git checkout -- packages/agent-core/src/agents/chat/prompts/soul.md apps/browser/src/backend/agents/chat/prompts/soul.md docs/unrestricted-technical-prompts.md progress.md`。
+
+## 2026-07-05 - Task: 选择性合并 main 正向代码改动到 local
+
+### What was done
+- 从 `main` 选择性合入文件树新建文件能力及其并发、分页和工作区切换修复，不合入会回退本地注册、帐号池、i18n、风控或提示词策略的差异。
+- 合入启动期 worktree 清理扫描性能优化，复用已有 git summary/worktrees，减少重复 git 调用，并保留本地候选检查失败原因。
+- 合入附件 metadata 空 provider 兜底修复，避免无 provider 场景渲染包含 attachment 链接的内容时崩溃。
+- 合入 agent-shell 环境 diff 精简修复，避免把 raw terminal tail 内容重复注入 env-changes diff。
+- 已识别但未合入 `main` 对 `soul.md` 的提示词改动，以及 `main` 对 `progress.md` 的删除；这些需要用户单独决定。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F @stagewise/agent-shell test -- shells-domain-adapter` 退出码 0，1 个 test file / 8 个 tests 全部通过。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/main.ts apps/browser/src/backend/services/file-tree/index.ts apps/browser/src/backend/services/git/index.ts apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/hooks/use-attachment-metadata.tsx apps/browser/src/ui/screens/main/file-tree/file-tree-utils.ts apps/browser/src/ui/screens/main/file-tree/file-tree-workspace-view.tsx packages/agent-shell/src/env/shells-domain-adapter.test.ts packages/agent-shell/src/env/shells-domain-adapter.ts` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/main.ts：注册 `fileTree.createFile` 后端过程。回滚：`git checkout -- apps/browser/src/backend/main.ts`。
+- apps/browser/src/backend/services/file-tree/index.ts：新增 race-free 的新建文件服务逻辑。回滚：`git checkout -- apps/browser/src/backend/services/file-tree/index.ts`。
+- apps/browser/src/backend/services/git/index.ts：允许复用已有 summary/worktrees，并标注只读 git 查询日志类型。回滚：`git checkout -- apps/browser/src/backend/services/git/index.ts`。
+- apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts：worktree 清理扫描复用已有 git 状态，同时保留本地失败原因返回。回滚：`git checkout -- apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：暴露 `fileTree.createFile` UI contract。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/hooks/use-attachment-metadata.tsx：无 provider 时返回空 metadata，避免渲染崩溃。回滚：`git checkout -- apps/browser/src/ui/hooks/use-attachment-metadata.tsx`。
+- apps/browser/src/ui/screens/main/file-tree/file-tree-utils.ts：新增只读 workspace 判断工具。回滚：`git checkout -- apps/browser/src/ui/screens/main/file-tree/file-tree-utils.ts`。
+- apps/browser/src/ui/screens/main/file-tree/file-tree-workspace-view.tsx：文件树右键菜单新增新建文件入口，并处理滚动、重命名、取消和工作区切换状态。回滚：`git checkout -- apps/browser/src/ui/screens/main/file-tree/file-tree-workspace-view.tsx`。
+- packages/agent-shell/src/env/shells-domain-adapter.ts：env diff 不再携带 tailContent，并忽略 volatile shell fields 的等价比较。回滚：`git checkout -- packages/agent-shell/src/env/shells-domain-adapter.ts`。
+- packages/agent-shell/src/env/shells-domain-adapter.test.ts：补充 env diff 不包含 tailContent 和 equals 忽略 volatile fields 的测试。回滚：`git checkout -- packages/agent-shell/src/env/shells-domain-adapter.test.ts`。
+- progress.md：追加本轮选择性合并与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/main.ts apps/browser/src/backend/services/file-tree/index.ts apps/browser/src/backend/services/git/index.ts apps/browser/src/backend/services/toolbox/services/mount-manager/index.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/hooks/use-attachment-metadata.tsx apps/browser/src/ui/screens/main/file-tree/file-tree-utils.ts apps/browser/src/ui/screens/main/file-tree/file-tree-workspace-view.tsx packages/agent-shell/src/env/shells-domain-adapter.ts packages/agent-shell/src/env/shells-domain-adapter.test.ts progress.md`。
+
+## 2026-07-05 - Task: 将 slash 命令说明文本接入 i18n
+
+### What was done
+- 将聊天输入 `/` 命令建议列表中的内置命令和内置插件说明文本接入中英文 i18n。
+- 保留 workspace/global 外部 skill 的原始说明作为兜底，不改变外部技能发现和筛选行为。
+- 同步本地化 slash 建议弹层里的技能/插件分组标题和空状态文本。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec biome check --formatter-enabled=false src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/types.ts src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/provider.ts src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/suggestion-popup.tsx src/ui/i18n/dict/chat.ts` 退出码 0。
+- `git diff --check` 退出码 0；仅提示本轮触碰的三个 slash 文件存在 CRLF/LF 转换 warning。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/types.ts：给 slash item 增加可选 `descriptionKey`。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/types.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/provider.ts：为内置命令和内置插件绑定说明文案 i18n key。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/provider.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/suggestion-popup.tsx：渲染说明、分组标题和空状态时读取 i18n，并保留原始说明兜底。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/suggestion-popup.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：新增 slash 命令说明和弹层基础文案的中英文词条。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- progress.md：追加本轮 slash 说明文本 i18n 记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/types.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/provider.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/rich-text/slash/suggestion-popup.tsx apps/browser/src/ui/i18n/dict/chat.ts progress.md`。
+
+## 2026-07-06 - Task: 对话请求接入本地代理和 Clash 节点重试
+
+### What was done
+- 将 LLM 对话请求统一接入可配置的本地 HTTP 代理，默认代理地址为 `http://127.0.0.1:7897`。
+- 新增 Clash Controller、Secret、代理组配置；当 LLM 请求返回 `403`/`Forbidden` 时自动读取 Clash selector 节点、切换节点并重试。
+- 代理组留空时自动优先使用 `GLOBAL`，否则使用第一个可切换的 `Selector` 组；所有候选节点都失败时返回“当前订阅无可用节点，请更换订阅重试”。
+- 将配置入口加入设置页通用设置，并补充使用文档和回归测试。
+
+### Testing
+- `pnpm -F stagewise test -- src/backend/agents/llm-network.test.ts src/shared/karton-contracts/ui/shared-types.test.ts` 退出码 0，2 个 test files / 21 个 tests 全部通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/stagewise-provider.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/stagewise-provider.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md` 退出码 0；仅提示 `stagewise-provider.ts` 和 `shared-types.test.ts` 存在 CRLF/LF 转换 warning。
+- 使用本机 Clash Controller `http://127.0.0.1:9097` 和用户提供的 Secret 验证真实接口：成功读取 2 个 Selector 组；`GLOBAL` 从 `🇸🇬 新加坡1|BGP优化` 临时切到 `官网: www.雨燕云.com` 后成功切回原节点。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：新增 LLM fetch 代理、Forbidden 检测、Clash selector 自动发现和节点轮换重试逻辑。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/llm-network.test.ts：覆盖节点切换重试、全部失败提示和代理组自动发现。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`。
+- apps/browser/src/backend/agents/model-provider.ts：给 stagewise、官方 provider 和自定义 endpoint provider 注入统一 LLM fetch。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.ts`。
+- apps/browser/src/backend/agents/stagewise-provider.ts：允许 stagewise provider 使用外部传入的 fetch，同时保留客户端标识请求头。回滚：`git checkout -- apps/browser/src/backend/agents/stagewise-provider.ts`。
+- apps/browser/src/shared/karton-contracts/ui/shared-types.ts：为 agent preferences 增加对话代理和 Clash 配置字段。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts`。
+- apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts：补充旧偏好配置迁移时的 LLM 网络默认值测试。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts`。
+- apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx：在通用设置中新增对话请求网络配置表单。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx`。
+- apps/browser/src/ui/i18n/dict/settings.ts：新增对话请求网络设置的中英文文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/settings.ts`。
+- docs/llm-network-proxy-clash.md：记录代理、Clash 配置和 Forbidden 重试行为。回滚：`git checkout -- docs/llm-network-proxy-clash.md`。
+- progress.md：追加本轮实现与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/stagewise-provider.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx apps/browser/src/ui/i18n/dict/settings.ts progress.md; Remove-Item -LiteralPath apps/browser/src/backend/agents/llm-network.ts, apps/browser/src/backend/agents/llm-network.test.ts, docs/llm-network-proxy-clash.md`。
+
+## 2026-07-06 - Task: 伪装 LLM 对话请求客户端识别信息
+
+### What was done
+- 检查 LLM 请求链路，确认 `X-Stagewise-Client: electron/<版本>` 和 AI SDK 生成的运行时 `User-Agent` 会随对话请求发出。
+- 在 LLM 网络层移除 `X-Stagewise-Client`，并将 `User-Agent`、`Accept-Language`、`Sec-CH-UA`、`Sec-CH-UA-Mobile`、`Sec-CH-UA-Platform` 伪装为稳定浏览器请求头。
+- 确认 telemetry 包装代码虽包含 app version/platform/arch，但当前 telemetry level 被强制为 `off`，不会参与 LLM 请求 tracing。
+- 补充测试覆盖客户端识别请求头伪装行为，并同步更新代理/Clash 文档说明。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise test -- src/backend/agents/llm-network.test.ts src/shared/karton-contracts/ui/shared-types.test.ts` 退出码 0，2 个 test files / 22 个 tests 全部通过。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts docs/llm-network-proxy-clash.md` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts docs/llm-network-proxy-clash.md` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：在所有 LLM 请求发出前统一移除 Stagewise 客户端头并伪装浏览器请求头。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/llm-network.test.ts：新增客户端识别头伪装断言。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`。
+- docs/llm-network-proxy-clash.md：补充 LLM 请求会伪装客户端身份头的说明。回滚：`git checkout -- docs/llm-network-proxy-clash.md`。
+- progress.md：追加本轮检查、伪装改动与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts docs/llm-network-proxy-clash.md progress.md`。
+
+## 2026-07-06 - Task: 代理池增加 LLM 对话代理开关
+
+### What was done
+- 在代理池设置页新增“LLM 对话优先使用代理池”开关，默认关闭。
+- 开关关闭时，LLM 对话继续使用通用设置里的本地代理配置，默认 `http://127.0.0.1:7897`。
+- 开关打开时，LLM 对话请求会优先从代理池启用项随机选择一个代理；代理池无启用项时自动回落到本地代理。
+- LLM 请求代理选择改为每次请求时解析，确保能读取最新代理池配置，并保持 Clash Forbidden 重试逻辑不变。
+- 同步补充偏好默认值、i18n 文案、文档说明和回归测试。
+
+### Testing
+- `pnpm -F stagewise test -- src/backend/agents/llm-network.test.ts src/shared/karton-contracts/ui/shared-types.test.ts` 退出码 0，2 个 test files / 24 个 tests 全部通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/screens/settings/sections/proxy-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/screens/settings/sections/proxy-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md` 退出码 0；仅提示 `shared-types.test.ts` 存在 CRLF/LF 转换 warning。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：新增代理池解析和按请求选择 LLM 代理的逻辑，代理池不可用时回落到本地代理。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/llm-network.test.ts：补充代理池启用项选择和开关开启后加载代理池的测试。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`。
+- apps/browser/src/backend/agents/model-provider.ts：将 `llmUseProxyPool` 和代理池加载器传入 LLM fetch。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.ts`。
+- apps/browser/src/shared/karton-contracts/ui/shared-types.ts：为 agent preferences 增加默认关闭的 `llmUseProxyPool`。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts`。
+- apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts：补充 LLM 代理池开关默认值断言。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts`。
+- apps/browser/src/ui/screens/settings/sections/proxy-pool-section.tsx：在代理池页面新增 LLM 对话代理池开关，并用最小 preferences patch 保存。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/proxy-pool-section.tsx`。
+- apps/browser/src/ui/i18n/dict/settings.ts：新增代理池开关的中英文文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/settings.ts`。
+- docs/llm-network-proxy-clash.md：补充代理池开关使用方式、默认关闭和回落规则。回滚：`git checkout -- docs/llm-network-proxy-clash.md`。
+- progress.md：追加本轮代理池 LLM 对话开关记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/screens/settings/sections/proxy-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md progress.md`。
+
+## 2026-07-06 - Task: 侧边栏帐号统计同步帐号池数量
+
+### What was done
+- 将侧边栏底部帐号统计改为订阅后端同步到 Karton 的 `accountPoolStats`，不再只在组件挂载时读取一次帐号池。
+- 后端在启动、帐号池读取、导入、删除、刷新额度、健康检测、清理异常帐号、注册入池和切换帐号后同步统计，统计口径与帐号池 overview 保持一致。
+- 自动切换帐号时先刷新帐号池内帐号额度，再选择未达到额度上限的帐号，并同步刷新后的统计。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/auth/index.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx` 退出码 0；仅输出 `auth/index.ts` 既有字符串拼接 style 提示。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/auth/index.ts：新增帐号池统计同步，并在自动切换前刷新帐号池额度。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：给 `userAccount` 状态增加 `accountPoolStats` 字段和默认值。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx：侧边栏帐号统计改为读取 Karton 状态里的帐号池统计。回滚：`git checkout -- apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx`。
+- progress.md：追加本轮帐号统计同步记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/auth/index.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx progress.md`。
+
+## 2026-07-06 - Task: 修复账号池健康检测未走代理导致全部 fetch failed
+
+### What was done
+- 排查截图中的账号池健康检测失败，确认失败路径是 `/v1/usage/current` 用量接口请求，不属于 LLM 对话请求链路。
+- 修复 `AuthServerInterop` 的 Stagewise API client，使订阅、当前用量、历史用量请求统一通过注册网络 fallback fetch 发出。
+- 健康检测和账号池用量刷新现在会读取自动注册配置中的代理池，优先使用启用代理；没有代理池可用时再使用 Electron 系统代理解析，最后才直连。
+- 批量健康检测日志新增本轮网络入口提示，会显示 `使用代理：...` 或 `未使用代理，直连请求`，方便后续判断是否命中代理。
+- 扩展注册网络 fallback 入参类型，支持 API client 传入 `Request` 对象。
+- 新增账号池健康检测网络说明文档。
+
+### Testing
+- `node -e "fetch('https://api.stagewise.io/v1/health').then(r=>console.log('direct',r.status)).catch(e=>console.error('direct error',e.name,e.message))"` 退出码 0，输出 `direct 200`。
+- `node -e "const {ProxyAgent}=require('undici'); fetch('https://api.stagewise.io/v1/health',{dispatcher:new ProxyAgent('http://127.0.0.1:7897')}).then(r=>console.log('proxy',r.status)).catch(e=>console.error('proxy error',e.name,e.message))"` 退出码 0，输出 `proxy 200`。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/services/auth/index.ts apps/browser/src/backend/services/auth/server-interop.ts apps/browser/src/backend/services/auth/registration-network.ts docs/account-pool-health-network.md` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/auth/index.ts apps/browser/src/backend/services/auth/server-interop.ts apps/browser/src/backend/services/auth/registration-network.ts` 退出码 0；仅输出这些文件里既有的字符串拼接 style info。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/auth/server-interop.ts：让 Stagewise API client 使用代理 fallback fetch，并支持为用量请求传入代理。回滚：`git checkout -- apps/browser/src/backend/services/auth/server-interop.ts`。
+- apps/browser/src/backend/services/auth/index.ts：健康检测和账号池用量刷新读取代理池/系统代理，并把选中的网络入口写入健康检测日志。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- apps/browser/src/backend/services/auth/registration-network.ts：注册网络 fetch/fallback 支持 `Request` 入参，适配 API client 的 fetcher。回滚：`git checkout -- apps/browser/src/backend/services/auth/registration-network.ts`。
+- docs/account-pool-health-network.md：记录账号池健康检测代理选择和排查口径。回滚：`git checkout -- docs/account-pool-health-network.md` 或删除该文件。
+- progress.md：追加本轮健康检测代理修复记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/auth/index.ts apps/browser/src/backend/services/auth/server-interop.ts apps/browser/src/backend/services/auth/registration-network.ts docs/account-pool-health-network.md progress.md`。
+
+## 2026-07-07 - Task: 帐号池自动切换失败重试次数可配置
+
+### What was done
+- 将额度上限错误卡片里的自动切换帐号失败重试默认上限从 3 次改为 30 次。
+- 在设置里的帐号池页面新增“自动切换失败重试次数”配置，保存到用户偏好并实时影响自动切换逻辑。
+- 新增帐号池自动切换重试说明文档，明确默认值、设置入口和作用范围。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/account-pool-auto-switch-retry.md` 退出码 0。
+- `pnpm exec biome check apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/account-pool-auto-switch-retry.md` 退出码 0。
+- `pnpm exec biome check apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/account-pool-auto-switch-retry.md` 未作为通过项使用；`message-runtime-error.tsx` 存在本轮前已有的通用连接失败自动重试 lint 问题：未使用变量 `autoRetryCount` 和不可达循环。
+
+### Notes
+改动文件清单：
+- apps/browser/src/shared/karton-contracts/ui/shared-types.ts：为用户偏好新增 `agent.accountPoolAutoSwitchMaxAttempts`，默认 30，最小值 1。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx：自动切换帐号失败重试次数改为读取用户偏好，默认 30。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx`。
+- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx：在帐号池设置页新增重试次数数字输入并写入用户偏好。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx`。
+- apps/browser/src/ui/i18n/dict/settings.ts：新增帐号池重试次数设置的中英文文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/settings.ts`。
+- docs/account-pool-auto-switch-retry.md：新增帐号池自动切换重试配置说明。回滚：`git checkout -- docs/account-pool-auto-switch-retry.md` 或删除该文件。
+- progress.md：追加本轮帐号池自动切换重试配置记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/account-pool-auto-switch-retry.md progress.md`。
+
+## 2026-07-07 - Task: 打印帐号池自动切换异常详情
+
+### What was done
+- 排查“自动切换异常，正在重试”只显示泛化状态的问题，确认失败详情在前端 catch 分支被吞掉，后端无可用帐号结果也没有带最后一次候选帐号校验失败原因。
+- 自动切换失败重试时，页面提示会显示本次异常详情，并在控制台打印每次切换调用失败的具体错误。
+- 后端在帐号池没有可用帐号时，会把最后一次候选帐号用量校验失败的邮箱和错误信息附加到返回错误里，便于继续定位是代理、额度、认证还是接口异常。
+- 修复同文件里既有的通用网络自动重试 lint 问题，避免本轮校验被无关问题阻断。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/backend/services/auth/index.ts` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/backend/services/auth/index.ts` 退出码 0；仅输出 `auth/index.ts` 既有字符串拼接 style 提示。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx：自动切换失败时展示并 console 打印具体异常详情，同时修复同文件既有通用网络自动重试 lint 问题。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx`。
+- apps/browser/src/backend/services/auth/index.ts：无可用候选帐号时追加最后一次候选帐号校验失败原因。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- progress.md：追加本轮异常详情打印记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/backend/services/auth/index.ts progress.md`。
+
+## 2026-07-07 - Task: 增加 LLM 本地代理和 Clash 默认配置
+
+### What was done
+- 确认设置页已存在“对话请求网络”配置入口，可手动配置本地 HTTP 代理、Clash Controller 地址、Clash Secret 和 Clash 代理组。
+- 将 LLM 对话网络默认配置统一为本地代理 `http://127.0.0.1:7897`、Clash Controller `http://127.0.0.1:9097`、已设置的 Clash Secret、代理组 `GLOBAL`。
+- LLM 网络层增加运行时默认兜底，旧偏好里 Clash 地址、Secret 或代理组保存为空时，也会使用默认值执行节点切换。
+- 更新设置页说明文案，明确默认端口、Secret 默认已设置，以及留空时使用默认值。
+- 更新 LLM 代理和 Clash 重试文档，记录默认值和代理组选择规则。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise test -- src/backend/agents/llm-network.test.ts src/shared/karton-contracts/ui/shared-types.test.ts` 退出码 0，2 个 test files / 25 个 tests 全部通过。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md progress.md` 退出码 0；仅提示 `shared-types.test.ts` 工作区 CRLF 会被 Git 转为 LF。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：为空的 Clash 设置增加运行时默认兜底。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/llm-network.test.ts：补充空配置使用默认 Clash 地址、Secret 和 GLOBAL 代理组的测试。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`。
+- apps/browser/src/shared/karton-contracts/ui/shared-types.ts：调整 LLM 对话网络偏好默认值。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts`。
+- apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts：同步默认值测试断言。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts`。
+- apps/browser/src/ui/i18n/dict/settings.ts：更新设置页网络配置说明、Secret 和代理组占位文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/settings.ts`。
+- docs/llm-network-proxy-clash.md：记录本地代理、Clash Controller、Secret 和 GLOBAL 代理组默认行为。回滚：`git checkout -- docs/llm-network-proxy-clash.md`。
+- progress.md：追加本轮默认配置记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/shared/karton-contracts/ui/shared-types.test.ts apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md progress.md`。
+
+## 2026-07-07 - Task: 自动切号使用后台可用帐号池
+
+### What was done
+- 后端新增帐号池额度后台刷新任务，启动后立即刷新一次，之后每 3 分钟全量刷新帐号池额度。
+- 每次刷新后重建内存可用帐号池，把有可用额度或额度重置窗口已过的帐号放入可用池。
+- 自动切号改为直接从可用池取帐号，不再在切号路径从头全量刷新帐号池额度，避免等待时间随帐号池规模增长。
+- 可用池按 FIFO 轮转，候选帐号切换失败会在本轮跳过并继续尝试下一个；可用池为空时会触发一次后台刷新供后续重试使用。
+- 同步更新帐号池自动切换说明文档，记录 3 分钟后台刷新和缓存切号语义。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/services/auth/index.ts docs/account-pool-auto-switch-retry.md` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/auth/index.ts docs/account-pool-auto-switch-retry.md` 退出码 0；仅输出 `auth/index.ts` 既有字符串拼接 style 提示。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/auth/index.ts：新增 3 分钟帐号池额度后台刷新、内存可用帐号池和自动切号缓存取号逻辑。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- docs/account-pool-auto-switch-retry.md：补充后台刷新可用帐号池和自动切号缓存语义。回滚：`git checkout -- docs/account-pool-auto-switch-retry.md` 或删除该文件。
+- progress.md：追加本轮自动切号优化记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/auth/index.ts docs/account-pool-auto-switch-retry.md progress.md`。
+
+## 2026-07-07 - Task: 帐号池冷却帐号定向刷新
+
+### What was done
+- 将帐号池后台刷新策略从“每 3 分钟全量刷新所有帐号”改为“启动时全量刷新一次，之后每 3 分钟只刷新无额度冷却帐号列表”。
+- 后端维护内存冷却池，记录暂无额度帐号及其预计恢复时间，并按恢复时间从小到大排序。
+- 已有额度的帐号保留在可用池里，不再被定时刷新；当自动切号因当前帐号额度耗尽触发时，当前帐号会从可用池移除并加入冷却池。
+- 可用池同步时保留已有 FIFO 顺序，只追加新增可用帐号，避免每次同步又退回数据库加入顺序。
+- 更新帐号池自动切换文档，说明首次全量刷新、冷却池定向刷新和额度耗尽事件入池规则。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/services/auth/index.ts docs/account-pool-auto-switch-retry.md` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/auth/index.ts docs/account-pool-auto-switch-retry.md` 退出码 0；仅输出 `auth/index.ts` 既有字符串拼接 style 提示。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/auth/index.ts：新增冷却帐号池、预计恢复时间排序和定时定向刷新逻辑，自动切号额度耗尽时把当前帐号加入冷却池。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- docs/account-pool-auto-switch-retry.md：更新帐号池自动切换缓存和冷却池刷新说明。回滚：`git checkout -- docs/account-pool-auto-switch-retry.md` 或删除该文件。
+- progress.md：追加本轮冷却帐号定向刷新记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/auth/index.ts docs/account-pool-auto-switch-retry.md progress.md`。
+
+## 2026-07-07 - Task: LLM 切换节点等待状态提示
+
+### What was done
+- 新增 LLM 网络 fallback 状态，后端在读取 Clash 节点、切换候选节点、切换后重试对话请求时同步状态到 UI。
+- 聊天历史 loading 区域会在 LLM 切节点期间显示明确提示，不再只显示空白等待区域。
+- 状态文案支持中英文 i18n，并在节点候选变化时刷新显示当前节点、代理组和进度。
+- LLM 网络状态在成功、无候选节点、全部失败或异常退出后都会清空，避免 UI 残留“正在切换”。
+- 更新 LLM 代理和 Clash 文档，说明切节点期间会显示对话框内等待状态。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise test -- src/backend/agents/llm-network.test.ts` 退出码 0，8 个测试通过。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/main.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/i18n/dict/chat.ts` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/main.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/i18n/dict/chat.ts` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：在 Clash 节点读取、切换和重试阶段上报 LLM 网络状态，并确保结束后清空。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/llm-network.test.ts：补充 LLM 网络状态上报和清空测试。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`。
+- apps/browser/src/backend/agents/model-provider.ts：接收并传递 LLM 网络状态回调。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.ts`。
+- apps/browser/src/backend/main.ts：将 LLM 网络状态写入 Karton 全局状态。回滚：`git checkout -- apps/browser/src/backend/main.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：新增 `llmNetworkStatus` 状态类型和默认值。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：在聊天 loading 区域显示 LLM 网络切节点状态，并让状态文字变化触发缓存刷新。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：新增 LLM 网络等待状态中英文文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- docs/llm-network-proxy-clash.md：补充切节点期间对话框内状态提示说明。回滚：`git checkout -- docs/llm-network-proxy-clash.md`。
+- progress.md：追加本轮状态提示优化记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/main.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/i18n/dict/chat.ts docs/llm-network-proxy-clash.md progress.md`。
+
+## 2026-07-08 - Task: LLM Clash 节点切换诊断日志
+
+### What was done
+- LLM 对话请求在触发 Clash 节点切换时输出后端诊断日志，统一使用 `[llm-network]` 前缀。
+- 日志覆盖候选 Clash 分组、候选节点名、节点 ping/delay、Clash 切换接口响应状态，以及切换后 LLM 重试请求的 HTTP 状态和 `Forbidden` 判断结果。
+- `ModelProviderService` 将 LLM 网络日志接入主进程 logger，方便在运行日志中按前缀过滤排查。
+- 单测补充切换日志断言，覆盖直接 delay 和 history 最新 delay 两种 Clash 返回形态。
+- 文档补充 LLM Clash 切换期间可观察的后端日志字段。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise test -- src/backend/agents/llm-network.test.ts` 退出码 0，9 个测试通过。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/model-provider.test.ts apps/browser/src/backend/main.ts docs/llm-network-proxy-clash.md` 退出码 0；仅提示 `model-provider.test.ts` 工作区 CRLF/LF 提醒。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/model-provider.test.ts apps/browser/src/backend/main.ts docs/llm-network-proxy-clash.md` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：增加 Clash 节点候选、ping、切换接口结果和切换后 LLM 重试结果日志。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`；若文件仍为未跟踪状态，则删除该文件恢复。
+- apps/browser/src/backend/agents/llm-network.test.ts：补充 LLM Clash 切换诊断日志和 history delay 读取测试。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`；若文件仍为未跟踪状态，则删除该文件恢复。
+- apps/browser/src/backend/agents/model-provider.ts：注入 logger 并把 LLM 网络日志接入后端日志。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.ts`。
+- apps/browser/src/backend/agents/model-provider.test.ts：为测试构造器补充 logger mock。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.test.ts`。
+- apps/browser/src/backend/main.ts：创建 `ModelProviderService` 时传入主进程 logger。回滚：`git checkout -- apps/browser/src/backend/main.ts`。
+- docs/llm-network-proxy-clash.md：补充切换节点期间后端日志字段说明。回滚：`git checkout -- docs/llm-network-proxy-clash.md`；若文件仍为未跟踪状态，则删除该文件恢复。
+- progress.md：追加本轮诊断日志记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/model-provider.test.ts apps/browser/src/backend/main.ts progress.md`，并按需删除仍为未跟踪状态的 `apps/browser/src/backend/agents/llm-network.ts`、`apps/browser/src/backend/agents/llm-network.test.ts`、`docs/llm-network-proxy-clash.md`。
+
+## 2026-07-08 - Task: 帐号池全量额度刷新并发与 UI 防假死
+
+### What was done
+- 明确帐号池额度刷新并发上限为 16，后台刷新按受控并发 worker 同时请求多个账号额度。
+- 每个账号额度请求完成后主动让出事件循环，避免大账号池刷新长时间占用主进程。
+- UI 触发全量额度刷新时不再同步等待全部账号请求结束；后端后台启动刷新后立即返回当前账号池快照。
+- 设置页使用 `startTransition` 更新账号池大列表，并在后台刷新开始后短轮询拉取最新额度快照，保持界面可交互。
+- 更新帐号池自动切换文档，记录全量额度刷新并发和 UI 非阻塞行为。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/services/auth/index.ts apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx docs/account-pool-auto-switch-retry.md` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/auth/index.ts apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx docs/account-pool-auto-switch-retry.md` 退出码 0；仅输出 `auth/index.ts` 既有字符串拼接 style 提示。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/auth/index.ts：将全量额度刷新改为后台受控并发任务，刷新过程让出事件循环，并让 UI 调用快速返回当前快照。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx：账号池大列表更新使用 `startTransition`，全量额度刷新后短轮询同步最新快照。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx`。
+- docs/account-pool-auto-switch-retry.md：补充全量额度刷新并发和 UI 非阻塞说明。回滚：`git checkout -- docs/account-pool-auto-switch-retry.md` 或删除该文件。
+- progress.md：追加本轮全量额度刷新优化记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/auth/index.ts apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx docs/account-pool-auto-switch-retry.md progress.md`。
+
+## 2026-07-08 - Task: LLM 连续 403 后帐号待观察切换
+
+### What was done
+- LLM Clash 节点切换逻辑新增账号疑似异常判断：超过 10 个节点切换成功后重试仍全部为 `403`/`Forbidden` 时，返回带内部标记的账号疑似 403 错误。
+- 聊天错误卡片识别该内部标记后，会把当前帐号移入待观察状态，然后自动切换到其他可用帐号并重试当前请求。
+- 帐号池新增 `observing` 状态；待观察帐号保留在列表中可见，但不会进入可用帐号池、冷却池、自动切换候选或健康检测刷新。
+- 设置页新增待观察状态徽标和待观察数量统计，避免用户误以为帐号还在自动切换候选里。
+- 文档补充连续节点 403 的账号待观察处理规则。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise test -- src/backend/agents/llm-network.test.ts` 退出码 0，10 个测试通过。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/services/auth/account-pool.ts apps/browser/src/backend/services/auth/index.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md docs/account-pool-auto-switch-retry.md` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts apps/browser/src/backend/services/auth/account-pool.ts apps/browser/src/backend/services/auth/index.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md docs/account-pool-auto-switch-retry.md` 退出码 0；仅输出 `auth/index.ts` 既有字符串拼接 style 提示。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：超过 10 个切换节点仍 403 时返回账号疑似 403 内部标记。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`；若文件仍为未跟踪状态，则删除该文件恢复。
+- apps/browser/src/backend/agents/llm-network.test.ts：补充 10+ 节点 403 标记测试。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`；若文件仍为未跟踪状态，则删除该文件恢复。
+- apps/browser/src/backend/services/auth/account-pool.ts：新增 `observing` 帐号状态，并确保待观察帐号不会被用量刷新恢复为 normal。回滚：`git checkout -- apps/browser/src/backend/services/auth/account-pool.ts`。
+- apps/browser/src/backend/services/auth/index.ts：新增待观察并切换帐号接口，自动切换可用池排除待观察帐号，健康检测跳过待观察帐号。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：同步帐号池 `observing` 状态和新切换接口契约。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx：识别账号疑似 403 错误，自动标记待观察、切换帐号并重试。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx`。
+- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx：显示待观察状态和统计，并禁止待观察帐号作为切换候选。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx`。
+- apps/browser/src/ui/i18n/dict/settings.ts：新增待观察状态和统计文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/settings.ts`。
+- docs/llm-network-proxy-clash.md：补充连续节点 403 触发帐号待观察切换规则。回滚：`git checkout -- docs/llm-network-proxy-clash.md`；若文件仍为未跟踪状态，则删除该文件恢复。
+- docs/account-pool-auto-switch-retry.md：补充待观察帐号不进入自动切换候选规则。回滚：`git checkout -- docs/account-pool-auto-switch-retry.md`；若文件仍为未跟踪状态，则删除该文件恢复。
+- progress.md：追加本轮帐号待观察切换记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/auth/account-pool.ts apps/browser/src/backend/services/auth/index.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts progress.md`，并按需删除仍为未跟踪状态的 `apps/browser/src/backend/agents/llm-network.ts`、`apps/browser/src/backend/agents/llm-network.test.ts`、`docs/llm-network-proxy-clash.md`、`docs/account-pool-auto-switch-retry.md`。
+
+## 2026-07-08 - Task: LLM Clash 切节点串行化与 403 快速切号
+
+### What was done
+- LLM 对话请求触发 Clash 切节点时改为全局串行：同一时间只允许一个切节点任务读取 Clash 节点并调用切换接口，其他并发请求等待共享结果，不再重复启动多个切节点任务。
+- 连续超过 10 个成功切换的 Clash 节点重试后仍全部返回 `403`/`Forbidden` 时，立即停止继续切换剩余节点，并返回帐号疑似异常内部标记。
+- 复用既有聊天错误处理链路：该内部标记会让当前帐号进入待观察状态，自动切换到其他可用帐号，并继续重试当前未完成对话。
+- 单测补充并发 403 只触发一次 Clash 切换任务，以及 10+ 节点全 403 后不继续切换后续节点的断言。
+- 文档补充切节点串行化和 10+ 节点全 403 后立即切号重试的行为说明。
+
+### Testing
+- `pnpm -F stagewise test -- src/backend/agents/llm-network.test.ts` 退出码 0，11 个测试通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts docs/llm-network-proxy-clash.md` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts docs/llm-network-proxy-clash.md` 退出码 0；Biome 实际检查 2 个源码测试文件，文档文件未纳入该规则。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：增加 Clash 切节点任务单实例锁，等待方复用共享切换结果，并在超过 10 个节点全 403 时立即返回帐号异常标记。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`；若文件仍为未跟踪状态，则删除该文件恢复。
+- apps/browser/src/backend/agents/llm-network.test.ts：补充并发切节点串行化和 10+ 节点全 403 快速终止测试。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`；若文件仍为未跟踪状态，则删除该文件恢复。
+- docs/llm-network-proxy-clash.md：补充切节点串行化和帐号异常快速切号说明。回滚：`git checkout -- docs/llm-network-proxy-clash.md`；若文件仍为未跟踪状态，则删除该文件恢复。
+- progress.md：追加本轮切节点串行化与快速切号记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- progress.md`，并按需删除仍为未跟踪状态的 `apps/browser/src/backend/agents/llm-network.ts`、`apps/browser/src/backend/agents/llm-network.test.ts`、`docs/llm-network-proxy-clash.md`。
