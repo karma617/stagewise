@@ -40,6 +40,11 @@ the selected group's nodes, switches to each remaining node, and retries the
 same request through the selected LLM proxy. With proxy-pool mode enabled, the
 selected proxy is held for that request and its Clash retries.
 
+
+Automatic node switching on `403`/`Forbidden` is enabled by default. Use
+Settings -> General -> Chat request network -> **Auto-switch node on 403** to
+disable it. When disabled, the current Clash node is kept and only account-pool
+switching handles quota errors.
 Only one Clash node switch task can run at a time. If multiple chat requests
 hit `403` concurrently, the first request owns the Clash switch loop and the
 other requests wait for that shared result instead of starting duplicate
@@ -52,6 +57,9 @@ candidate node, and retrying the chat request after a node switch.
 Backend logs use the `[llm-network]` prefix during node rotation. They include
 the Clash group, candidate node name, Clash ping/delay, the Clash switch API
 status, and the retried LLM request's HTTP status plus `Forbidden` result.
+
+Node candidates are shuffled randomly on each round (Fisher-Yates), so retries
+do not always start from the same first node in the pool.
 
 If every candidate node still fails with `Forbidden`, the request fails with:
 

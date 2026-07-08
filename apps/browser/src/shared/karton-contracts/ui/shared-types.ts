@@ -569,6 +569,8 @@ export const userPreferencesSchema = z.object({
       clashApiSecret: z.string().default('88521617'),
       /** Clash selector/proxy group to rotate when LLM requests are forbidden. */
       clashProxyGroup: z.string().default('GLOBAL'),
+      /** Whether to auto-switch Clash nodes when LLM requests return 403/Forbidden. */
+      clashAutoSwitchOnForbidden: z.boolean().default(true),
       /** Max attempts for automatic account-pool switching after quota errors. */
       accountPoolAutoSwitchMaxAttempts: z.number().int().min(1).default(30),
       /**
@@ -598,6 +600,7 @@ export const userPreferencesSchema = z.object({
       clashApiUrl: 'http://127.0.0.1:9097',
       clashApiSecret: '88521617',
       clashProxyGroup: 'GLOBAL',
+      clashAutoSwitchOnForbidden: true,
       accountPoolAutoSwitchMaxAttempts: 30,
       enabledGlobalSkillDirs: [],
       disabledGlobalSkills: [],
@@ -720,6 +723,7 @@ export const defaultUserPreferences: UserPreferences = {
     clashApiUrl: 'http://127.0.0.1:9097',
     clashApiSecret: '88521617',
     clashProxyGroup: 'GLOBAL',
+    clashAutoSwitchOnForbidden: true,
     accountPoolAutoSwitchMaxAttempts: 30,
     enabledGlobalSkillDirs: [],
     disabledGlobalSkills: [],

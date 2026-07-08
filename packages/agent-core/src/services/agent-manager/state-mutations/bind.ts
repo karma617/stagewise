@@ -25,8 +25,12 @@ import {
 import {
   recordUsage,
   setActiveModel,
+  blockGoal,
+  clearGoal,
+  completeGoal,
   setInputState,
   setIsWorkingFalse,
+  startGoal,
   setTitle,
   setUsageWarning,
   setUserTitle,
@@ -77,6 +81,13 @@ export function bindStateMutations(store: AgentStore, agentInstanceId: string) {
       setUsageWarning(store, agentInstanceId, args),
     recordUsage: (args: Parameters<typeof recordUsage>[2]) =>
       recordUsage(store, agentInstanceId, args),
+    startGoal: (args: Parameters<typeof startGoal>[2]) =>
+      startGoal(store, agentInstanceId, args),
+    completeGoal: (args?: Parameters<typeof completeGoal>[2]) =>
+      completeGoal(store, agentInstanceId, args),
+    blockGoal: (args: Parameters<typeof blockGoal>[2]) =>
+      blockGoal(store, agentInstanceId, args),
+    clearGoal: () => clearGoal(store, agentInstanceId),
 
     enqueueUserMessage: (args: Parameters<typeof enqueueUserMessage>[2]) =>
       enqueueUserMessage(store, agentInstanceId, args),

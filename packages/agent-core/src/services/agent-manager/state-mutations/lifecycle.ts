@@ -57,6 +57,12 @@ export function beginStep(
   updateAgentInstanceState(store, agentInstanceId, (state) => {
     state.isWorking = true;
     state.error = undefined;
+    if (state.goal?.status === 'blocked') {
+      state.goal.status = 'active';
+      state.goal.updatedAt = Date.now();
+      state.goal.blockedAt = undefined;
+      state.goal.blockReason = undefined;
+    }
     if (args.flushQueue && state.queuedMessages.length > 0) {
       queueFlushIndex = state.history.length;
       state.history.push(...state.queuedMessages);
@@ -83,6 +89,20 @@ export function recordStepError(
     state.isWorking = false;
     if (args.error !== undefined) {
       state.error = args.error;
+      if (state.goal?.status === 'active') {
+        const now = Date.now();
+        state.goal.status = 'blocked';
+        state.goal.updatedAt = now;
+        state.goal.blockedAt = now;
+        state.goal.blockReason = args.error.message;
+        state.goal.finalTokenUsage = state.usedTokens;
+      }
+    } else if (state.goal?.status === 'active') {
+      const now = Date.now();
+      state.goal.status = 'complete';
+      state.goal.updatedAt = now;
+      state.goal.completedAt = now;
+      state.goal.finalTokenUsage = state.usedTokens;
     }
     if (args.markUnread === 'always' || args.markUnread === 'mark-unread') {
       state.unread = true;

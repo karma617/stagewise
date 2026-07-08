@@ -995,3 +995,102 @@
 - docs/llm-network-proxy-clash.md：补充切节点串行化和帐号异常快速切号说明。回滚：`git checkout -- docs/llm-network-proxy-clash.md`；若文件仍为未跟踪状态，则删除该文件恢复。
 - progress.md：追加本轮切节点串行化与快速切号记录。回滚：删除本条记录。
 统一回滚点：`git checkout -- progress.md`，并按需删除仍为未跟踪状态的 `apps/browser/src/backend/agents/llm-network.ts`、`apps/browser/src/backend/agents/llm-network.test.ts`、`docs/llm-network-proxy-clash.md`。
+
+
+## 2026-07-08 - Task: LLM 对话目标模式
+
+### What was done
+- 为 AgentState 增加 Codex 风格的目标状态，包含目标内容、active/complete/blocked 状态、时间戳、token 用量和阻塞原因。
+- LLM 对话新增目标模式开关；用户开启后发送消息会把该消息文本作为当前 agent 的可跟踪目标。
+- Agent 运行自然结束时自动把目标标记为 complete；运行错误或用户停止时自动标记为 blocked；重试时自动把 blocked 目标恢复为 active。
+- 每一步 prompt 会附带当前目标上下文，模型可通过 `getGoal`、`createGoal`、`updateGoal` 三个工具查询、创建或更新目标状态。
+- 聊天历史顶部新增目标状态卡片，展示目标、状态和阻塞原因。
+- 同步 Karton 契约、i18n 文案和目标模式维护文档。
+
+### Testing
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 退出码 0，27 个测试通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 和 `pnpm exec biome check --formatter-enabled=false` 对本轮改动文件退出码 0；仅提示部分既有 CRLF/LF 提醒。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/types/agent.ts：新增 AgentGoalState 和 AgentState.goal。回滚：`git checkout -- packages/agent-core/src/types/agent.ts`。
+- packages/agent-core/src/agents/base-agent.ts：注入目标上下文，并新增 getGoal、createGoal、updateGoal 工具。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：发送消息支持 goalMode 参数，并在开启目标模式时创建当前目标。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：新增目标创建、完成、阻塞、清空状态变更，并在停止工作时阻塞目标。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：把目标状态变更接入 bound mutation bundle。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts：运行成功自动完成目标，运行错误自动阻塞目标，重试时自动恢复为 active。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：补充目标创建 mutation 测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts：补充目标完成/阻塞/恢复生命周期测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：同步发送消息目标模式参数契约。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/shared/karton-contracts/ui/agent/index.ts：导出 AgentGoalState 给 UI 使用。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/agent/index.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx：在输入操作区新增目标模式切换按钮。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：维护目标模式开关状态，并随发送消息传给后端。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：新增目标状态卡片。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：新增目标模式中英文文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- docs/agent-goal-mode.md：新增目标模式行为和维护说明。回滚：删除该文件。
+- progress.md：追加本轮目标模式实现记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/types/agent.ts packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/shared/karton-contracts/ui/agent/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-input.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/i18n/dict/chat.ts progress.md`，并删除 `docs/agent-goal-mode.md`。
+
+## 2026-07-08 - Task: Clash 节点更换改为随机起选
+
+### What was done
+- 修复 Clash 节点重试每次都从候选池第 0 个节点开始的偏差：在 `selectClashProxyGroup` 构建完候选节点后做一次 Fisher-Yates 随机打乱，保留遍历全部候选的容错能力，同时让每轮起始节点随机。
+- 同步更新 Clash 节点切换说明文档。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts docs/llm-network-proxy-clash.md` 退出码 0。
+- `pnpm exec biome check apps/browser/src/backend/agents/llm-network.ts` 仅报文件既有格式问题（均不位于本轮新增的 shuffle 块），未作为通过项使用。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：`selectClashProxyGroup` 返回前对 `nodeCandidates` 做 Fisher-Yates 随机打乱，节点重试不再固定从第 0 个开始。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- docs/llm-network-proxy-clash.md：补充候选节点随机打乱说明。回滚：`git checkout -- docs/llm-network-proxy-clash.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts docs/llm-network-proxy-clash.md progress.md`。
+
+## 2026-07-08 - Task: 403 自动切换 Clash 节点开关可配置
+
+### What was done
+- 在用户偏好新增 `agent.clashAutoSwitchOnForbidden` 开关，默认开启，保留原有 403 自动切换节点行为。
+- 开关关闭后，LLM 请求返回 403/Forbidden 时不再轮换 Clash 节点，直接返回原响应，只走帐号池切换逻辑。
+- 在设置 -> 通用 -> 对话请求网络区域新增「403 自动切换节点」开关，保存到用户偏好并实时生效。
+- 同步更新 Clash 节点切换说明文档。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md` 退出码 0。
+- `pnpm exec biome check apps/browser/src/ui/i18n/dict/settings.ts` 通过；`general-settings-section.tsx` 仅报既有格式问题（powerSave、notifications 等区域），不位于本轮新增的 Switch 块。
+
+### Notes
+改动文件清单：
+- apps/browser/src/shared/karton-contracts/ui/shared-types.ts：新增 `clashAutoSwitchOnForbidden` 偏好字段，默认 true。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts`。
+- apps/browser/src/backend/agents/llm-network.ts：`LlmNetworkSettings` 增加 `clashAutoSwitchOnForbidden`，`createLlmFetch` 在为 false 时直接返回 403 响应不轮换节点。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/model-provider.ts：把 `clashAutoSwitchOnForbidden` 传入 createLlmFetch。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.ts`。
+- apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx：LLM 网络设置区新增「403 自动切换节点」Switch。回滚：`git checkout -- apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx`。
+- apps/browser/src/ui/i18n/dict/settings.ts：新增开关中英文文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/settings.ts`。
+- docs/llm-network-proxy-clash.md：补充开关说明。回滚：`git checkout -- docs/llm-network-proxy-clash.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/ui/screens/settings/sections/general-settings-section.tsx apps/browser/src/ui/i18n/dict/settings.ts docs/llm-network-proxy-clash.md progress.md`。
+
+## 2026-07-08 - Task: 403 关闭节点切换时也触发帐号池切换
+
+### What was done
+- 修复「403 自动切换节点」开关关闭后 403 不触发帐号池切换的问题：关闭时命中 403 不再直接返回原响应，改为返回带 `LLM_ACCOUNT_FORBIDDEN_MARKER` 的响应，复用现有 `LlmAccountForbiddenError` 组件触发 `observeCurrentAndSwitchPoolAccount`。
+- 更新 `LlmAccountForbiddenError` 提示文案，覆盖节点轮换失败和节点切换关闭两种场景，不再硬编码「超过 10 个节点」。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：开关关闭时命中 403 返回 `unavailableResponse(true)` 以触发帐号池切换，而非直接返回 firstResponse。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx：更新 `LlmAccountForbiddenError` 提示文案，去掉「超过 10 个节点」硬编码描述。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx progress.md`。

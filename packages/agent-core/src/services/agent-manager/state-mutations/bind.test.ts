@@ -48,6 +48,24 @@ describe('state-mutations/bind', () => {
     expect(store.get().agents.instances.a1?.state.title).toBe('renamed');
   });
 
+  it('starts a goal via the bound bundle', () => {
+    const store = new AgentStore(emptySystemState());
+    upsertAgentInstance(store, 'a1', makeEnvelope(minimalState()));
+
+    bindStateMutations(store, 'a1').startGoal({
+      id: 'goal-1',
+      objective: 'finish the task',
+      sourceMessageId: 'u1',
+    });
+
+    expect(store.get().agents.instances.a1?.state.goal).toMatchObject({
+      id: 'goal-1',
+      objective: 'finish the task',
+      status: 'active',
+      sourceMessageId: 'u1',
+    });
+  });
+
   it('attachEnvState writes envState entries onto the target user message', () => {
     const store = new AgentStore(emptySystemState());
     const userMsg: AgentMessage = {

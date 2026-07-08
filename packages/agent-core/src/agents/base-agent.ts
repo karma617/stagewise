@@ -12,7 +12,7 @@
   type DynamicToolUIPart,
   type ToolSet,
 } from 'ai';
-import type { z } from 'zod';
+import { z } from 'zod';
 import nodePath from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readFile as fsReadFile } from '../fs';
@@ -2550,7 +2550,7 @@ export abstract class BaseAgent<
 
     const filteredUIMsgs = await this.transformMessagesBeforeStep(messages);
 
-    const systemPrompt = await this.getSystemPrompt();
+    const systemPrompt = this.withGoalContext(await this.getSystemPrompt());
 
     const modelMessages = await this.transformMessagesToModelMessages(
       filteredUIMsgs,
@@ -2568,6 +2568,30 @@ export abstract class BaseAgent<
     );
 
     return finalModelMessages;
+  }
+
+  private withGoalContext(systemPrompt: string): string {
+    const goal = this.state.get().goal;
+    if (!goal) return systemPrompt;
+
+    const lines = [
+      '<goal_mode>',
+      `status: ${goal.status}`,
+      `objective: ${goal.objective}`,
+    ];
+    if (goal.tokenBudget !== undefined) {
+      lines.push(`token_budget: ${goal.tokenBudget}`);
+    }
+    lines.push(`used_tokens: ${this.state.get().usedTokens}`);
+    if (goal.status === 'blocked' && goal.blockReason) {
+      lines.push(`block_reason: ${goal.blockReason}`);
+    }
+    lines.push(
+      'Use getGoal to inspect this state. Use updateGoal only when the goal is actually complete or genuinely blocked.',
+      '</goal_mode>',
+    );
+
+    return `${systemPrompt}\n\n${lines.join('\n')}`;
   }
 
   private appendSyntheticContinuationIfNeeded(
@@ -2832,13 +2856,78 @@ export abstract class BaseAgent<
 
   private async getToolsForStep(): Promise<Partial<ToolSet>> {
     const userTools = await this.getTools(this.messages);
+    const goalTools = this.getGoalTools();
     const maybeFinish = this.getFinishTool();
     const finishTool: Partial<ToolSet> = maybeFinish
       ? { finish: maybeFinish as ToolSet[string] }
       : {};
     return {
       ...userTools,
+      ...goalTools,
       ...finishTool,
+    };
+  }
+
+  private getGoalTools(): Partial<ToolSet> {
+    return {
+      getGoal: tool({
+        description:
+          'Get the current Codex-style goal for this chat task, including status, objective, token budget, and token usage.',
+        inputSchema: z.object({}),
+        execute: async () => {
+          return {
+            goal: this.state.get().goal ?? null,
+            usedTokens: this.state.get().usedTokens,
+          };
+        },
+      }) as ToolSet[string],
+      createGoal: tool({
+        description:
+          'Create or replace the current goal for this chat task. Use only when the user explicitly asks to start goal mode or defines a concrete objective.',
+        inputSchema: z.object({
+          objective: z.string().min(1),
+          tokenBudget: z.number().int().positive().optional(),
+        }),
+        execute: async ({ objective, tokenBudget }) => {
+          const id = randomUUID();
+          this.state.commands.startGoal({
+            id,
+            objective,
+            tokenBudget,
+          });
+          return { goal: this.state.get().goal };
+        },
+      }) as ToolSet[string],
+      updateGoal: tool({
+        description:
+          'Mark the current goal complete or blocked. Complete only after the objective is actually achieved. Block only when progress cannot continue without user input or an external state change.',
+        inputSchema: z.object({
+          status: z.enum(['complete', 'blocked']),
+          reason: z.string().optional(),
+        }),
+        execute: async ({ status, reason }) => {
+          const current = this.state.get().goal;
+          if (!current) return { ok: false, message: 'No active goal.' };
+          if (current.status !== 'active') {
+            return {
+              ok: false,
+              message: `Goal is already ${current.status}.`,
+              goal: current,
+            };
+          }
+          if (status === 'complete') {
+            this.state.commands.completeGoal({
+              finalTokenUsage: this.state.get().usedTokens,
+            });
+          } else {
+            this.state.commands.blockGoal({
+              reason: reason?.trim() || 'Goal blocked.',
+              finalTokenUsage: this.state.get().usedTokens,
+            });
+          }
+          return { ok: true, goal: this.state.get().goal };
+        },
+      }) as ToolSet[string],
     };
   }
 

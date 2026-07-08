@@ -56,6 +56,14 @@ export function setIsWorkingFalse(
 ): void {
   updateAgentInstanceState(store, agentInstanceId, (state) => {
     state.isWorking = false;
+    if (state.goal?.status === 'active') {
+      const now = Date.now();
+      state.goal.status = 'blocked';
+      state.goal.updatedAt = now;
+      state.goal.blockedAt = now;
+      state.goal.blockReason = 'Agent stopped before the goal was completed.';
+      state.goal.finalTokenUsage = state.usedTokens;
+    }
   });
 }
 
@@ -70,6 +78,70 @@ export function setUsageWarning(
 ): void {
   updateAgentInstanceState(store, agentInstanceId, (state) => {
     state.usageWarning = args.warning;
+  });
+}
+
+export function startGoal(
+  store: AgentStore,
+  agentInstanceId: string,
+  args: {
+    id: string;
+    objective: string;
+    sourceMessageId?: string;
+    tokenBudget?: number;
+  },
+): void {
+  updateAgentInstanceState(store, agentInstanceId, (state) => {
+    const now = Date.now();
+    state.goal = {
+      id: args.id,
+      objective: args.objective,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+      sourceMessageId: args.sourceMessageId,
+      tokenBudget: args.tokenBudget,
+    };
+  });
+}
+
+export function completeGoal(
+  store: AgentStore,
+  agentInstanceId: string,
+  args?: { finalTokenUsage?: number },
+): void {
+  updateAgentInstanceState(store, agentInstanceId, (state) => {
+    if (!state.goal || state.goal.status !== 'active') return;
+    const now = Date.now();
+    state.goal.status = 'complete';
+    state.goal.updatedAt = now;
+    state.goal.completedAt = now;
+    state.goal.finalTokenUsage = args?.finalTokenUsage ?? state.usedTokens;
+  });
+}
+
+export function blockGoal(
+  store: AgentStore,
+  agentInstanceId: string,
+  args: { reason: string; finalTokenUsage?: number },
+): void {
+  updateAgentInstanceState(store, agentInstanceId, (state) => {
+    if (!state.goal || state.goal.status !== 'active') return;
+    const now = Date.now();
+    state.goal.status = 'blocked';
+    state.goal.updatedAt = now;
+    state.goal.blockedAt = now;
+    state.goal.blockReason = args.reason;
+    state.goal.finalTokenUsage = args.finalTokenUsage ?? state.usedTokens;
+  });
+}
+
+export function clearGoal(
+  store: AgentStore,
+  agentInstanceId: string,
+): void {
+  updateAgentInstanceState(store, agentInstanceId, (state) => {
+    state.goal = undefined;
   });
 }
 

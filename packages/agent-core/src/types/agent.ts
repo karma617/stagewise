@@ -53,6 +53,22 @@ export type AgentRuntimeError =
       stack?: string;
     };
 
+export type AgentGoalStatus = 'active' | 'complete' | 'blocked';
+
+export type AgentGoalState = {
+  id: string;
+  objective: string;
+  status: AgentGoalStatus;
+  createdAt: number;
+  updatedAt: number;
+  sourceMessageId?: string;
+  tokenBudget?: number;
+  finalTokenUsage?: number;
+  completedAt?: number;
+  blockedAt?: number;
+  blockReason?: string;
+};
+
 /**
  * Per-agent reasoning and chat runtime state.
  *
@@ -113,6 +129,8 @@ export type AgentState<TMessage = AgentMessage> = {
     usedPercent: number;
     resetsAt: string;
   };
+  /** @persistence ephemeral — active Codex-style goal for the current chat task. */
+  goal?: AgentGoalState;
 };
 
 export type ToolboxState = {

@@ -197,6 +197,31 @@ function LlmNetworkSetting() {
         </label>
       </div>
 
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <label htmlFor="llm-clash-auto-switch">
+            <h3 className="font-medium text-base text-foreground">
+              {t('settings.general.llmNetwork.autoSwitch.title')}
+            </h3>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.general.llmNetwork.autoSwitch.description')}
+            </p>
+          </label>
+        </div>
+        <Switch
+          id="llm-clash-auto-switch"
+          checked={preferences.agent.clashAutoSwitchOnForbidden}
+          onCheckedChange={(checked) => {
+            const [, patches] = produceWithPatches(preferences, (draft) => {
+              draft.agent.clashAutoSwitchOnForbidden = checked;
+            });
+            void updatePreferences(patches);
+          }}
+          size="xs"
+          className="mt-1 shrink-0"
+        />
+      </div>
+
       <p className="text-muted-foreground text-xs">
         {t('settings.general.llmNetwork.note')}
       </p>

@@ -20,6 +20,7 @@ type LlmNetworkSettings = {
   clashApiUrl?: string;
   clashApiSecret?: string;
   clashProxyGroup?: string;
+  clashAutoSwitchOnForbidden?: boolean;
   onStatus?: (status: LlmNetworkStatus | null) => void;
   onLog?: (message: string) => void;
 };
@@ -243,6 +244,16 @@ function selectClashProxyGroup(
       delayMs: readClashDelayMs(proxies[name]),
     }));
 
+  // Randomize order so retries do not always start from the first node in
+  // the pool (Fisher-Yates shuffle).
+  for (let i = nodeCandidates.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [nodeCandidates[i], nodeCandidates[j]] = [
+      nodeCandidates[j]!,
+      nodeCandidates[i]!,
+    ];
+  }
+
   return { groupName, nodeCandidates };
 }
 
@@ -361,6 +372,12 @@ export function createLlmFetch(
       `[llm-network] Initial LLM request forbidden: status=${firstResponse.status} statusText=${firstResponse.statusText} proxy=${proxyUrl}`,
     );
 
+    if (settings.clashAutoSwitchOnForbidden === false) {
+      settings.onLog?.(
+        '[llm-network] Clash auto-switch disabled; marking account-forbidden for pool switching',
+      );
+      return unavailableResponse(true);
+    }
     return retryWithSerializedClashSwitch(settings, send, firstResponse);
   };
 }

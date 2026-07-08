@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { cn } from '@ui/utils';
 import { IconTriangleWarning } from 'nucleo-micro-bold';
 import { IconLockKeyOutline18 } from 'nucleo-ui-outline-18';
@@ -285,7 +285,7 @@ function LlmAccountForbiddenError({
         {stripLlmAccountForbiddenMarker(error.message)}
       </div>
       <div className="text-muted-foreground text-xs">
-        已确认超过 10 个 Clash 节点切换后仍返回 403，当前帐号会进入待观察列表，并从后续自动切换候选中排除。
+        当前帐号疑似被上游拒绝（403），已进入待观察列表，并从后续自动切换候选中排除。
       </div>
       {autoSwitchMsg && (
         <div

@@ -13,6 +13,7 @@ import {
   ArrowUpIcon,
   SquareIcon,
   SquareDashedMousePointerIcon,
+  TargetIcon,
 } from 'lucide-react';
 import { IconPaperclip2Outline18 } from 'nucleo-ui-outline-18';
 import {
@@ -880,6 +881,9 @@ export interface ChatInputActionsProps {
   showImageUploadButton?: boolean;
   onAddFileAttachment?: (file: File) => void;
 
+  goalModeEnabled?: boolean;
+  onToggleGoalMode?: () => void;
+
   canSendMessage: boolean;
   onSubmit: () => void;
 }
@@ -896,6 +900,9 @@ export const ChatInputActions = memo(function ChatInputActions({
 
   showImageUploadButton = true,
   onAddFileAttachment,
+
+  goalModeEnabled = false,
+  onToggleGoalMode,
 
   canSendMessage,
   onSubmit,
@@ -986,6 +993,31 @@ export const ChatInputActions = memo(function ChatInputActions({
             <TooltipContent>{t('chat.input.attachFile')}</TooltipContent>
           </Tooltip>
         </>
+      )}
+      {onToggleGoalMode && (
+        <Tooltip>
+          <TooltipTrigger>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={t('chat.goalMode.toggle')}
+              className="shrink-0 data-[goal-mode-active=true]:bg-info-background data-[goal-mode-active=true]:text-info-foreground"
+              data-goal-mode-active={goalModeEnabled}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleGoalMode();
+              }}
+            >
+              <TargetIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {goalModeEnabled
+              ? t('chat.goalMode.enabledTooltip')
+              : t('chat.goalMode.disabledTooltip')}
+          </TooltipContent>
+        </Tooltip>
       )}
       {/* Stop + Send buttons row — stop is shown to the left when agent is working */}
       <div className="flex flex-row items-center gap-2">

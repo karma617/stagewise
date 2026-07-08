@@ -126,6 +126,21 @@ function hasPendingToolApproval(history: AgentMessage[]): boolean {
   return false;
 }
 
+export type SendUserMessageOptions = {
+  goalMode?: boolean;
+  tokenBudget?: number;
+};
+
+function extractTextObjective(message: AgentMessage): string {
+  return message.parts
+    .map((part) => {
+      if (part.type !== 'text') return '';
+      return typeof part.text === 'string' ? part.text : '';
+    })
+    .join('\n')
+    .trim();
+}
+
 /**
  * @note Due to the complex type inference for all this stuff, we sometimes explicitly define types here to avoid errors.
  *       This is a bit of a hack, but it's the best we can do for now.
@@ -498,8 +513,12 @@ export class AgentManager extends DisposableService {
 
     this.wrapAgentRpc(
       'agents.sendUserMessage',
-      async (instanceId: string, message: AgentMessage & { role: 'user' }) => {
-        await this.sendUserMessage(instanceId, message);
+      async (
+        instanceId: string,
+        message: AgentMessage & { role: 'user' },
+        options?: SendUserMessageOptions,
+      ) => {
+        await this.sendUserMessage(instanceId, message, options);
       },
     );
     this.wrapAgentRpc(
@@ -1404,6 +1423,7 @@ export class AgentManager extends DisposableService {
   public async sendUserMessage(
     instanceId: string,
     message: AgentMessage & { role: 'user' },
+    options?: SendUserMessageOptions,
   ) {
     const agent = this.activeAgents.get(instanceId);
 
@@ -1448,7 +1468,20 @@ export class AgentManager extends DisposableService {
       ms_since_last_message: msSinceLastMessage,
       tool_approval_mode: (instance?.state.toolApprovalMode ??
         'alwaysAsk') as ToolApprovalMode,
+      goal_mode: options?.goalMode === true,
     });
+
+    if (options?.goalMode) {
+      const objective = extractTextObjective(message);
+      if (objective) {
+        bindStateMutations(this.agentStore, instanceId).startGoal({
+          id: randomUUID(),
+          objective,
+          sourceMessageId: message.id,
+          tokenBudget: options.tokenBudget,
+        });
+      }
+    }
 
     // Host `AgentMessage` carries narrowed `UserMessageMetadata`
     // (browser-specific mention kinds) while the core default widens

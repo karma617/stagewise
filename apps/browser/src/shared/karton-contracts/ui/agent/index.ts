@@ -1,6 +1,7 @@
 import type {
   AgentHistoryEntry,
   AgentHistoryWorkspaceEntry,
+  AgentGoalState as CoreAgentGoalState,
   AgentMessage as CoreAgentMessage,
   AgentRuntimeError,
   AgentState as CoreAgentState,
@@ -29,6 +30,7 @@ export type {
 export type AgentMessage = CoreAgentMessage<UIAgentTools, UserMessageMetadata>;
 
 export type AgentToolUIPart = CoreAgentToolUIPart<UIAgentTools>;
+export type AgentGoalState = CoreAgentGoalState;
 
 export type AgentState = Omit<
   CoreAgentState<AgentMessage>,

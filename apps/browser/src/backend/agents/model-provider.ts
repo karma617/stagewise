@@ -149,6 +149,7 @@ export class ModelProviderService {
         clashApiUrl: agent.clashApiUrl,
         clashApiSecret: agent.clashApiSecret,
         clashProxyGroup: agent.clashProxyGroup,
+        clashAutoSwitchOnForbidden: agent.clashAutoSwitchOnForbidden,
         onStatus: this.onLlmNetworkStatus,
         onLog: (message) => this.logger.info(message),
       },

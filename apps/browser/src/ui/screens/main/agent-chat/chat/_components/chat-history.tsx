@@ -15,7 +15,10 @@ import { MessageRuntimeError } from './message-runtime-error';
 import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { useTrack } from '@ui/hooks/use-track';
 import { cn } from '@ui/utils';
-import type { AgentMessage } from '@shared/karton-contracts/ui/agent';
+import type {
+  AgentGoalState,
+  AgentMessage,
+} from '@shared/karton-contracts/ui/agent';
 import { useAutoScroll } from '@ui/hooks/use-auto-scroll';
 import { EmptyChatSuggestions } from './empty-chat-suggestions';
 import { useMessageEditState } from '@ui/hooks/use-message-edit-state';
@@ -108,6 +111,53 @@ function getLoadingIndicatorVariant(
     case 'llm-network':
       return 'working';
   }
+}
+
+function GoalStatusCard({ goal }: { goal: AgentGoalState }) {
+  const { t } = useI18n();
+  const statusKey = `chat.goalStatus.${goal.status}` as const;
+  return (
+    <div className="pointer-events-auto absolute top-2 right-4 left-4 z-10 mx-auto max-w-3xl rounded-xl border border-derived bg-surface-1/95 px-3 py-2 shadow-elevation-1 backdrop-blur">
+      <div className="flex items-start gap-2">
+        <div
+          className={cn(
+            'mt-1 size-2 rounded-full',
+            goal.status === 'active' && 'animate-pulse-full bg-info-solid',
+            goal.status === 'complete' && 'bg-success-solid',
+            goal.status === 'blocked' && 'bg-warning-solid',
+          )}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-xs">
+              {t('chat.goalStatus.title')}
+            </span>
+            <span
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[10px]',
+                goal.status === 'active' &&
+                  'bg-info-background text-info-foreground',
+                goal.status === 'complete' &&
+                  'bg-success-background text-success-foreground',
+                goal.status === 'blocked' &&
+                  'bg-warning-background text-warning-foreground',
+              )}
+            >
+              {t(statusKey)}
+            </span>
+          </div>
+          <div className="mt-1 line-clamp-2 break-words text-muted-foreground text-xs">
+            {goal.objective}
+          </div>
+          {goal.status === 'blocked' && goal.blockReason && (
+            <div className="mt-1 line-clamp-2 break-words text-[11px] text-warning-foreground">
+              {goal.blockReason}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function formatLlmNetworkStatusLabel(
@@ -382,6 +432,9 @@ export const ChatHistory = () => {
   );
   const error = useKartonState((s) =>
     openAgent ? s.agents.instances[openAgent]?.state.error : undefined,
+  );
+  const goal = useKartonState((s) =>
+    openAgent ? s.agents.instances[openAgent]?.state.goal : undefined,
   );
   const [removedSuggestionIds, setRemovedSuggestionIds] = useState<Set<string>>(
     new Set(),
@@ -1351,6 +1404,7 @@ export const ChatHistory = () => {
     <MountedPathsProvider value={resolvedMounts}>
       <AttachmentMetadataProvider messages={filteredMessages}>
         <div className="relative flex h-full flex-col">
+          {goal && <GoalStatusCard goal={goal} />}
           {/* Sibling spacer above Virtuoso. Reserves the chrome band so
               items never paint into the titlebar area. Kept transparent —
               the parent's bg-background shows through. */}

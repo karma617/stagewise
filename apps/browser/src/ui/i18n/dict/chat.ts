@@ -33,6 +33,34 @@ export const chatDict: Dict = {
     'zh-CN': '发送消息',
     en: 'Send message',
   },
+  'chat.goalMode.toggle': {
+    'zh-CN': '切换目标模式',
+    en: 'Toggle goal mode',
+  },
+  'chat.goalMode.enabledTooltip': {
+    'zh-CN': '目标模式已开启：发送后会创建可跟踪目标',
+    en: 'Goal mode is on: sending creates a tracked goal',
+  },
+  'chat.goalMode.disabledTooltip': {
+    'zh-CN': '开启目标模式',
+    en: 'Turn on goal mode',
+  },
+  'chat.goalStatus.title': {
+    'zh-CN': '目标模式',
+    en: 'Goal mode',
+  },
+  'chat.goalStatus.active': {
+    'zh-CN': '执行中',
+    en: 'Active',
+  },
+  'chat.goalStatus.complete': {
+    'zh-CN': '已完成',
+    en: 'Complete',
+  },
+  'chat.goalStatus.blocked': {
+    'zh-CN': '已阻塞',
+    en: 'Blocked',
+  },
   'chat.llmNetwork.readingNodes': {
     'zh-CN': '正在读取 Clash 可用节点…',
     en: 'Reading Clash node candidates...',

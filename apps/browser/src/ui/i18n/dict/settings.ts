@@ -164,6 +164,15 @@ export const settingsDict: Dict = {
     'zh-CN': '默认 GLOBAL，也可填写节点选择等代理组',
     en: 'Defaults to GLOBAL; enter another selector group if needed',
   },
+  'settings.general.llmNetwork.autoSwitch.title': {
+    'zh-CN': '403 自动切换节点',
+    en: 'Auto-switch node on 403',
+  },
+  'settings.general.llmNetwork.autoSwitch.description': {
+    'zh-CN':
+      '开启后，LLM 请求返回 403/Forbidden 会自动切换 Clash 节点并重试；关闭则保持当前节点，只走帐号切换逻辑。',
+    en: 'When enabled, a 403/Forbidden LLM response triggers automatic Clash node switching and retry. When disabled, the current node is kept and only account switching applies.',
+  },
   'settings.general.llmNetwork.note': {
     'zh-CN':
       '自动切换只在 LLM 请求返回 403/Forbidden 时触发；地址、Secret 或代理组留空时会使用默认值，默认代理组是 GLOBAL。',

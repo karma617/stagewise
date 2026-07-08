@@ -255,6 +255,7 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
   }, [openAgent]);
 
   const [canSendMessage, setCanSendMessage] = useState(false);
+  const [goalModeEnabled, setGoalModeEnabled] = useState(false);
 
   const updateChatInputState = useCallback(
     (newInputState: Content) => {
@@ -777,6 +778,9 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
   const canSendMessageRef = useRef(effectiveCanSendMessage);
   canSendMessageRef.current = effectiveCanSendMessage;
 
+  const goalModeEnabledRef = useRef(goalModeEnabled);
+  goalModeEnabledRef.current = goalModeEnabled;
+
   const pendingQuestionId = useKartonState((s) =>
     openAgent ? (s.toolbox[openAgent]?.pendingUserQuestion?.id ?? null) : null,
   );
@@ -1054,7 +1058,9 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
             getCurrentDraftAnswers(),
           );
         } else {
-          await sendUserMessage(openAgent, message);
+          await sendUserMessage(openAgent, message, {
+            goalMode: goalModeEnabledRef.current,
+          });
         }
       }
 
@@ -1806,6 +1812,8 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
             elementSelectorDisabled={hasOpenedInternalPage}
             showImageUploadButton
             onAddFileAttachment={handleAddFileAttachment}
+            goalModeEnabled={goalModeEnabled}
+            onToggleGoalMode={() => setGoalModeEnabled((current) => !current)}
             canSendMessage={effectiveCanSendMessage}
             onSubmit={handleSubmit}
           />
