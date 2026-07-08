@@ -1125,6 +1125,18 @@ export const settingsDict: Dict = {
     'zh-CN': '待观察数',
     en: 'Observing',
   },
+  'settings.accountPool.overview.filterPrefix': {
+    'zh-CN': '筛选：',
+    en: 'Filter: ',
+  },
+  'settings.accountPool.overview.clearFilter': {
+    'zh-CN': '清除筛选',
+    en: 'Clear filter',
+  },
+  'settings.accountPool.overview.filterEmpty': {
+    'zh-CN': '当前筛选条件下没有账号',
+    en: 'No accounts match the current filter',
+  },
   'settings.accountPool.autoSwitchRetry.title': {
     'zh-CN': '自动切换失败重试次数',
     en: 'Auto-switch retry attempts',

@@ -242,6 +242,9 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
     return initial && initial.length > 0 ? JSON.parse(initial) : null;
   });
 
+  const [canSendMessage, setCanSendMessage] = useState(false);
+  const [goalModeEnabled, setGoalModeEnabled] = useState(false);
+
   // Re-sync local input state when the active agent changes
   const prevOpenAgentRef = useRef(openAgent);
   useEffect(() => {
@@ -252,10 +255,9 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
       serverState && serverState.length > 0 ? JSON.parse(serverState) : null;
     localInputStateRef.current = parsed;
     setLocalInputState(parsed);
+    // Reset goal mode when switching agents
+    setGoalModeEnabled(false);
   }, [openAgent]);
-
-  const [canSendMessage, setCanSendMessage] = useState(false);
-  const [goalModeEnabled, setGoalModeEnabled] = useState(false);
 
   const updateChatInputState = useCallback(
     (newInputState: Content) => {
@@ -334,6 +336,16 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
       cancelAnimationFrame(frame);
     };
   }, [openAgent]);
+
+  // Close goal mode when goal becomes blocked
+  const goal = useKartonState(
+    (s) => (openAgent ? s.agents.instances[openAgent]?.state.goal : undefined),
+  );
+  useEffect(() => {
+    if (goal?.status === 'blocked' && goalModeEnabled) {
+      setGoalModeEnabled(false);
+    }
+  }, [goal?.status, goalModeEnabled]);
 
   const activeTabUrl = useKartonState((s) => {
     const tabId = s.contentTabs.activeTabId;

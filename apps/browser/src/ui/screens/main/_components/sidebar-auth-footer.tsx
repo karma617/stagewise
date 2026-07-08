@@ -75,7 +75,7 @@ export function SidebarAuthFooter() {
   return (
     <div className="mt-2 flex shrink-0 flex-col gap-2">
       {poolStats && poolStats.total > 0 && (
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center rounded-lg bg-surface-2 px-2 py-1">
+        <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center rounded-lg bg-surface-2 px-2 py-1">
           <span className="flex items-center justify-center gap-1 text-xs">
             <span className="font-medium text-info-foreground tabular-nums">
               {poolStats.total}
@@ -91,6 +91,15 @@ export function SidebarAuthFooter() {
             </span>
             <span className="text-muted-foreground">
               {t('sidebarAuth.poolStats.available')}
+            </span>
+          </span>
+          <span className="h-3 w-px bg-border-subtle" />
+          <span className="flex items-center justify-center gap-1 text-xs">
+            <span className="font-medium text-warning-foreground tabular-nums">
+              {poolStats.observing}
+            </span>
+            <span className="text-muted-foreground">
+              {t('sidebarAuth.poolStats.observing')}
             </span>
           </span>
         </div>

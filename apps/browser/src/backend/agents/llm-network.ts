@@ -5,10 +5,8 @@ export const DEFAULT_CHAT_PROXY_URL = 'http://127.0.0.1:7897';
 export const DEFAULT_CLASH_API_URL = 'http://127.0.0.1:9097';
 export const DEFAULT_CLASH_API_SECRET = '88521617';
 export const DEFAULT_CLASH_PROXY_GROUP = 'GLOBAL';
-export const CLASH_UNAVAILABLE_MESSAGE =
-  '当前订阅无可用节点，请更换订阅重试';
-export const LLM_ACCOUNT_FORBIDDEN_MARKER =
-  '[stagewise:llm-account-forbidden]';
+export const CLASH_UNAVAILABLE_MESSAGE = '当前订阅无可用节点，请更换订阅重试';
+export const LLM_ACCOUNT_FORBIDDEN_MARKER = '[stagewise:llm-account-forbidden]';
 export const LLM_ACCOUNT_FORBIDDEN_NODE_THRESHOLD = 10;
 const SPOOFED_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
@@ -21,6 +19,8 @@ type LlmNetworkSettings = {
   clashApiSecret?: string;
   clashProxyGroup?: string;
   clashAutoSwitchOnForbidden?: boolean;
+  forceClashSwitchOnForbidden?: () => boolean;
+  onAccountSuccess?: () => void;
   onStatus?: (status: LlmNetworkStatus | null) => void;
   onLog?: (message: string) => void;
 };
@@ -149,7 +149,10 @@ function maskClientIdentity(init: RequestInit): RequestInit {
   headers.delete('x-stagewise-client');
   headers.set('User-Agent', SPOOFED_USER_AGENT);
   headers.set('Accept-Language', 'en-US,en;q=0.9');
-  headers.set('Sec-CH-UA', '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"');
+  headers.set(
+    'Sec-CH-UA',
+    '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"',
+  );
   headers.set('Sec-CH-UA-Mobile', '?0');
   headers.set('Sec-CH-UA-Platform', '"Windows"');
   return { ...init, headers };
@@ -196,10 +199,7 @@ function clashHeaders(secret: string): HeadersInit {
     : {};
 }
 
-async function clashFetch(
-  url: string,
-  init: RequestInit,
-): Promise<Response> {
+async function clashFetch(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
   try {
@@ -295,15 +295,12 @@ async function readClashNodeCandidates(
   ).replace(/\/+$/, '');
   if (!apiUrl) return null;
 
-  const response = await clashFetch(
-    `${apiUrl}/proxies`,
-    {
-      method: 'GET',
-      headers: clashHeaders(
-        settings.clashApiSecret?.trim() || DEFAULT_CLASH_API_SECRET,
-      ),
-    },
-  );
+  const response = await clashFetch(`${apiUrl}/proxies`, {
+    method: 'GET',
+    headers: clashHeaders(
+      settings.clashApiSecret?.trim() || DEFAULT_CLASH_API_SECRET,
+    ),
+  });
   if (!response.ok) return null;
 
   const data = (await response.json()) as {
@@ -367,16 +364,25 @@ export function createLlmFetch(
 
     const send = () => globalThis.fetch(input, requestInit);
     const firstResponse = await send();
-    if (!(await isForbiddenResponse(firstResponse))) return firstResponse;
+    if (!(await isForbiddenResponse(firstResponse))) {
+      settings.onAccountSuccess?.();
+      return firstResponse;
+    }
     settings.onLog?.(
       `[llm-network] Initial LLM request forbidden: status=${firstResponse.status} statusText=${firstResponse.statusText} proxy=${proxyUrl}`,
     );
 
-    if (settings.clashAutoSwitchOnForbidden === false) {
+    const forceSwitch = settings.forceClashSwitchOnForbidden?.() ?? false;
+    if (settings.clashAutoSwitchOnForbidden === false && !forceSwitch) {
       settings.onLog?.(
         '[llm-network] Clash auto-switch disabled; marking account-forbidden for pool switching',
       );
       return unavailableResponse(true);
+    }
+    if (forceSwitch) {
+      settings.onLog?.(
+        '[llm-network] Current account is from observing pool; forcing Clash node switch',
+      );
     }
     return retryWithSerializedClashSwitch(settings, send, firstResponse);
   };
@@ -388,9 +394,7 @@ async function retryWithSerializedClashSwitch(
   firstResponse: Response,
 ): Promise<Response> {
   if (clashSwitchInFlight) {
-    settings.onLog?.(
-      '[llm-network] Waiting for active Clash node switch task',
-    );
+    settings.onLog?.('[llm-network] Waiting for active Clash node switch task');
     const outcome = await clashSwitchInFlight;
     settings.onLog?.(
       `[llm-network] Active Clash node switch task completed: outcome=${outcome.kind}`,
@@ -410,7 +414,9 @@ async function retryWithSerializedClashSwitch(
     settings.onLog?.(
       `[llm-network] Retry result after shared Clash switch: status=${retryResponse.status} statusText=${retryResponse.statusText} ok=${retryResponse.ok} forbidden=${retryForbidden}`,
     );
-    return retryForbidden ? unavailableResponse(false) : retryResponse;
+    if (retryForbidden) return unavailableResponse(false);
+    settings.onAccountSuccess?.();
+    return retryResponse;
   }
 
   const task = runClashSwitchRetry(settings, send, firstResponse);
@@ -445,9 +451,7 @@ async function runClashSwitchRetry(
       updatedAt: Date.now(),
     });
     settings.onLog?.('[llm-network] Reading Clash node candidates');
-    const selection = await readClashNodeCandidates(settings).catch(
-      () => null,
-    );
+    const selection = await readClashNodeCandidates(settings).catch(() => null);
     if (!selection || selection.nodeCandidates.length === 0) {
       settings.onLog?.('[llm-network] No switchable Clash node candidates');
       return { response: firstResponse, outcome: { kind: 'no-candidates' } };
@@ -506,6 +510,7 @@ async function runClashSwitchRetry(
         `[llm-network] Retry result after Clash switch: group=${selection.groupName} node=${nodeName} ping=${formatClashDelay(candidate.delayMs)} status=${retryResponse.status} statusText=${retryResponse.statusText} ok=${retryResponse.ok} forbidden=${retryForbidden}`,
       );
       if (!retryForbidden) {
+        settings.onAccountSuccess?.();
         return { response: retryResponse, outcome: { kind: 'success' } };
       }
       const accountForbidden =

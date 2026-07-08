@@ -1094,3 +1094,46 @@
 - apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx：更新 `LlmAccountForbiddenError` 提示文案，去掉「超过 10 个节点」硬编码描述。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx`。
 - progress.md：追加本轮记录。回滚：删除本条记录。
 统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx progress.md`。
+
+
+## 2026-07-08 - Task: 帐号池统计卡片点击筛选帐号列表
+
+### What was done
+为帐号池概览区域的 7 个统计卡片（总数、可用、日限额、周限额、月限额、待观察、已封禁）增加点击筛选功能。点击任一卡片后，下方帐号列表只展示对应分类的帐号；再次点击同一卡片或点击清除按钮取消筛选。筛选状态下卡片高亮显示，并在卡片下方显示当前筛选类别名称与匹配数量。
+
+### Testing
+- `pnpm -F stagewise typecheck` 全部通过（preload/backend/ui/storybook 四个 tsconfig 均退出码 0）。
+- `npx @biomejs/biome check` 对修改的两个文件检查通过，无错误。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx：新增 `OverviewFilter` 类型与 `matchesOverviewFilter` 函数；添加 `overviewFilter` state 与 `filteredPool` memo；统计卡片从 `div` 改为 `button`，加 onClick 切换筛选、选中高亮；卡片下方新增筛选状态条（显示类别名+数量+清除按钮）；空列表新增筛选无结果提示。
+- apps/browser/src/ui/i18n/dict/settings.ts：新增 `overview.filterPrefix`、`overview.clearFilter`、`overview.filterEmpty` 三个 i18n 键（zh-CN / en）。
+- progress.md：追加本轮记录。
+回滚方式：`git checkout -- apps/browser/src/ui/screens/settings/sections/account-pool-section.tsx apps/browser/src/ui/i18n/dict/settings.ts progress.md`。
+
+
+## 2026-07-08 - Task: 帐号池待观察号调度与侧栏统计增强
+
+### What was done
+1. 侧栏左下角帐号统计条从「总数 | 可用」两列扩展为「总数 | 可用 | 待观察」三列，待观察数用 warning 色显示。
+2. 后端 accountPoolStats 类型与 getAccountPoolStats 新增 observing 字段，实时反映待观察账号数量，切换帐号后自动刷新。
+3. 可用账号池耗尽后，自动从待观察池中取出仍有额度的账号进行切换尝试。
+4. 取到待观察账号时，即使用户关闭了「自动切换节点」开关，也强制走 Clash 节点切换逻辑，因为待观察号的 403 可能是节点 IP 问题而非账号问题。
+5. 待观察号切节点后如果 LLM 请求成功（非 403），自动将该账号从待观察移回正常状态，后续可被当作可用账号使用。
+
+### Testing
+- `pnpm -F stagewise typecheck` 全部通过（preload/backend/ui/storybook 四个 tsconfig 均退出码 0）。
+- `npx @biomejs/biome check` 对修改文件检查通过，无 error（仅 pre-existing infos）。
+- `pnpm -F stagewise test -- --run llm-network` 11 个测试全部通过。
+
+### Notes
+改动文件清单：
+- apps/browser/src/shared/karton-contracts/ui/index.ts：accountPoolStats 类型加 observing 字段，默认值同步更新。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/backend/services/auth/index.ts：getAccountPoolStats 返回 observing 计数；新增 observingPoolEmails 缓存与 syncPoolAvailabilityCaches 中的同步；新增 takeObservingPoolAccount 方法；switchToNextAvailablePoolAccount 在可用池空了后从待观察池取号并标记 fromObserving；新增 getCurrentEmail/isPoolEmailObserving/markObservingAccountNormal 方法；switchToAvailablePoolAccount/observeCurrentAndSwitchPoolAccount/autoSwitchOnQuotaExceeded 返回类型加 fromObserving。回滚：`git checkout -- apps/browser/src/backend/services/auth/index.ts`。
+- apps/browser/src/backend/agents/llm-network.ts：LlmNetworkSettings 加 forceClashSwitchOnForbidden 和 onAccountSuccess 回调；forbidden 检查处加 forceSwitch 判断，待观察号即使关闭自动切节点也走切节点逻辑；所有成功响应路径调用 onAccountSuccess。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/model-provider.ts：createLlmFetch 传入 forceClashSwitchOnForbidden 和 onAccountSuccess 回调，通过 authService 同步检查当前账号是否 observing，成功时触发移回正常。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.ts`。
+- apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx：统计条从两列扩展为三列，新增待观察数量显示。回滚：`git checkout -- apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx`。
+- apps/browser/src/ui/i18n/dict/common.ts：新增 sidebarAuth.poolStats.observing 翻译键。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/common.ts`。
+- progress.md：追加本轮记录。
+统一回滚点：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/backend/services/auth/index.ts apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx apps/browser/src/ui/i18n/dict/common.ts progress.md`。

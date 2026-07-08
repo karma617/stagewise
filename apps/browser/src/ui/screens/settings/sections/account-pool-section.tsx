@@ -145,6 +145,37 @@ function getAccountPoolOverview(pool: PoolEntry[]) {
   return overview;
 }
 
+type OverviewFilter =
+  | 'total'
+  | 'available'
+  | 'dailyLimited'
+  | 'weeklyLimited'
+  | 'monthlyLimited'
+  | 'observing'
+  | 'banned';
+
+function matchesOverviewFilter(
+  entry: PoolEntry,
+  filter: OverviewFilter,
+): boolean {
+  if (filter === 'total') return true;
+  if (filter === 'banned') return entry.status === 'banned';
+  if (filter === 'observing') return entry.status === 'observing';
+  const limitWindow = getLimitWindow(entry.usage);
+  if (filter === 'monthlyLimited') return limitWindow === 'monthly';
+  if (filter === 'weeklyLimited') return limitWindow === 'weekly';
+  if (filter === 'dailyLimited')
+    return limitWindow === 'daily' || entry.status === 'throttled';
+  if (filter === 'available')
+    return (
+      entry.status !== 'banned' &&
+      entry.status !== 'observing' &&
+      entry.status !== 'throttled' &&
+      !limitWindow
+    );
+  return false;
+}
+
 function EffectiveStatusBadge({ entry }: { entry: PoolEntry }) {
   const { t } = useI18n();
   const limitWindow = getLimitWindow(entry.usage);
@@ -606,6 +637,9 @@ export function AccountPoolSection() {
   } = useTurnstile();
 
   const [pool, setPool] = useState<PoolEntry[]>([]);
+  const [overviewFilter, setOverviewFilter] = useState<OverviewFilter | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
@@ -1065,13 +1099,20 @@ export function AccountPoolSection() {
     if (healthTask?.status !== 'running') return null;
     return new Set(healthTask.activeEmails);
   }, [healthTask?.status, healthTask?.activeEmails]);
+  const filteredPool = useMemo(
+    () =>
+      overviewFilter
+        ? pool.filter((e) => matchesOverviewFilter(e, overviewFilter))
+        : pool,
+    [pool, overviewFilter],
+  );
   const accountPoolListItems = useMemo<AccountPoolListItem[]>(
     () => [
       { kind: 'header' },
-      ...pool.map((entry) => ({ kind: 'account' as const, entry })),
+      ...filteredPool.map((entry) => ({ kind: 'account' as const, entry })),
       { kind: 'footer' },
     ],
-    [pool],
+    [filteredPool],
   );
 
   return (
@@ -1102,56 +1143,115 @@ export function AccountPoolSection() {
                       label: t('settings.accountPool.overview.total'),
                       value: overview.total,
                       className: 'text-foreground',
+                      filter: 'total' as OverviewFilter,
                     },
                     {
                       label: t('settings.accountPool.overview.available'),
                       value: overview.available,
                       className: 'text-success-foreground',
+                      filter: 'available' as OverviewFilter,
                     },
                     {
                       label: t('settings.accountPool.overview.dailyLimit'),
                       value: overview.dailyLimited,
                       className: 'text-warning-foreground',
+                      filter: 'dailyLimited' as OverviewFilter,
                     },
                     {
                       label: t('settings.accountPool.overview.weeklyLimit'),
                       value: overview.weeklyLimited,
                       className: 'text-warning-foreground',
+                      filter: 'weeklyLimited' as OverviewFilter,
                     },
                     {
                       label: t('settings.accountPool.overview.monthlyLimit'),
                       value: overview.monthlyLimited,
                       className: 'text-warning-foreground',
+                      filter: 'monthlyLimited' as OverviewFilter,
                     },
                     {
                       label: t('settings.accountPool.overview.observing'),
                       value: overview.observing,
                       className: 'text-warning-foreground',
+                      filter: 'observing' as OverviewFilter,
                     },
                     {
                       label: t('settings.accountPool.overview.banned'),
                       value: overview.banned,
                       className: 'text-error-foreground',
+                      filter: 'banned' as OverviewFilter,
                     },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-lg bg-surface-1 px-3 py-2 ring-1 ring-border-subtle dark:bg-surface-2"
-                    >
-                      <div className="text-muted-foreground text-xs">
-                        {item.label}
-                      </div>
-                      <div
+                  ].map((item) => {
+                    const isActive = overviewFilter === item.filter;
+                    return (
+                      <button
+                        type="button"
+                        key={item.label}
                         className={cn(
-                          'mt-1 font-semibold text-xl tabular-nums',
-                          item.className,
+                          'cursor-pointer rounded-lg px-3 py-2 text-left ring-1 transition-colors',
+                          isActive
+                            ? 'bg-primary-solid/10 ring-2 ring-primary-solid dark:bg-primary-solid/15'
+                            : 'bg-surface-1 ring-border-subtle hover:bg-surface-2 dark:bg-surface-2 dark:hover:bg-surface-3',
                         )}
+                        onClick={() =>
+                          setOverviewFilter(isActive ? null : item.filter)
+                        }
                       >
-                        {item.value}
-                      </div>
-                    </div>
-                  ))}
+                        <div className="text-muted-foreground text-xs">
+                          {item.label}
+                        </div>
+                        <div
+                          className={cn(
+                            'mt-1 font-semibold text-xl tabular-nums',
+                            item.className,
+                          )}
+                        >
+                          {item.value}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {overviewFilter && (
+                  <div className="flex items-center gap-2 rounded-lg bg-primary-solid/5 px-3 py-2 ring-1 ring-primary-solid/20">
+                    <span className="text-muted-foreground text-xs">
+                      {t('settings.accountPool.overview.filterPrefix')}
+                      {
+                        {
+                          total: t('settings.accountPool.overview.total'),
+                          available: t(
+                            'settings.accountPool.overview.available',
+                          ),
+                          dailyLimited: t(
+                            'settings.accountPool.overview.dailyLimit',
+                          ),
+                          weeklyLimited: t(
+                            'settings.accountPool.overview.weeklyLimit',
+                          ),
+                          monthlyLimited: t(
+                            'settings.accountPool.overview.monthlyLimit',
+                          ),
+                          observing: t(
+                            'settings.accountPool.overview.observing',
+                          ),
+                          banned: t('settings.accountPool.overview.banned'),
+                        }[overviewFilter]
+                      }
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      ({filteredPool.length})
+                    </span>
+                    <button
+                      type="button"
+                      className="ml-auto inline-flex items-center gap-1 text-primary-foreground text-xs hover:underline"
+                      onClick={() => setOverviewFilter(null)}
+                    >
+                      <XIcon className="size-3" />
+                      {t('settings.accountPool.overview.clearFilter')}
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-3 rounded-xl bg-background p-3 shadow-elevation-1 ring-1 ring-border-subtle sm:flex-row sm:items-center sm:justify-between dark:bg-surface-1">
                   <div className="min-w-0">
@@ -1505,6 +1605,11 @@ export function AccountPoolSection() {
                 {pool.length === 0 && !loading && (
                   <p className="text-muted-foreground text-sm">
                     {t('settings.accountPool.empty')}
+                  </p>
+                )}
+                {pool.length > 0 && filteredPool.length === 0 && !loading && (
+                  <p className="text-muted-foreground text-sm">
+                    {t('settings.accountPool.overview.filterEmpty')}
                   </p>
                 )}
               </div>

@@ -1060,6 +1060,7 @@ export type AppState = {
     accountPoolStats?: {
       total: number;
       available: number;
+      observing: number;
     };
   };
   /** Live status for LLM network fallback work, such as Clash node switching. */
@@ -2421,7 +2422,7 @@ export const defaultState: KartonContract['state'] = {
     status: 'unauthenticated',
     registrationSteps: [],
     registrationRunning: false,
-    accountPoolStats: { total: 0, available: 0 },
+    accountPoolStats: { total: 0, available: 0, observing: 0 },
   },
   llmNetworkStatus: null,
   appInfo: {

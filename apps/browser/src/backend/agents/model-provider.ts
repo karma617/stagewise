@@ -150,6 +150,17 @@ export class ModelProviderService {
         clashApiSecret: agent.clashApiSecret,
         clashProxyGroup: agent.clashProxyGroup,
         clashAutoSwitchOnForbidden: agent.clashAutoSwitchOnForbidden,
+        forceClashSwitchOnForbidden: () => {
+          const email = this.authService.getCurrentEmail();
+          if (!email) return false;
+          return this.authService.isPoolEmailObserving(email);
+        },
+        onAccountSuccess: () => {
+          const email = this.authService.getCurrentEmail();
+          if (email && this.authService.isPoolEmailObserving(email)) {
+            void this.authService.markObservingAccountNormal(email);
+          }
+        },
         onStatus: this.onLlmNetworkStatus,
         onLog: (message) => this.logger.info(message),
       },

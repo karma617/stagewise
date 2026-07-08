@@ -128,6 +128,7 @@ export class AuthService extends DisposableService {
   private _poolUsageRefreshInterval: NodeJS.Timeout | null = null;
   private _poolUsageRefreshInFlight: Promise<void> | null = null;
   private availablePoolEmails: string[] = [];
+  private observingPoolEmails: Set<string> = new Set();
   private cooldownPoolAccounts: Array<{
     email: string;
     resetsAtMs: number;
@@ -210,13 +211,19 @@ export class AuthService extends DisposableService {
   private getAccountPoolStats(pool: AccountEntry[]): {
     total: number;
     available: number;
+    observing: number;
   } {
     let available = 0;
+    let observing = 0;
     const now = Date.now();
     for (const entry of pool) {
+      if (entry.status === 'observing') {
+        observing += 1;
+        continue;
+      }
       if (this.isPoolAccountAvailable(entry, now)) available += 1;
     }
-    return { total: pool.length, available };
+    return { total: pool.length, available, observing };
   }
 
   private syncPoolAvailabilityCaches(pool: AccountEntry[]): void {
@@ -244,6 +251,11 @@ export class AuthService extends DisposableService {
           entry !== null,
       )
       .sort((a, b) => a.resetsAtMs - b.resetsAtMs);
+    this.observingPoolEmails = new Set(
+      pool
+        .filter((entry) => entry.status === 'observing')
+        .map((entry) => this.normalizePoolEmail(entry.email)),
+    );
   }
 
   private syncAccountPoolStats(pool: AccountEntry[]): void {
@@ -1279,7 +1291,7 @@ export class AuthService extends DisposableService {
   public async switchToAvailablePoolAccount(
     currentEmail?: string,
     throttledResetsAt?: string,
-  ): Promise<{ error?: string; email?: string }> {
+  ): Promise<{ error?: string; email?: string; fromObserving?: boolean }> {
     if (currentEmail) {
       await markAccountThrottled(currentEmail, throttledResetsAt);
       this.removeFromAvailablePool(currentEmail);
@@ -1290,7 +1302,7 @@ export class AuthService extends DisposableService {
 
   public async observeCurrentAndSwitchPoolAccount(
     currentEmail?: string,
-  ): Promise<{ error?: string; email?: string }> {
+  ): Promise<{ error?: string; email?: string; fromObserving?: boolean }> {
     if (currentEmail) {
       await markAccountObserving(currentEmail);
       this.removeFromAvailablePool(currentEmail);
@@ -1574,10 +1586,7 @@ export class AuthService extends DisposableService {
     return this.parsePoolTimestamp(resetsAt);
   }
 
-  private isPoolThrottleStillActive(
-    entry: AccountEntry,
-    now: number,
-  ): boolean {
+  private isPoolThrottleStillActive(entry: AccountEntry, now: number): boolean {
     if (entry.status !== 'throttled') return false;
     const resetsAtMs = this.parsePoolTimestamp(entry.throttledResetsAt);
     return resetsAtMs === null || now < resetsAtMs;
@@ -1593,6 +1602,27 @@ export class AuthService extends DisposableService {
     if (this.isPoolThrottleStillActive(entry, now)) return false;
     if (this.isPoolUsageLimitStillActive(entry, now)) return false;
     return true;
+  }
+
+  /** Get the current account's email. */
+  public getCurrentEmail(): string | undefined {
+    return this._credentials?.user?.email;
+  }
+
+  /** Sync check if an email is in the observing pool (uses cached data). */
+  public isPoolEmailObserving(email: string): boolean {
+    return this.observingPoolEmails.has(this.normalizePoolEmail(email));
+  }
+
+  /** Move an observing account back to normal after successful LLM request. */
+  public async markObservingAccountNormal(email: string): Promise<void> {
+    if (!this.isPoolEmailObserving(email)) return;
+    this.logger.info(
+      '[AuthService] Observing account recovered, moving to normal: ' + email,
+    );
+    await markAccountNormal(email);
+    this.observingPoolEmails.delete(this.normalizePoolEmail(email));
+    await this.loadPoolAndSyncStats();
   }
 
   private getPoolCooldownAccount(
@@ -1681,9 +1711,29 @@ export class AuthService extends DisposableService {
     return null;
   }
 
+  private async takeObservingPoolAccount(
+    currentEmail: string | undefined,
+    skippedEmails: Set<string>,
+  ): Promise<AccountEntry | null> {
+    const pool = await loadPool();
+    const now = Date.now();
+    const normalizedCurrentEmail = this.normalizePoolEmail(currentEmail);
+    for (const entry of pool) {
+      const email = this.normalizePoolEmail(entry.email);
+      if (email === normalizedCurrentEmail) continue;
+      if (skippedEmails.has(email)) continue;
+      if (entry.status !== 'observing') continue;
+      if (!entry.token) continue;
+      // Skip observing accounts that have usage limits still active
+      if (this.isPoolUsageLimitStillActive(entry, now)) continue;
+      return entry;
+    }
+    return null;
+  }
+
   private async switchToNextAvailablePoolAccount(
     currentEmail?: string,
-  ): Promise<{ error?: string; email?: string }> {
+  ): Promise<{ error?: string; email?: string; fromObserving?: boolean }> {
     const skippedEmails = new Set<string>();
     let lastSwitchError = '';
     let available: AccountEntry | null = null;
@@ -1714,6 +1764,36 @@ export class AuthService extends DisposableService {
           lastSwitchError,
       );
     }
+
+    // Available pool exhausted - try observing accounts that still have usage quota
+    this.logger.info(
+      '[AuthService] Available pool exhausted, trying observing accounts',
+    );
+    while (true) {
+      const observing = await this.takeObservingPoolAccount(
+        currentEmail,
+        skippedEmails,
+      );
+      if (!observing) break;
+      const email = this.normalizePoolEmail(observing.email);
+      skippedEmails.add(email);
+
+      const switched = await this.switchToPoolAccount(observing.email);
+      if (!switched.error) {
+        this.logger.info(
+          '[AuthService] Switched to observing account: ' +
+            observing.email +
+            ' (will force node switching)',
+        );
+        return { ...switched, fromObserving: true };
+      }
+      lastSwitchError = `${observing.email}: ${switched.error}`;
+      this.logger.warn(
+        '[AuthService] Failed to switch to observing pool account: ' +
+          lastSwitchError,
+      );
+    }
+
     await this.loadPoolAndSyncStats();
     void this.refreshAccountPoolUsageCache('auto-switch-empty', 'cooldown');
     const detail = lastSwitchError
@@ -1721,7 +1801,7 @@ export class AuthService extends DisposableService {
       : '';
     return {
       error:
-        '\u5e10\u53f7\u6c60\u6ca1\u6709\u53ef\u7528\u5e10\u53f7\uff0c\u8bf7\u7b49\u5f85\u540e\u53f0\u989d\u5ea6\u5237\u65b0\u6216\u5728\u5e10\u53f7\u6c60\u6dfb\u52a0\u53ef\u7528\u5e10\u53f7\u3002' +
+        '帐号池没有可用帐号，请等待后台额度刷新或在帐号池添加可用帐号。' +
         detail,
     };
   }
@@ -1913,6 +1993,7 @@ export class AuthService extends DisposableService {
     error?: string;
     email?: string;
     action?: 'switched' | 'registered';
+    fromObserving?: boolean;
   }> {
     const switchResult = await this.switchToAvailablePoolAccount(
       currentEmail,
@@ -2962,9 +3043,7 @@ export class AuthService extends DisposableService {
             consecutiveOtpRejections += 1;
             const maxConsecutiveOtpRejections =
               this.getMaxConsecutiveOtpRejections();
-            if (
-              consecutiveOtpRejections >= maxConsecutiveOtpRejections
-            ) {
+            if (consecutiveOtpRejections >= maxConsecutiveOtpRejections) {
               task.status = 'error';
               task.error =
                 '连续触发 OTP/Cloudflare 风控拒绝（连续 ' +
