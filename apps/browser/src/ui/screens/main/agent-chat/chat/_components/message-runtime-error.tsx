@@ -111,6 +111,22 @@ function stripLlmAccountForbiddenMarker(message: string): string {
   return message.replace(LLM_ACCOUNT_FORBIDDEN_MARKER, '').trim();
 }
 
+function localizeProviderErrorMessage(message: string): string {
+  if (
+    /stagewise subscription required/i.test(message) ||
+    /subscription required/i.test(message) ||
+    /upgrade your plan/i.test(message) ||
+    /configure your own api keys/i.test(message) ||
+    /connect a coding plan/i.test(message)
+  ) {
+    return '当前 Stagewise 帐号没有可用订阅或编程套餐，正在尝试自动切换其他帐号。';
+  }
+  if (/missing or invalid session/i.test(message) || /invalid session/i.test(message)) {
+    return '当前帐号会话已失效，正在尝试自动切换其他帐号。';
+  }
+  return message;
+}
+
 export function MessageRuntimeError({
   agentInstanceId,
   error,
@@ -282,7 +298,9 @@ function LlmAccountForbiddenError({
       </div>
 
       <div className="text-foreground">
-        {stripLlmAccountForbiddenMarker(error.message)}
+        {localizeProviderErrorMessage(
+          stripLlmAccountForbiddenMarker(error.message),
+        )}
       </div>
       <div className="text-muted-foreground text-xs">
         当前帐号疑似被上游拒绝（403），已进入待观察列表，并从后续自动切换候选中排除。
@@ -859,7 +877,7 @@ function GenericError({
       </div>
 
       <div className="text-foreground">
-        {error.message}{' '}
+        {localizeProviderErrorMessage(error.message)}{' '}
         {error.code && (
           <span className="text-muted-foreground text-xs">
             (Code: {error.code})

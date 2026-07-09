@@ -1137,3 +1137,63 @@
 - apps/browser/src/ui/i18n/dict/common.ts：新增 sidebarAuth.poolStats.observing 翻译键。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/common.ts`。
 - progress.md：追加本轮记录。
 统一回滚点：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/backend/services/auth/index.ts apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/ui/screens/main/_components/sidebar-auth-footer.tsx apps/browser/src/ui/i18n/dict/common.ts progress.md`。
+
+## 2026-07-08 - Task: 订阅类 LLM provider error 触发帐号池切换
+
+### What was done
+- 修复 `LLM provider error: Stagewise subscription required...` 不触发帐号池自动切换的问题。
+- 在 LLM 网络层新增响应分类，把 `Stagewise subscription required`、`subscription required`、`upgrade your plan`、`configure your own API keys`、`connect a coding plan` 这类账号套餐/权限错误识别为 `account-required`。
+- `account-required` 响应会直接返回带 `LLM_ACCOUNT_FORBIDDEN_MARKER` 的 403 响应，复用现有 `LlmAccountForbiddenError` 自动把当前帐号移入待观察并切换帐号，不再把原始 provider error 直接展示到输入框。
+- 如果节点切换重试过程中遇到 `account-required`，立即停止节点切换并转入帐号池切换，避免把套餐问题误当作节点问题继续轮换。
+
+### Testing
+- `pnpm -F stagewise test -- --run llm-network` 通过，`llm-network` 12 个测试全部通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：新增 `LlmFailureKind`、`isAccountRequiredBody`、`getLlmFailureKind`，把订阅/套餐类响应映射到帐号池切换 marker；节点切换重试阶段遇到账号套餐类响应时立即停止并触发帐号切换。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/llm-network.test.ts：新增订阅类响应触发 `LLM_ACCOUNT_FORBIDDEN` 的测试，并更新重试日志断言字段。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts progress.md`。
+
+## 2026-07-08 - Task: 订阅类 provider error 展示中文提示
+
+### What was done
+- 修复截图中的 `LLM provider error: Stagewise subscription required...` 在错误卡片里直接显示英文的问题。
+- 在运行时错误展示层新增 provider 错误中文兜底映射：订阅/套餐类错误显示为「当前 Stagewise 帐号没有可用订阅或编程套餐，正在尝试自动切换其他帐号。」。
+- 同步覆盖 `Missing or invalid session` / `invalid session` 的展示文案，显示为「当前帐号会话已失效，正在尝试自动切换其他帐号。」。
+- 映射同时作用于通用错误卡片和帐号自动切换专用卡片，不改变后端自动切换帐号逻辑。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx` 退出码 0。
+- `git diff --check -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx：新增 `localizeProviderErrorMessage`，将订阅/套餐类 provider error 和会话失效类 provider error 转为中文展示。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx progress.md`。
+
+## 2026-07-08 - Task: Missing or invalid session 自动切换帐号
+
+### What was done
+- 修复 `LLM provider error: Missing or invalid session` 不触发帐号池自动切换的问题。
+- 将 `Missing or invalid session` / `invalid session` 归入 LLM 网络层的 `account-required` 分类。
+- 命中该错误时直接返回带 `LLM_ACCOUNT_FORBIDDEN_MARKER` 的 403 响应，复用现有 `LlmAccountForbiddenError` 自动把当前帐号移入待观察并切换帐号，不再把原始 provider error 直接展示到输入框。
+
+### Testing
+- `pnpm -F stagewise test -- --run llm-network` 通过，`llm-network` 13 个测试全部通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/llm-network.ts：`isAccountRequiredBody` 新增 `missing or invalid session` / `invalid session` 匹配，映射到帐号池切换 marker。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- apps/browser/src/backend/agents/llm-network.test.ts：新增 `Missing or invalid session` 触发 `LLM_ACCOUNT_FORBIDDEN` 的测试。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts progress.md`。

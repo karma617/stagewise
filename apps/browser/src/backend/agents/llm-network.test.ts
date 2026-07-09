@@ -191,6 +191,69 @@ describe('createLlmFetch', () => {
     expect(clashSwitches).toBe(LLM_ACCOUNT_FORBIDDEN_NODE_THRESHOLD + 1);
   });
 
+  it('marks account-forbidden for stagewise subscription required responses', async () => {
+    const fetchMock = vi.fn(async () => {
+      return Response.json(
+        {
+          error: {
+            message:
+              'Stagewise subscription required - upgrade your plan, configure your own API keys, or connect a coding plan to continue.',
+          },
+        },
+        { status: 402 },
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const llmFetch = createLlmFetch({
+      proxyUrl: 'http://127.0.0.1:7897',
+      clashApiUrl: 'http://127.0.0.1:9090',
+      clashProxyGroup: 'GLOBAL',
+    });
+
+    const response = await llmFetch('https://llm.stagewise.io/chat', {
+      method: 'POST',
+      body: '{}',
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe('LLM_ACCOUNT_FORBIDDEN');
+    expect(body.error.message).toContain(LLM_ACCOUNT_FORBIDDEN_MARKER);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks account-forbidden for missing or invalid session responses', async () => {
+    const fetchMock = vi.fn(async () => {
+      return Response.json(
+        {
+          error: {
+            message: 'Missing or invalid session',
+          },
+        },
+        { status: 401 },
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const llmFetch = createLlmFetch({
+      proxyUrl: 'http://127.0.0.1:7897',
+      clashApiUrl: 'http://127.0.0.1:9090',
+      clashProxyGroup: 'GLOBAL',
+    });
+
+    const response = await llmFetch('https://llm.stagewise.io/chat', {
+      method: 'POST',
+      body: '{}',
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe('LLM_ACCOUNT_FORBIDDEN');
+    expect(body.error.message).toContain(LLM_ACCOUNT_FORBIDDEN_MARKER);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('uses Clash defaults when saved settings are empty', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: any) => {
       const url = String(input);
@@ -299,7 +362,7 @@ describe('createLlmFetch', () => {
       '[llm-network] Clash switch result: group=GLOBAL node=node-b ping=88ms status=204 statusText= ok=true',
     );
     expect(logs).toContain(
-      '[llm-network] Retry result after Clash switch: group=GLOBAL node=node-b ping=88ms status=200 statusText= ok=true forbidden=false',
+      '[llm-network] Retry result after Clash switch: group=GLOBAL node=node-b ping=88ms status=200 statusText= ok=true failure=none',
     );
   });
 

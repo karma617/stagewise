@@ -64,6 +64,8 @@ type ClashRetryResult = {
   outcome: ClashRetryOutcome;
 };
 
+type LlmFailureKind = 'none' | 'forbidden' | 'account-required';
+
 type LlmSend = () => Promise<Response>;
 
 const proxyAgents = new Map<string, ProxyAgent>();
@@ -158,16 +160,32 @@ function maskClientIdentity(init: RequestInit): RequestInit {
   return { ...init, headers };
 }
 
-async function isForbiddenResponse(response: Response): Promise<boolean> {
-  if (response.status === 403) return true;
-  if (response.ok) return false;
+function isAccountRequiredBody(body: string): boolean {
+  return (
+    /stagewise subscription required/i.test(body) ||
+    /subscription required/i.test(body) ||
+    /missing or invalid session/i.test(body) ||
+    /invalid session/i.test(body) ||
+    /upgrade your plan/i.test(body) ||
+    /configure your own api keys/i.test(body) ||
+    /connect a coding plan/i.test(body)
+  );
+}
 
+async function getLlmFailureKind(response: Response): Promise<LlmFailureKind> {
+  if (response.ok) return 'none';
+
+  let body = '';
   try {
-    const body = await response.clone().text();
-    return /\bforbidden\b/i.test(body);
+    body = await response.clone().text();
   } catch {
-    return false;
+    body = '';
   }
+
+  if (isAccountRequiredBody(body)) return 'account-required';
+  if (response.status === 403) return 'forbidden';
+  if (/\bforbidden\b/i.test(body)) return 'forbidden';
+  return 'none';
 }
 
 function unavailableResponse(accountForbidden = false): Response {
@@ -364,9 +382,16 @@ export function createLlmFetch(
 
     const send = () => globalThis.fetch(input, requestInit);
     const firstResponse = await send();
-    if (!(await isForbiddenResponse(firstResponse))) {
+    const firstFailure = await getLlmFailureKind(firstResponse);
+    if (firstFailure === 'none') {
       settings.onAccountSuccess?.();
       return firstResponse;
+    }
+    if (firstFailure === 'account-required') {
+      settings.onLog?.(
+        `[llm-network] Initial LLM request requires account switching: status=${firstResponse.status} statusText=${firstResponse.statusText} proxy=${proxyUrl}`,
+      );
+      return unavailableResponse(true);
     }
     settings.onLog?.(
       `[llm-network] Initial LLM request forbidden: status=${firstResponse.status} statusText=${firstResponse.statusText} proxy=${proxyUrl}`,
@@ -410,11 +435,12 @@ async function retryWithSerializedClashSwitch(
     }
 
     const retryResponse = await send();
-    const retryForbidden = await isForbiddenResponse(retryResponse);
+    const retryFailure = await getLlmFailureKind(retryResponse);
     settings.onLog?.(
-      `[llm-network] Retry result after shared Clash switch: status=${retryResponse.status} statusText=${retryResponse.statusText} ok=${retryResponse.ok} forbidden=${retryForbidden}`,
+      `[llm-network] Retry result after shared Clash switch: status=${retryResponse.status} statusText=${retryResponse.statusText} ok=${retryResponse.ok} failure=${retryFailure}`,
     );
-    if (retryForbidden) return unavailableResponse(false);
+    if (retryFailure === 'account-required') return unavailableResponse(true);
+    if (retryFailure === 'forbidden') return unavailableResponse(false);
     settings.onAccountSuccess?.();
     return retryResponse;
   }
@@ -503,13 +529,23 @@ async function runClashSwitchRetry(
         updatedAt: Date.now(),
       });
       const retryResponse = await send();
-      const retryForbidden = await isForbiddenResponse(retryResponse);
+      const retryFailure = await getLlmFailureKind(retryResponse);
       switchedRetryCount += 1;
+      const retryForbidden = retryFailure === 'forbidden';
       if (retryForbidden) forbiddenRetryCount += 1;
       settings.onLog?.(
-        `[llm-network] Retry result after Clash switch: group=${selection.groupName} node=${nodeName} ping=${formatClashDelay(candidate.delayMs)} status=${retryResponse.status} statusText=${retryResponse.statusText} ok=${retryResponse.ok} forbidden=${retryForbidden}`,
+        `[llm-network] Retry result after Clash switch: group=${selection.groupName} node=${nodeName} ping=${formatClashDelay(candidate.delayMs)} status=${retryResponse.status} statusText=${retryResponse.statusText} ok=${retryResponse.ok} failure=${retryFailure}`,
       );
-      if (!retryForbidden) {
+      if (retryFailure === 'account-required') {
+        settings.onLog?.(
+          '[llm-network] Retry requires account switching; stopping node switching',
+        );
+        return {
+          response: unavailableResponse(true),
+          outcome: { kind: 'account-forbidden' },
+        };
+      }
+      if (retryFailure === 'none') {
         settings.onAccountSuccess?.();
         return { response: retryResponse, outcome: { kind: 'success' } };
       }
