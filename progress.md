@@ -2240,3 +2240,35 @@
 - docs/agent-context-compression.md：补充强制恢复路径的本地兜底说明。回滚：`git checkout -- docs/agent-context-compression.md`。
 - docs/agent-runtime-visibility.md：补充 `compression-emergency-fallback` 日志事件说明。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
 - progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: 选择性合并 main 稳定性修复到 local
+
+### What was done
+- 按 `local` 优先原则审查 `main` 增量，跳过注册、帐号池、鉴权、API endpoint 探测、遥测、provider 架构、onboarding、网站内容、发布版本和提示词/记录类改动。
+- 合入 LSP 关闭阶段的稳定性修复，降低服务关闭时出现未处理 stream 错误的风险，同时保留 `local` 已有 Biome Windows native binary 路径。
+- 合入内容面板折叠状态下打开 plan/chat 链接的可见性修复，打开目标页前会先展开内容面板。
+- 合入 workspace 默认分支偏好水合修复，解决 fallback `main` 与实际 `master` 等默认分支不一致时 source branch 没有更新的问题。
+- 合入 symlink skill 目录发现修复，使符号链接到目录的 skill 能被识别。
+- 已识别但未合入 `main` 对 `AGENTS.md`、两个 `soul.md` 和 `progress.md` 的改动，等待用户单独决定。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F @stagewise/agent-core test -- skills` 退出码 0，1 个 test file / 8 个 tests 全部通过。
+- `pnpm -F stagewise exec vitest run src/ui/screens/main/agent-chat/chat/_components/workspace-action-config.test.ts` 退出码 0，1 个 test file / 8 个 tests 全部通过。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/toolbox/services/lsp/client.ts apps/browser/src/ui/components/streamdown/index.tsx apps/browser/src/ui/screens/main/_components/content-collapsed-context.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-part-ui/tools/write/create-plan.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config-utils.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config.test.ts packages/agent-core/src/services/mount-manager/workspace-info/skills.ts packages/agent-core/src/services/mount-manager/workspace-info/skills.test.ts` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/services/toolbox/services/lsp/client.ts apps/browser/src/ui/components/streamdown/index.tsx apps/browser/src/ui/screens/main/_components/content-collapsed-context.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-part-ui/tools/write/create-plan.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config-utils.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config.test.ts packages/agent-core/src/services/mount-manager/workspace-info/skills.ts packages/agent-core/src/services/mount-manager/workspace-info/skills.test.ts` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/toolbox/services/lsp/client.ts：关闭 LSP 时跳过已销毁 stdin 的 Exit 写入，并接住超时后的 shutdown promise。回滚：`git checkout -- apps/browser/src/backend/services/toolbox/services/lsp/client.ts`。
+- apps/browser/src/ui/components/streamdown/index.tsx：alt-click 打开 chat link 前展开内容面板。回滚：`git checkout -- apps/browser/src/ui/components/streamdown/index.tsx`。
+- apps/browser/src/ui/screens/main/_components/content-collapsed-context.tsx：新增可选读取折叠状态的 hook，供可能缺少 provider 的渲染场景使用。回滚：`git checkout -- apps/browser/src/ui/screens/main/_components/content-collapsed-context.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx：打开 footer plan 前展开内容面板。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-part-ui/tools/write/create-plan.tsx：打开新建 plan 卡片前展开内容面板。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-part-ui/tools/write/create-plan.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config-utils.ts：source branch 默认值水合改用占位集合判断。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config-utils.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config.test.ts：补充 fallback `main` 与实际 source branch 不一致的回归测试。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config.test.ts`。
+- packages/agent-core/src/services/mount-manager/workspace-info/skills.ts：skill 目录判断改为 stat 跟随 symlink。回滚：`git checkout -- packages/agent-core/src/services/mount-manager/workspace-info/skills.ts`。
+- packages/agent-core/src/services/mount-manager/workspace-info/skills.test.ts：新增 symlink skill 发现回归测试。回滚：`Remove-Item -LiteralPath packages\agent-core\src\services\mount-manager\workspace-info\skills.test.ts`。
+- progress.md：追加本轮合并与验证记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/toolbox/services/lsp/client.ts apps/browser/src/ui/components/streamdown/index.tsx apps/browser/src/ui/screens/main/_components/content-collapsed-context.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-part-ui/tools/write/create-plan.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config-utils.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config.test.ts packages/agent-core/src/services/mount-manager/workspace-info/skills.ts progress.md; Remove-Item -LiteralPath packages\agent-core\src\services\mount-manager\workspace-info\skills.test.ts`。

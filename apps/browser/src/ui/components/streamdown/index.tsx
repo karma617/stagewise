@@ -55,6 +55,7 @@ import {
 import { resolveLinkAlias } from './link-aliases';
 import { useKartonProcedure } from '@ui/hooks/use-karton';
 import { useI18n } from '@ui/hooks/use-i18n';
+import { useContentCollapsedOptional } from '@ui/screens/main/_components/content-collapsed-context';
 
 const ChatLinkModifierContext = createContext(false);
 
@@ -1052,6 +1053,7 @@ export const Streamdown = memo(
     const processed = useMemo(() => preprocessMarkdown(children), [children]);
     const createTab = useKartonProcedure((p) => p.browser.createTab);
     const isAltPressed = useChatLinkAltPressed();
+    const contentCollapsedCtx = useContentCollapsedOptional();
 
     const handleMouseMoveCapture = useCallback(
       (event: MouseEvent<HTMLDivElement>) => {
@@ -1073,9 +1075,11 @@ export const Streamdown = memo(
 
         event.preventDefault();
         event.stopPropagation();
+        if (contentCollapsedCtx?.collapsed)
+          contentCollapsedCtx.setCollapsed(false);
         void createTab(href, true);
       },
-      [createTab],
+      [createTab, contentCollapsedCtx],
     );
 
     return (

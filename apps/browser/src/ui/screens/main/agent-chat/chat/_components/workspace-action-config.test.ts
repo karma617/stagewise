@@ -112,4 +112,42 @@ describe('hydrateWorkspaceActionConfigWithDefaults', () => {
       ).createBranchFrom,
     ).toBe('main');
   });
+
+  it('hydrates createWorktreeFrom when fallback main differs from previousDefaults sourceBranch', () => {
+    expect(
+      hydrateWorkspaceActionConfigWithDefaults(
+        {
+          ...defaults,
+          createWorktreeFrom: 'main',
+        },
+        {
+          ...defaults,
+          createWorktreeFrom: 'origin/master',
+        },
+        {
+          ...previousDefaults,
+          sourceBranch: 'master',
+        },
+      ).createWorktreeFrom,
+    ).toBe('origin/master');
+  });
+
+  it('hydrates createBranchFrom when fallback main differs from previousDefaults sourceBranch', () => {
+    expect(
+      hydrateWorkspaceActionConfigWithDefaults(
+        {
+          ...defaults,
+          createBranchFrom: 'main',
+        },
+        {
+          ...defaults,
+          createBranchFrom: 'origin/master',
+        },
+        {
+          ...previousDefaults,
+          sourceBranch: 'master',
+        },
+      ).createBranchFrom,
+    ).toBe('origin/master');
+  });
 });

@@ -79,3 +79,7 @@ export function useContentCollapsed(): ContentCollapsedCtx {
   }
   return ctx;
 }
+
+export function useContentCollapsedOptional(): ContentCollapsedCtx | null {
+  return useContext(ContentCollapsedContext);
+}

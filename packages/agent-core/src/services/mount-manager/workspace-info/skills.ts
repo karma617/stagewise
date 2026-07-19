@@ -48,6 +48,14 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+async function isDirectorySafe(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export async function discoverSkills(skillsDir: string): Promise<Skill[]> {
   if (!(await pathExists(skillsDir))) return [];
 
@@ -55,8 +63,9 @@ export async function discoverSkills(skillsDir: string): Promise<Skill[]> {
   const skills: Skill[] = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
     const skillPath = resolve(skillsDir, entry.name);
+    if (!(await isDirectorySafe(skillPath))) continue;
+
     const skillMdPath = resolve(skillPath, 'SKILL.md');
     if (!(await pathExists(skillMdPath))) continue;
 

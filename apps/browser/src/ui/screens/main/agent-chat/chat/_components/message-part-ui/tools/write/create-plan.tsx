@@ -30,6 +30,7 @@ import {
   TooltipTrigger,
 } from '@stagewise/stage-ui/components/tooltip';
 import { useI18n } from '@ui/hooks/use-i18n';
+import { useContentCollapsed } from '@ui/screens/main/_components/content-collapsed-context';
 
 /**
  * Dedicated tool-part UI for plan file creation / update.
@@ -148,6 +149,8 @@ function CreatePlanSettledCard({ part }: { part: WritePart }) {
   const switchTab = useKartonProcedure((p) => p.browser.switchTab);
   const goToUrl = useKartonProcedure((p) => p.browser.goto);
   const tabs = useKartonState((s) => s.contentTabs.tabs);
+  const { collapsed: contentCollapsed, setCollapsed: setContentCollapsed } =
+    useContentCollapsed();
 
   // Implement: send a synthetic /implement message to the agent
   const handleImplement = useSendImplement();
@@ -161,6 +164,8 @@ function CreatePlanSettledCard({ part }: { part: WritePart }) {
     });
 
   const handleOpenPlan = useCallback(() => {
+    if (contentCollapsed) setContentCollapsed(false);
+
     const baseUrl = `stagewise://internal/plan/${encodeURIComponent(filename)}`;
     const existingTab = Object.values(tabs).find((tab) =>
       tab.url.startsWith(baseUrl),
@@ -171,7 +176,15 @@ function CreatePlanSettledCard({ part }: { part: WritePart }) {
     } else {
       void createTab(baseUrl, true);
     }
-  }, [filename, tabs, switchTab, goToUrl, createTab]);
+  }, [
+    filename,
+    tabs,
+    switchTab,
+    goToUrl,
+    createTab,
+    contentCollapsed,
+    setContentCollapsed,
+  ]);
 
   return (
     <div className="mt-6 w-full overflow-hidden rounded-lg border border-border-subtle bg-background shadow-xs dark:border-border dark:bg-surface-1">

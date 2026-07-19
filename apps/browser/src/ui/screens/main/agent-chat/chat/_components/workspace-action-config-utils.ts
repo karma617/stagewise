@@ -24,17 +24,22 @@ export function hydrateWorkspaceActionConfigWithDefaults(
     previousDefaults.defaultBranch,
     'main',
   ]);
+  const sourceBranchPlaceholders = new Set([
+    previousDefaults.sourceBranch,
+    previousDefaults.defaultBranch,
+    'main',
+  ]);
 
   return {
     ...config,
     createWorktreeFrom:
       config.createWorktreeFromTouched !== true &&
-      config.createWorktreeFrom === previousDefaults.sourceBranch
+      sourceBranchPlaceholders.has(config.createWorktreeFrom)
         ? defaults.createWorktreeFrom
         : config.createWorktreeFrom,
     createBranchFrom:
       config.createBranchFromTouched !== true &&
-      config.createBranchFrom === previousDefaults.sourceBranch
+      sourceBranchPlaceholders.has(config.createBranchFrom)
         ? defaults.createBranchFrom
         : config.createBranchFrom,
     switchBranchTarget:
