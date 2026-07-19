@@ -1,4 +1,5 @@
 import { ProxyAgent } from 'undici';
+import { randomUUID } from 'node:crypto';
 import type { LlmNetworkStatus } from '@shared/karton-contracts/ui';
 
 export const DEFAULT_CHAT_PROXY_URL = 'http://127.0.0.1:7897';
@@ -70,6 +71,24 @@ type LlmSend = () => Promise<Response>;
 
 const proxyAgents = new Map<string, ProxyAgent>();
 let clashSwitchInFlight: Promise<ClashRetryOutcome> | null = null;
+
+function describeRequestTarget(input: RequestInfo | URL): string {
+  try {
+    const url =
+      typeof input === 'string'
+        ? new URL(input)
+        : input instanceof URL
+          ? input
+          : new URL(input.url);
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  } catch {
+    return '[unknown-url]';
+  }
+}
+
+function getRequestMethod(init: RequestInit | undefined): string {
+  return init?.method?.toUpperCase() ?? 'GET';
+}
 
 function normalizeUrl(value: string | undefined): string {
   const trimmed = value?.trim();
@@ -380,7 +399,30 @@ export function createLlmFetch(
       ),
     ) as RequestInitWithDispatcher;
 
-    const send = () => globalThis.fetch(input, requestInit);
+    let requestAttempt = 0;
+    const requestTarget = describeRequestTarget(input);
+    const requestMethod = getRequestMethod(requestInit);
+    const send = async () => {
+      requestAttempt += 1;
+      const requestId = randomUUID();
+      const startedAt = Date.now();
+      settings.onLog?.(
+        `[llm-network] request start id=${requestId} attempt=${requestAttempt} method=${requestMethod} url=${requestTarget} proxy=${proxyUrl || 'direct'}`,
+      );
+      try {
+        const response = await globalThis.fetch(input, requestInit);
+        settings.onLog?.(
+          `[llm-network] request response id=${requestId} attempt=${requestAttempt} status=${response.status} statusText=${response.statusText} ok=${response.ok} elapsedMs=${Date.now() - startedAt}`,
+        );
+        return response;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        settings.onLog?.(
+          `[llm-network] request error id=${requestId} attempt=${requestAttempt} elapsedMs=${Date.now() - startedAt} error=${message}`,
+        );
+        throw error;
+      }
+    };
     const firstResponse = await send();
     const firstFailure = await getLlmFailureKind(firstResponse);
     if (firstFailure === 'none') {

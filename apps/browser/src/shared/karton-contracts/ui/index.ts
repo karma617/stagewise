@@ -976,6 +976,15 @@ export type LlmNetworkStatus = {
   updatedAt: number;
 };
 
+export type StartupBackgroundTaskStatus = {
+  id: string;
+  title: string;
+  status: 'running' | 'succeeded' | 'failed';
+  startedAt: number;
+  finishedAt: number | null;
+  message: string | null;
+};
+
 export type AppState = {
   appScreen: {
     mode: 'main' | 'settings';
@@ -1065,6 +1074,8 @@ export type AppState = {
   };
   /** Live status for LLM network fallback work, such as Clash node switching. */
   llmNetworkStatus: LlmNetworkStatus | null;
+  /** Non-critical startup work running after the main UI is usable. */
+  startupBackgroundTasks: StartupBackgroundTaskStatus[];
   // Current stagewise app runtime information
   appInfo: {
     baseName: string; // Base name (e.g., 'stagewise-dev', 'stagewise-prerelease', 'stagewise').
@@ -1316,6 +1327,13 @@ export type KartonContract = {
         source?: 'panel-combobox' | 'inline-approval-button',
       ) => Promise<void>;
       stop: (agentId: string) => Promise<void>;
+      pauseGoal: (agentId: string) => Promise<void>;
+      resumeGoal: (agentId: string) => Promise<void>;
+      updateGoalObjective: (
+        agentId: string,
+        objective: string,
+      ) => Promise<void>;
+      deleteGoal: (agentId: string) => Promise<void>;
       flushQueue: (agentId: string) => Promise<void>;
       clearQueue: (agentId: string) => Promise<void>;
       deleteQueuedMessage: (
@@ -1332,6 +1350,7 @@ export type KartonContract = {
         userMessageId: string,
         newMessage: AgentMessage & { role: 'user' },
         undoToolCalls: boolean,
+        options?: { restoreLastGoal?: boolean },
       ) => Promise<string>;
       retryLastUserMessage: (agentId: string) => Promise<void>;
       continueAfterError: (agentId: string) => Promise<void>;
@@ -2425,6 +2444,7 @@ export const defaultState: KartonContract['state'] = {
     accountPoolStats: { total: 0, available: 0, observing: 0 },
   },
   llmNetworkStatus: null,
+  startupBackgroundTasks: [],
   appInfo: {
     baseName: __APP_BASE_NAME__,
     name: __APP_NAME__,

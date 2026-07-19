@@ -17,6 +17,8 @@ import {
 } from '@stagewise/agent-core/env';
 import {
   attachmentSchema,
+  agentUsageSummarySchema,
+  compressionStateSchema,
   fileAttachmentSchema,
   fileMentionMetaSchema,
   mentionFileCandidateSchema,
@@ -37,6 +39,8 @@ import type {
 import type {
   Attachment,
   AttachmentMetadata,
+  AgentUsageSummary,
+  CompressionState,
   FileAttachment,
   FileMentionMeta,
   MentionFileCandidate,
@@ -72,6 +76,7 @@ export {
   agentsMdEntrySchema,
   agentsMdSnapshotSchema,
   attachmentSchema,
+  agentUsageSummarySchema,
   browserSnapshotSchema,
   browserTabSnapshotSchema,
   enabledSkillsSnapshotSchema,
@@ -100,10 +105,12 @@ export {
 export type {
   ActiveAppSnapshot,
   AgentsMdSnapshot,
+  AgentUsageSummary,
   Attachment,
   AttachmentMetadata,
   BrowserSnapshot,
   BrowserTabSnapshot,
+  CompressionState,
   EnabledSkillsSnapshot,
   EnvStateEntry,
   FileAttachment,
@@ -198,6 +205,8 @@ export const metadataSchema = z.object({
   ),
   textClipAttachments: z.array(textClipAttachmentSchema).optional(),
   compressedHistory: z.string().optional(),
+  compressionState: compressionStateSchema.optional(),
+  usageSummary: agentUsageSummarySchema.optional(),
   attachments: z.array(attachmentSchema).optional(),
   envState: z.record(z.string(), envStateEntrySchema).optional(),
   mentions: z.array(mentionSchema).optional(),

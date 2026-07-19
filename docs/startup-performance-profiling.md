@@ -3,6 +3,28 @@
 Use this only when diagnosing startup UI freezes. It is off by default and
 adds tracing overhead while enabled.
 
+## Startup Background Work
+
+Non-critical startup work should not block the main window or regular UI
+interaction. The backend reports these tasks through `startupBackgroundTasks`
+in the UI Karton state, and the main screen shows a non-modal floating status
+card while work is still running.
+
+Current background startup tasks include:
+
+- loading search engines into the omnibox state
+- discovering bundled plugins
+- synchronizing notification sound packs
+- checking the bundled ripgrep binary used by grep/glob tools
+- discovering built-in skills
+- opening and sweeping the asset-cache database
+- scanning old worktree cleanup candidates
+
+These tasks may update UI state when they finish, but failure must degrade
+gracefully and must not prevent the user from using the window. If a startup
+task is required for core chat, window creation, Karton RPC registration,
+authentication, or agent restoration, keep it in the foreground path.
+
 ## Enable
 
 PowerShell:

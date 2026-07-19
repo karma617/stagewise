@@ -41,7 +41,14 @@ function makeBaseState(history: AgentMessage[] = []): AgentState {
 describe('state-mutations/lifecycle.recordStepError', () => {
   it("markUnread: 'always' marks the agent unread even without assistant history", () => {
     const store = new AgentStore(emptySystemState());
-    upsertAgentInstance(store, 'a1', makeEnvelope(makeBaseState([])));
+    upsertAgentInstance(
+      store,
+      'a1',
+      makeEnvelope({
+        ...makeBaseState([]),
+        runtimePhase: 'compressing-context',
+      }),
+    );
 
     recordStepError(store, 'a1', {
       error: { message: 'boom', stack: undefined },
@@ -50,6 +57,7 @@ describe('state-mutations/lifecycle.recordStepError', () => {
 
     const after = store.get().agents.instances.a1!.state;
     expect(after.isWorking).toBe(false);
+    expect(after.runtimePhase).toBeUndefined();
     expect(after.unread).toBe(true);
     expect(after.error?.message).toBe('boom');
   });
@@ -99,7 +107,7 @@ describe('state-mutations/lifecycle.recordStepError', () => {
     expect(store.get().agents.instances.a1!.state.unread).toBe(true);
   });
 
-  it('marks an active goal complete on clean idle transition', () => {
+  it('keeps an active goal open on clean idle transition', () => {
     const store = new AgentStore(emptySystemState());
     upsertAgentInstance(
       store,
@@ -123,9 +131,9 @@ describe('state-mutations/lifecycle.recordStepError', () => {
     });
 
     const goal = store.get().agents.instances.a1!.state.goal;
-    expect(goal?.status).toBe('complete');
-    expect(goal?.completedAt).toBeTypeOf('number');
-    expect(goal?.finalTokenUsage).toBe(123);
+    expect(goal?.status).toBe('active');
+    expect(goal?.completedAt).toBeUndefined();
+    expect(goal?.finalTokenUsage).toBeUndefined();
   });
 
   it('marks an active goal blocked when a step error is recorded', () => {
@@ -164,6 +172,7 @@ describe('state-mutations/lifecycle.recordStepError', () => {
       makeEnvelope({
         ...makeBaseState([]),
         isWorking: false,
+        runtimePhase: 'compressing-context',
         error: { message: 'provider failed' },
         goal: {
           id: 'goal-1',
@@ -181,8 +190,35 @@ describe('state-mutations/lifecycle.recordStepError', () => {
 
     const state = store.get().agents.instances.a1!.state;
     expect(state.error).toBeUndefined();
+    expect(state.runtimePhase).toBeUndefined();
     expect(state.goal?.status).toBe('active');
     expect(state.goal?.blockedAt).toBeUndefined();
     expect(state.goal?.blockReason).toBeUndefined();
+  });
+
+  it('keeps a paused goal paused when a step begins', () => {
+    const store = new AgentStore(emptySystemState());
+    upsertAgentInstance(
+      store,
+      'a1',
+      makeEnvelope({
+        ...makeBaseState([]),
+        isWorking: false,
+        goal: {
+          id: 'goal-1',
+          objective: 'ship the fix',
+          status: 'paused',
+          createdAt: 1,
+          updatedAt: 1,
+          pausedAt: 2,
+        },
+      }),
+    );
+
+    beginStep(store, 'a1', { flushQueue: false });
+
+    const state = store.get().agents.instances.a1!.state;
+    expect(state.goal?.status).toBe('paused');
+    expect(state.goal?.pausedAt).toBe(2);
   });
 });

@@ -145,6 +145,46 @@ export const ownedReasoningDetailsSchema = z.object({
 
 export type OwnedReasoningDetails = z.infer<typeof ownedReasoningDetailsSchema>;
 
+export const agentGoalSnapshotSchema = z
+  .object({
+    id: z.string(),
+    objective: z.string(),
+    status: z.enum(['active', 'paused', 'complete', 'blocked']),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+    sourceMessageId: z.string().optional(),
+    tokenBudget: z.number().optional(),
+    finalTokenUsage: z.number().optional(),
+    completedAt: z.number().optional(),
+    pausedAt: z.number().optional(),
+    blockedAt: z.number().optional(),
+    blockReason: z.string().optional(),
+  })
+  .nullable();
+
+export type AgentGoalSnapshot = z.infer<typeof agentGoalSnapshotSchema>;
+
+export const agentUsageSummarySchema = z.object({
+  totalTokens: z.number(),
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+  cachedInputTokens: z.number(),
+  cacheWriteTokens: z.number(),
+  contextTokens: z.number(),
+  contextWindowTokens: z.number(),
+  modelCallCount: z.number(),
+  durationMs: z.number(),
+});
+
+export type AgentUsageSummary = z.infer<typeof agentUsageSummarySchema>;
+
+export const compressionStateSchema = z.object({
+  baselineUsedTokens: z.number(),
+  compressedAt: z.number(),
+});
+
+export type CompressionState = z.infer<typeof compressionStateSchema>;
+
 export const metadataSchema = z.object({
   createdAt: z.date(),
   partsMetadata: z.array(
@@ -154,6 +194,13 @@ export const metadataSchema = z.object({
   ),
   textClipAttachments: z.array(textClipAttachmentSchema).optional(),
   compressedHistory: z.string().optional(),
+  compressionState: compressionStateSchema.optional(),
+  usageSummary: agentUsageSummarySchema.optional(),
+  /**
+   * Latest durable goal snapshot for this chat. `null` is a tombstone used
+   * when the user deletes the goal, so older snapshots are not restored.
+   */
+  goalSnapshot: agentGoalSnapshotSchema.optional(),
   attachments: z.array(attachmentSchema).optional(),
   /**
    * Per-domain env-state entries written by

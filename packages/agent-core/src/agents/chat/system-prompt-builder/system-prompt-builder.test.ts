@@ -71,6 +71,9 @@ describe('buildChatSystemPrompt', () => {
     expect(prompt).toContain('</output-style>');
     expect(prompt).toContain('<authorities>');
     expect(prompt).toContain('</authorities>');
+    expect(prompt).toContain(
+      'Reply entirely in the user\'s latest message language.',
+    );
 
     expect(prompt).toContain('## State & Events');
     expect(prompt).toContain('## Visual Perception');

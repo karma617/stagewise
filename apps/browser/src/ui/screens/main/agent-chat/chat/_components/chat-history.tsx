@@ -15,10 +15,7 @@ import { MessageRuntimeError } from './message-runtime-error';
 import { useKartonState, useKartonProcedure } from '@ui/hooks/use-karton';
 import { useTrack } from '@ui/hooks/use-track';
 import { cn } from '@ui/utils';
-import type {
-  AgentGoalState,
-  AgentMessage,
-} from '@shared/karton-contracts/ui/agent';
+import type { AgentMessage } from '@shared/karton-contracts/ui/agent';
 import { useAutoScroll } from '@ui/hooks/use-auto-scroll';
 import { EmptyChatSuggestions } from './empty-chat-suggestions';
 import { useMessageEditState } from '@ui/hooks/use-message-edit-state';
@@ -62,6 +59,7 @@ const CHAT_TOP_INSET = 32;
 const CHAT_FADE = 16;
 const CHAT_PAGE_SCROLL_FACTOR = 0.6;
 const CHAT_PAGE_SCROLL_MIN = 120;
+const PREPARING_CONTEXT_VISIBLE_DELAY_MS = 1200;
 
 // Stable empty array to avoid infinite re-renders with useSyncExternalStore
 const EMPTY_HISTORY: AgentMessage[] = [];
@@ -70,6 +68,7 @@ type WorkspacePreparationKind = 'worktree' | 'branch';
 
 type LoadingIndicatorState =
   | { kind: 'working' }
+  | { kind: 'runtime-phase'; label: string }
   | { kind: 'preparing-worktree' }
   | { kind: 'preparing-branch' }
   | { kind: 'llm-network'; label: string };
@@ -90,6 +89,8 @@ type OptimisticMessage = DisplayMessage & {
 function getLoadingIndicatorLabel(indicator: LoadingIndicatorState): string {
   if (indicator.kind === 'llm-network') return indicator.label;
   switch (indicator.kind) {
+    case 'runtime-phase':
+      return indicator.label;
     case 'preparing-worktree':
       return 'Preparing worktree...';
     case 'preparing-branch':
@@ -108,56 +109,28 @@ function getLoadingIndicatorVariant(
     case 'preparing-branch':
       return 'branch';
     case 'working':
+    case 'runtime-phase':
     case 'llm-network':
       return 'working';
   }
 }
 
-function GoalStatusCard({ goal }: { goal: AgentGoalState }) {
-  const { t } = useI18n();
-  const statusKey = `chat.goalStatus.${goal.status}` as const;
-  return (
-    <div className="pointer-events-auto absolute top-2 right-4 left-4 z-10 mx-auto max-w-3xl rounded-xl border border-derived bg-surface-1/95 px-3 py-2 shadow-elevation-1 backdrop-blur">
-      <div className="flex items-start gap-2">
-        <div
-          className={cn(
-            'mt-1 size-2 rounded-full',
-            goal.status === 'active' && 'animate-pulse-full bg-info-solid',
-            goal.status === 'complete' && 'bg-success-solid',
-            goal.status === 'blocked' && 'bg-warning-solid',
-          )}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-xs">
-              {t('chat.goalStatus.title')}
-            </span>
-            <span
-              className={cn(
-                'rounded-full px-2 py-0.5 text-[10px]',
-                goal.status === 'active' &&
-                  'bg-info-background text-info-foreground',
-                goal.status === 'complete' &&
-                  'bg-success-background text-success-foreground',
-                goal.status === 'blocked' &&
-                  'bg-warning-background text-warning-foreground',
-              )}
-            >
-              {t(statusKey)}
-            </span>
-          </div>
-          <div className="mt-1 line-clamp-2 break-words text-muted-foreground text-xs">
-            {goal.objective}
-          </div>
-          {goal.status === 'blocked' && goal.blockReason && (
-            <div className="mt-1 line-clamp-2 break-words text-[11px] text-warning-foreground">
-              {goal.blockReason}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function getRuntimePhaseLabel(
+  phase: string | undefined,
+  t: (key: string) => string,
+): string | null {
+  switch (phase) {
+    case 'preparing-context':
+      return t('chat.runtimePhase.preparingContext');
+    case 'preparing-tools':
+      return t('chat.runtimePhase.preparingTools');
+    case 'waiting-for-model':
+      return t('chat.runtimePhase.waitingForModel');
+    case 'compressing-context':
+      return t('chat.runtimePhase.compressingContext');
+    default:
+      return null;
+  }
 }
 
 function formatLlmNetworkStatusLabel(
@@ -424,6 +397,11 @@ export const ChatHistory = () => {
   const isWorking = useKartonState((s) =>
     openAgent ? s.agents.instances[openAgent]?.state.isWorking : false,
   );
+  const runtimePhase = useKartonState((s) =>
+    openAgent ? s.agents.instances[openAgent]?.state.runtimePhase : undefined,
+  );
+  const [showPreparingContextPhase, setShowPreparingContextPhase] =
+    useState(false);
   const llmNetworkStatus = useKartonState((s) => s.llmNetworkStatus);
   const history = useKartonState((s) =>
     openAgent
@@ -432,9 +410,6 @@ export const ChatHistory = () => {
   );
   const error = useKartonState((s) =>
     openAgent ? s.agents.instances[openAgent]?.state.error : undefined,
-  );
-  const goal = useKartonState((s) =>
-    openAgent ? s.agents.instances[openAgent]?.state.goal : undefined,
   );
   const [removedSuggestionIds, setRemovedSuggestionIds] = useState<Set<string>>(
     new Set(),
@@ -947,12 +922,46 @@ export const ChatHistory = () => {
     if (isWorking) pendingWorkingRef.current = false;
   }, [isWorking]);
 
+  useEffect(() => {
+    if (!isWorking || runtimePhase !== 'preparing-context') {
+      setShowPreparingContextPhase(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowPreparingContextPhase(true);
+    }, PREPARING_CONTEXT_VISIBLE_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [isWorking, runtimePhase]);
+
+  const visibleRuntimePhase =
+    runtimePhase === 'preparing-context' && !showPreparingContextPhase
+      ? undefined
+      : runtimePhase;
+
   // Show preparation / working state after user message or empty assistant
   // message. Also show immediately for optimistic user messages before
   // isWorking flips.
   const loadingIndicator = useMemo<LoadingIndicatorState | null>(() => {
     const lastMessage = filteredMessages[filteredMessages.length - 1];
     if (!lastMessage) return null;
+    const hasStreamingAssistantContent =
+      lastMessage.role === 'assistant' &&
+      !isEmptyAssistantMessage(lastMessage);
+    const runtimePhaseLabel = getRuntimePhaseLabel(visibleRuntimePhase, t);
+    if (isWorking && runtimePhaseLabel) {
+      if (
+        runtimePhase === 'waiting-for-model' &&
+        hasStreamingAssistantContent
+      ) {
+        return null;
+      }
+      return {
+        kind: 'runtime-phase',
+        label: runtimePhaseLabel,
+      };
+    }
     if (isWorking && llmNetworkStatus) {
       return {
         kind: 'llm-network',
@@ -980,7 +989,15 @@ export const ChatHistory = () => {
     )
       return { kind: 'working' };
     return null;
-  }, [isWorking, filteredMessages, workspacePreparation, llmNetworkStatus, t]);
+  }, [
+    isWorking,
+    runtimePhase,
+    visibleRuntimePhase,
+    filteredMessages,
+    workspacePreparation,
+    llmNetworkStatus,
+    t,
+  ]);
   const loadingIndicatorCacheKey = loadingIndicator
     ? `${loadingIndicator.kind}:${getLoadingIndicatorLabel(loadingIndicator)}`
     : null;
@@ -991,8 +1008,11 @@ export const ChatHistory = () => {
     const lastMessage = filteredMessages[filteredMessages.length - 1];
     if (lastMessage?.role !== 'assistant') return false;
     if (isEmptyAssistantMessage(lastMessage)) return false;
+    if (loadingIndicator) return false;
     return areAllPartsSettled(lastMessage);
-  }, [isWorking, filteredMessages]);
+  }, [isWorking, filteredMessages, loadingIndicator]);
+  const betweenStepsLabel =
+    getRuntimePhaseLabel(visibleRuntimePhase, t) ?? undefined;
 
   // Find the index of the last user message (for attaching measurement ref)
   const lastUserMsgIndex = useMemo(() => {
@@ -1001,7 +1021,6 @@ export const ChatHistory = () => {
 
     return -1;
   }, [filteredMessages]);
-
   useHotKeyListener(
     useCallback(() => {
       if (isWorking) return;
@@ -1061,6 +1080,8 @@ export const ChatHistory = () => {
   loadingIndicatorRef.current = loadingIndicator;
   const showBetweenStepsIndicatorRef = useRef(showBetweenStepsIndicator);
   showBetweenStepsIndicatorRef.current = showBetweenStepsIndicator;
+  const betweenStepsLabelRef = useRef(betweenStepsLabel);
+  betweenStepsLabelRef.current = betweenStepsLabel;
   const canRetryRef = useRef(false); // updated below after canRetry is defined
   const errorRef = useRef(error);
   errorRef.current = error;
@@ -1115,6 +1136,7 @@ export const ChatHistory = () => {
   const cacheGenRef = useRef(0);
   const prevIsWorkingCacheRef = useRef(isWorking);
   const prevLoadingIndicatorKeyRef = useRef(loadingIndicatorCacheKey);
+  const prevBetweenStepsLabelRef = useRef(betweenStepsLabel);
   const prevStructuralDepsRef = useRef({
     msgLen: filteredMessages.length,
     paddingRight,
@@ -1134,6 +1156,8 @@ export const ChatHistory = () => {
     const isWorkingChange = prevIsWorkingCacheRef.current !== isWorking;
     const loadingIndicatorChange =
       prevLoadingIndicatorKeyRef.current !== loadingIndicatorCacheKey;
+    const betweenStepsLabelChange =
+      prevBetweenStepsLabelRef.current !== betweenStepsLabel;
     prevStructuralDepsRef.current = {
       msgLen: filteredMessages.length,
       paddingRight,
@@ -1141,6 +1165,7 @@ export const ChatHistory = () => {
     };
     prevIsWorkingCacheRef.current = isWorking;
     prevLoadingIndicatorKeyRef.current = loadingIndicatorCacheKey;
+    prevBetweenStepsLabelRef.current = betweenStepsLabel;
 
     if (structuralChange) {
       elementCacheRef.current.clear();
@@ -1162,6 +1187,14 @@ export const ChatHistory = () => {
         userMsgIdsInCacheRef.current.delete(lastUserMessage.id);
       }
     }
+    if (!structuralChange && betweenStepsLabelChange) {
+      const lastAssistantMessage = [...filteredMessages]
+        .reverse()
+        .find((message) => message.role === 'assistant');
+      if (lastAssistantMessage) {
+        elementCacheRef.current.delete(lastAssistantMessage.id);
+      }
+    }
 
     return ++cacheGenRef.current;
   }, [
@@ -1170,6 +1203,7 @@ export const ChatHistory = () => {
     openAgent,
     isWorking,
     loadingIndicatorCacheKey,
+    betweenStepsLabel,
   ]);
   // Keep the gen ref in sync (unused directly, but ensures the dep is used)
   cacheGenRef.current = cacheGen;
@@ -1195,6 +1229,7 @@ export const ChatHistory = () => {
       const curError = errorRef.current;
       const curLoadingIndicator = loadingIndicatorRef.current;
       const curShowBetweenSteps = showBetweenStepsIndicatorRef.current;
+      const curBetweenStepsLabel = betweenStepsLabelRef.current;
       const curCanRetry = canRetryRef.current;
       const curHasFileMods = hasFileModsAfterMapRef.current;
 
@@ -1233,6 +1268,7 @@ export const ChatHistory = () => {
               showBetweenStepsIndicator={
                 isLastMessage ? curShowBetweenSteps : false
               }
+              betweenStepsLabel={curBetweenStepsLabel}
               hasSubsequentFileModifications={
                 curHasFileMods.get(message.id) ?? false
               }
@@ -1247,7 +1283,7 @@ export const ChatHistory = () => {
         return (
           <div
             ref={lastAssistantMessageRef}
-            className="mx-auto w-full max-w-3xl px-1.5 pb-[calc(96px+var(--status-card-height,0px))]"
+            className="mx-auto w-full max-w-3xl px-1.5 pb-[calc(96px+var(--status-card-height,0px)+var(--goal-status-card-height,0px))]"
           >
             <div className="pl-6" style={{ paddingRight }}>
               {messageComponent}
@@ -1372,7 +1408,7 @@ export const ChatHistory = () => {
   // Empty state component for suggestions
   const EmptyPlaceholder = useCallback(() => {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col items-center justify-center gap-1 px-6 pb-[calc(12px+var(--status-card-height,0px))] text-sm">
+      <div className="mx-auto flex w-full max-w-3xl flex-col items-center justify-center gap-1 px-6 pb-[calc(12px+var(--status-card-height,0px)+var(--goal-status-card-height,0px))] text-sm">
         <EmptyChatSuggestions
           removedSuggestionIds={removedSuggestionIds}
           onDismiss={handleRemoveSuggestion}
@@ -1404,7 +1440,6 @@ export const ChatHistory = () => {
     <MountedPathsProvider value={resolvedMounts}>
       <AttachmentMetadataProvider messages={filteredMessages}>
         <div className="relative flex h-full flex-col">
-          {goal && <GoalStatusCard goal={goal} />}
           {/* Sibling spacer above Virtuoso. Reserves the chrome band so
               items never paint into the titlebar area. Kept transparent —
               the parent's bg-background shows through. */}

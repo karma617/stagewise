@@ -24,6 +24,10 @@ import {
   isBinaryBuffer,
   truncateTextContent,
 } from '../format-utils';
+import {
+  shouldSummarizeLargeText,
+  summarizeLargeTextContent,
+} from './diagnostic-text';
 
 /** Known blob extensions → human-readable type name. */
 const BLOB_TYPES: Record<string, string> = {
@@ -60,6 +64,19 @@ export const textBlobTransformer: FileTransformer = async (
   metadata.chars = String(text.length);
 
   const { preview } = ctx.readParams;
+  if (
+    ext === '.textclip' &&
+    shouldSummarizeLargeText(stats.size, totalLines, ctx.readParams)
+  ) {
+    return summarizeLargeTextContent(
+      text,
+      mountedPath,
+      stats,
+      ctx.maxReadChars,
+      metadata,
+      'text-clip-summary',
+    );
+  }
 
   // ── Preview mode ─────────────────────────────────────────────────
   if (preview) {

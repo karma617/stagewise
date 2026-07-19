@@ -402,19 +402,36 @@ export const executeShellCommand = (
           };
         }
 
-        // Stdin mode — write raw bytes, capture output
-        if (params.stdin !== undefined) {
-          if (params.command || params.kill) {
+        const stdin = params.stdin ?? '';
+        const hasStdinInput = stdin.length > 0;
+
+        // Stdin mode — write raw bytes, capture output.
+        // Empty stdin can be introduced by tool-call repair; treat it as
+        // absent so a normal command is not converted into an abort result.
+        if (hasStdinInput) {
+          if (params.kill) {
             return {
               session_id: params.session_id,
-              output: 'stdin is mutually exclusive with command and kill.',
+              output: 'stdin is mutually exclusive with kill.',
               exit_code: null,
               session_exited: false,
               timed_out: false,
               resolved_by: 'abort' as const,
             };
           }
-          const expandedStdin = expandCEscapes(params.stdin);
+          if (params.command && params.command.length > 0) {
+            return {
+              session_id: params.session_id,
+              output:
+                'Received both command and stdin. No shell input was sent. ' +
+                'Run the command first, then send stdin in a separate follow-up call.',
+              exit_code: null,
+              session_exited: false,
+              timed_out: false,
+              resolved_by: 'abort' as const,
+            };
+          }
+          const expandedStdin = expandCEscapes(stdin);
           const result = await shellService.executeInSession(
             agentInstanceId,
             toolCallId,

@@ -43,8 +43,12 @@ import {
 } from '@stagewise/stage-ui/components/menu';
 import { HistoryIcon } from 'lucide-react';
 import { RevertConfirmPopover } from './revert-confirm-popover';
+import { useI18n } from '@ui/hooks/use-i18n';
 
 type AssistantMessage = AgentMessage & { role: 'assistant' };
+type AssistantUsageSummary = NonNullable<
+  AssistantMessage['metadata']
+>['usageSummary'];
 
 /**
  * Fast deep equality optimised for streaming tool parts.
@@ -229,14 +233,17 @@ export const MessageAssistant = memo(
     isLastMessage,
     isWorking,
     showBetweenStepsIndicator,
+    betweenStepsLabel,
     hasSubsequentFileModifications,
   }: {
     message: AssistantMessage;
     isLastMessage: boolean;
     isWorking: boolean;
     showBetweenStepsIndicator?: boolean;
+    betweenStepsLabel?: string;
     hasSubsequentFileModifications?: boolean;
   }) {
+    const { lang, t } = useI18n();
     const isEmptyMessage = useMemo(() => {
       if (
         msg.parts
@@ -371,7 +378,16 @@ export const MessageAssistant = memo(
                   );
                 });
               })()}
-              {showBetweenStepsIndicator && <MessageBetweenSteps />}
+              {showBetweenStepsIndicator && (
+                <MessageBetweenSteps label={betweenStepsLabel} />
+              )}
+              {(!isLastMessage || !isWorking) && (
+                <AssistantUsageSummaryLine
+                  summary={msg.metadata?.usageSummary}
+                  lang={lang}
+                  t={t}
+                />
+              )}
               {/* Actions menu — hidden on last message (restore would be a noop) and while streaming */}
               {!isLastMessage && (
                 <div className="flex justify-end">
@@ -422,6 +438,8 @@ export const MessageAssistant = memo(
       nextProps.showBetweenStepsIndicator
     )
       return false;
+    if (prevProps.betweenStepsLabel !== nextProps.betweenStepsLabel)
+      return false;
     if (
       prevProps.hasSubsequentFileModifications !==
       nextProps.hasSubsequentFileModifications
@@ -435,6 +453,10 @@ export const MessageAssistant = memo(
     const prevAutoCompact = prevProps.message.metadata?.compressedHistory;
     const nextAutoCompact = nextProps.message.metadata?.compressedHistory;
     if (prevAutoCompact !== nextAutoCompact) return false;
+
+    const prevUsageSummary = prevProps.message.metadata?.usageSummary;
+    const nextUsageSummary = nextProps.message.metadata?.usageSummary;
+    if (!cheapDeepEqual(prevUsageSummary, nextUsageSummary)) return false;
 
     // Deep compare parts by type and key content
     for (let i = 0; i < prevProps.message.parts.length; i++) {
@@ -473,3 +495,65 @@ export const MessageAssistant = memo(
     return true;
   },
 );
+
+function AssistantUsageSummaryLine({
+  summary,
+  lang,
+  t,
+}: {
+  summary: AssistantUsageSummary;
+  lang: string;
+  t: (key: string) => string;
+}) {
+  if (!summary) return null;
+
+  const contextPercent =
+    summary.contextWindowTokens > 0
+      ? (summary.contextTokens / summary.contextWindowTokens) * 100
+      : 0;
+  const cacheHitRate =
+    summary.inputTokens > 0
+      ? (summary.cachedInputTokens / summary.inputTokens) * 100
+      : 0;
+  const preflightLimitTokens = Math.floor(summary.contextWindowTokens * 0.85);
+  const preflightPercent =
+    summary.contextWindowTokens > 0
+      ? (preflightLimitTokens / summary.contextWindowTokens) * 100
+      : 0;
+
+  const numberFormatter = new Intl.NumberFormat(lang);
+  const formatNumber = (value: number) =>
+    numberFormatter.format(Math.max(0, Math.round(value)));
+  const formatPercent = (value: number) =>
+    `${Math.max(0, value).toFixed(1)}%`;
+  const formatSeconds = (value: number) =>
+    `${(Math.max(0, value) / 1000).toFixed(1)}s`;
+
+  const items = [
+    `${t('chat.usageSummary.total')} ${formatNumber(summary.totalTokens)}`,
+    `${t('chat.usageSummary.input')} ${formatNumber(summary.inputTokens)}`,
+    `${t('chat.usageSummary.output')} ${formatNumber(summary.outputTokens)}`,
+    `${t('chat.usageSummary.cacheHit')} ${formatNumber(
+      summary.cachedInputTokens,
+    )}`,
+    `${t('chat.usageSummary.cacheHitRate')} ${formatPercent(cacheHitRate)}`,
+    `${t('chat.usageSummary.context')} ${formatNumber(
+      summary.contextTokens,
+    )}/${formatNumber(summary.contextWindowTokens)} (${formatPercent(
+      contextPercent,
+    )})`,
+    `${t('chat.usageSummary.preflightLimit')} ${formatNumber(
+      preflightLimitTokens,
+    )} (${formatPercent(preflightPercent)})`,
+    `${t('chat.usageSummary.calls')} ${formatNumber(
+      summary.modelCallCount,
+    )} ${t('chat.usageSummary.times')}`,
+    `${t('chat.usageSummary.elapsed')} ${formatSeconds(summary.durationMs)}`,
+  ];
+
+  return (
+    <div className="mt-2 w-fit max-w-full rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-muted-foreground text-xs leading-relaxed">
+      {items.join(' · ')}
+    </div>
+  );
+}

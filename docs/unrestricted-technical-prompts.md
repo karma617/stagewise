@@ -18,6 +18,10 @@ Core fragments:
 - `packages/agent-core/src/agents/chat/prompts/output-style-basics.md`
 - `packages/agent-core/src/agents/chat/prompts/authorities.md`
 
+The `soul.md` fragment now explicitly tells the chat agent to reply in the
+user's latest message language and switch immediately when the user's language
+changes.
+
 Browser host fragments:
 
 - `apps/browser/src/backend/agents/chat/prompts/intro.md`

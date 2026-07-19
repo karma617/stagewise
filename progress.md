@@ -1197,3 +1197,1046 @@
 - apps/browser/src/backend/agents/llm-network.test.ts：新增 `Missing or invalid session` 触发 `LLM_ACCOUNT_FORBIDDEN` 的测试。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.test.ts`。
 - progress.md：追加本轮记录。回滚：删除本条记录。
 统一回滚点：`git checkout -- apps/browser/src/backend/agents/llm-network.ts apps/browser/src/backend/agents/llm-network.test.ts progress.md`。
+
+## 2026-07-11 - Task: 目标模式提示窗移动到输入框上方
+
+### What was done
+- 将目标模式状态提示窗从聊天历史顶部移到输入框容器上方，显示位置跟随底部对话框。
+- 保留原有目标状态、目标内容和阻塞原因展示，不改目标模式开关、发送参数或后端状态逻辑。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：移除聊天历史顶部的目标状态卡渲染与相关状态订阅。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：在输入框容器内渲染目标状态卡，并用输入框上方的绝对定位展示。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx progress.md`。
+
+## 2026-07-11 - Task: 目标模式只保留初始目标
+
+### What was done
+- 修复目标模式开启后，后续用户输入会覆盖最初目标指令的问题。
+- 目标状态写入改为只在当前 agent 没有目标时创建；一旦目标存在，后续开启目标模式发送的新消息也只作为补充指令进入对话，不替换原目标。
+- 同步更新模型工具说明和目标模式维护文档，明确 `createGoal` 不再替换已有目标。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、28 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：`startGoal` 在已有目标时直接保留原目标，不再覆盖。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：新增重复创建目标时保留第一个目标的测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/agents/base-agent.ts：更新 `createGoal` 工具描述，说明后续用户消息只是补充，不应替换原目标。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- docs/agent-goal-mode.md：同步目标模式行为文档，明确只用第一条开启目标模式的用户消息创建目标。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录并修正上一轮记录位置。回滚：删除本条记录，并按需恢复上一轮记录位置。
+统一回滚点：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/agents/base-agent.ts docs/agent-goal-mode.md progress.md`。
+
+## 2026-07-11 - Task: 目标模式避免 clean idle 提前终止
+
+### What was done
+- 修复目标模式偶发提前停住，需要用户重新发送对话才能继续的问题。
+- 移除 clean idle 自动把 active goal 标记为 complete 的逻辑；目标只有在模型明确调用 `updateGoal(status: complete)` 后才完成。
+- 保留真实错误和用户停止时将目标标记为 blocked 的行为，避免把普通 step 暂停误判成目标完成。
+- 同步目标模式维护文档，明确 clean idle 不再自动完成目标。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、28 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/agents/base-agent.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts：移除 clean idle 自动 complete 目标的分支。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts：把 clean idle 测试预期改为目标保持 active。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts`。
+- docs/agent-goal-mode.md：同步说明目标完成必须由 `updateGoal` 明确触发。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts docs/agent-goal-mode.md progress.md`。
+
+## 2026-07-11 - Task: 目标模式 updateGoal 容错与重新打包
+
+### What was done
+- 修复目标模式里 `updateGoal` 参数校验失败导致的 `Error repairing tool call` 红色错误。
+- 将 `updateGoal.status` schema 放宽为字符串，在执行阶段自行归一化；`complete/completed` 正常完成目标，`blocked/block` 正常阻塞目标。
+- 对 `active/running/in_progress/continue` 这类“仍在执行”的状态做 no-op 返回，不再让 schema validation 打断任务。
+- 重新构建 `@stagewise/agent-core`，重新执行 `stagewise package:fast`，并启动新的打包版本。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、28 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx` 退出码 0。
+- `git diff --check` 退出码 0。
+- `pnpm -F stagewise package:fast` 首次因旧 `stagewise-dev.exe` 占用输出目录失败；结束旧输出目录下的 `stagewise-dev.exe` 进程后重跑成功，产物为 `apps/browser/out/dev/stagewise-dev-win32-x64/stagewise-dev.exe`。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/agents/base-agent.ts：放宽 `updateGoal` 输入 schema，并对执行中状态做 no-op 容错。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- docs/agent-goal-mode.md：补充 `updateGoal` 进行中状态容错说明。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/agents/base-agent.ts docs/agent-goal-mode.md progress.md`。
+
+## 2026-07-11 - Task: 目标模式悬浮窗避让队列指令
+
+### What was done
+- 将目标模式悬浮窗保留在 chat footer 的独立浮层中，不放入 chat history，避免随流式输出重排抖动。
+- 悬浮窗定位增加 `--status-card-height` 偏移；当用户继续发送新指令导致 footer 状态卡或队列指令区域增高时，目标悬浮窗会同步上移，不遮挡新指令。
+- 未重新打包，按本轮要求只完成源码修改和验证。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：移除本轮尝试加入 chat history 的目标卡逻辑，避免进入消息流。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：恢复目标模式独立浮层，并让 bottom 偏移包含 `--status-card-height`。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- docs/agent-goal-mode.md：同步说明目标卡在 footer 中避让状态卡和队列指令。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md progress.md`。
+
+## 2026-07-11 - Task: 目标模式悬浮窗增加编辑和删除
+
+### What was done
+- 在目标模式悬浮窗右侧增加编辑和删除入口；编辑会在卡片内切换为目标文本输入，保存后只更新当前目标内容。
+- 新增目标删除链路：当目标仍为 active 时先停止当前 agent，再清除目标，避免隐藏状态下继续执行；已完成或阻塞的目标直接清除。
+- 补齐 agent-core 状态 mutation、Karton RPC contract、browser 后端转发和 UI i18n 文案。
+- 同步目标模式维护文档；本轮未重新打包。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、29 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/agent-manager.ts apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx apps/browser/src/ui/i18n/dict/chat.ts docs/agent-goal-mode.md` 退出码 0。
+- `git diff --check` 退出码 0。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：新增目标内容更新 mutation。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：把目标内容更新 mutation 暴露到绑定 bundle。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：新增目标内容编辑不会替换目标实体的测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：新增 `updateGoalObjective` 和 `deleteGoal` RPC 处理，删除 active 目标前先停止 agent。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- apps/browser/src/backend/services/agent-manager/agent-manager.ts：补充目标编辑和删除 RPC 的 Karton 转发。回滚：`git checkout -- apps/browser/src/backend/services/agent-manager/agent-manager.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：补充目标编辑和删除的 server procedure 类型。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：在目标悬浮窗右侧加入编辑、删除、保存和取消图标按钮，并接入新 RPC。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：新增目标编辑、删除、保存、取消文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- docs/agent-goal-mode.md：同步说明目标卡编辑与删除行为。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/agent-manager.ts apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx apps/browser/src/ui/i18n/dict/chat.ts docs/agent-goal-mode.md progress.md`。
+
+## 2026-07-11 - Task: 修复 executeShellCommand repair 校验红错
+
+### What was done
+- 修复 `executeShellCommand` 在模型 repair 阶段因同时携带 `stdin` 和 `command` 被 schema 拒绝，导致界面连续出现 `Error repairing tool call` 的问题。
+- 将 action-mode 互斥冲突从 schema 校验移到运行时处理，让工具可以返回可读修正提示，而不是在 schema repair 阶段直接失败。
+- 对 `stdin` 与非空 `command` 同传的情况增加运行时保护：不向 PTY 写入任何内容，不执行 command，并提示模型拆成两次调用。
+- 增加回归测试，覆盖 `command + stdin` 能通过 schema、但运行时不会发送 shell 输入。
+
+### Testing
+- `pnpm -F @stagewise/agent-shell test -- execute-shell-command` 通过，1 个测试文件、3 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell typecheck` 退出码 0。
+- `pnpm -F @stagewise/agent-shell build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false packages/agent-shell/src/schemas/index.ts packages/agent-shell/src/tools/execute-shell-command.ts packages/agent-shell/src/tools/execute-shell-command.test.ts` 退出码 0。
+- `git diff --check` 退出码 0；Git 仅提示 3 个 agent-shell 文件 CRLF/LF 工作区换行提醒。
+- `pnpm -F stagewise package:fast` 首次因 Windows 本地文件占用导致 `.vite/build/web-content-preload` 删除失败；重新执行后退出码 0，成功完成 Vite main/preload、renderer、x64 win32 package 和 postPackage hook，`apps/browser/out/dev/stagewise-dev-win32-x64` 更新时间为 2026-07-13 22:39:58。
+
+### Notes
+改动文件清单：
+- packages/agent-shell/src/schemas/index.ts：移除 `command`、`stdin`、`kill` action-mode 互斥 schema 校验，避免 repair 阶段红错。回滚：`git checkout -- packages/agent-shell/src/schemas/index.ts`。
+- packages/agent-shell/src/tools/execute-shell-command.ts：增加运行时冲突保护，非空 `command + stdin` 同传时不发送任何 shell 输入并返回修正提示。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.ts`。
+- packages/agent-shell/src/tools/execute-shell-command.test.ts：新增 schema 与 runtime 回归测试。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.test.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-shell/src/schemas/index.ts packages/agent-shell/src/tools/execute-shell-command.ts packages/agent-shell/src/tools/execute-shell-command.test.ts progress.md`。
+
+## 2026-07-13 - Task: 修复目标模式 shell 工具空 stdin 重试循环
+
+### What was done
+- 修复目标模式下 shell 工具把普通命令附带的空 `stdin` 误判为 `command + stdin` 冲突的问题，避免模型持续收到可重试的 abort 提示后反复调用同一测试命令。
+- 保留非空 `stdin` 与非空 `command` 同传时的安全阻断：不会向 PTY 写入输入，也不会执行 command，并继续提示模型拆成两次调用。
+- 增加回归测试，覆盖空 `stdin` 会按普通 command 执行，且不会走 `rawInput` shell 输入路径。
+
+### Testing
+- `pnpm -F @stagewise/agent-shell test -- execute-shell-command` 通过，1 个测试文件、4 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell typecheck` 退出码 0。
+- `pnpm -F @stagewise/agent-shell build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `npx @biomejs/biome check --formatter-enabled=false packages/agent-shell/src/tools/execute-shell-command.ts packages/agent-shell/src/tools/execute-shell-command.test.ts` 退出码 0。
+- `git diff --check` 退出码 0；Git 仅提示 3 个 agent-shell 文件 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- packages/agent-shell/src/tools/execute-shell-command.ts：将空 `stdin` 视为未传，只在 `stdin` 非空时进入 shell 输入模式和互斥校验。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.ts`。
+- packages/agent-shell/src/tools/execute-shell-command.test.ts：新增空 `stdin` 的命令执行回归测试，并保留非空 `command + stdin` 不发送输入的保护测试。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.test.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.ts packages/agent-shell/src/tools/execute-shell-command.test.ts progress.md`。
+
+## 2026-07-13 - Task: 目标模式增加暂停继续并收敛循环隐患
+
+### What was done
+- 给目标模式增加 `paused` 状态，并补齐暂停、继续的状态 mutation、AgentManager RPC、Karton contract、browser 后端转发和 UI 控制。
+- 在目标模式卡片右侧增加暂停和继续图标；暂停会先停止当前 agent 再把目标落到 `paused`，继续会恢复为 `active` 并发送一条补充消息启动原目标。
+- 收敛目标模式工具调用循环隐患：`createGoal` 不再替换已有目标，`updateGoal` 对仍在执行类状态做 no-op，clean idle 不再自动完成目标。
+- 收敛 shell 工具 repair 循环隐患：schema 不再在 repair 阶段拒绝 `command/stdin/kill` 互斥冲突，运行时处理真实冲突，空 `stdin` 按未传处理。
+- 同步目标模式维护文档和 chat i18n 文案。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、31 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell test -- execute-shell-command` 通过，1 个测试文件、4 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell typecheck` 退出码 0。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F @stagewise/agent-shell build` 首次与 `@stagewise/agent-core build` 并行执行时失败，原因是 core build 清理 `dist` 导致 shell build 读取 core 子路径声明竞态；串行重跑后退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/types/agent.ts packages/agent-shell/src/schemas/index.ts packages/agent-shell/src/tools/execute-shell-command.test.ts packages/agent-shell/src/tools/execute-shell-command.ts` 退出码 0，检查 15 个文件通过。
+- `pnpm exec biome check <target files>` 未采用自动修复；未关闭 formatter 时会要求对已改文件做全文件格式化，为避免扩大无关格式化，本轮只执行 formatter disabled 的语法和 lint 检查。
+- `git diff --check` 退出码 0；Git 仅提示 3 个 agent-shell 文件 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/agent-manager/agent-manager.ts：补充暂停和继续目标的 Karton RPC 转发。回滚：`git checkout -- apps/browser/src/backend/services/agent-manager/agent-manager.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：补充暂停和继续目标的 server procedure 类型。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/i18n/dict/chat.ts：新增目标暂停、继续和相关操作文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：配合目标状态卡从聊天历史中移出，避免目标卡随消息流重复参与渲染。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：在目标卡中接入暂停和继续图标按钮，继续时发送补充消息启动原目标。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- docs/agent-goal-mode.md：同步目标暂停、继续、clean idle 和工具容错行为说明。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- packages/agent-core/src/agents/base-agent.ts：收敛目标工具说明和 `updateGoal` 状态容错，避免进行中状态触发 repair 循环。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：新增暂停和继续目标 RPC，并在暂停 active 目标时先停止 agent。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：新增目标暂停、继续和重复创建目标的回归测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：把暂停和继续目标 mutation 暴露到绑定 bundle。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts：补充 paused 目标重新开始 step 会恢复 active，以及 clean idle 不自动完成目标的测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts：step 开始时恢复 paused/blocked 目标，clean idle 不再自动 complete。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：新增暂停和继续目标 mutation，并让目标完成/阻塞清理 `pausedAt`。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/types/agent.ts：目标状态类型新增 `paused` 和 `pausedAt`。回滚：`git checkout -- packages/agent-core/src/types/agent.ts`。
+- packages/agent-shell/src/schemas/index.ts：移除 repair 阶段的 action-mode 互斥 schema 校验。回滚：`git checkout -- packages/agent-shell/src/schemas/index.ts`。
+- packages/agent-shell/src/tools/execute-shell-command.test.ts：新增 shell 工具互斥和空 `stdin` 回归测试。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.test.ts`。
+- packages/agent-shell/src/tools/execute-shell-command.ts：将空 `stdin` 视为未传，并把非空 `command + stdin` 冲突留到运行时安全阻断。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/types/agent.ts packages/agent-shell/src/schemas/index.ts packages/agent-shell/src/tools/execute-shell-command.test.ts packages/agent-shell/src/tools/execute-shell-command.ts progress.md`。
+
+## 2026-07-13 - Task: 补强目标暂停停止顺序回归测试
+
+### What was done
+- 补充目标暂停的边界回归测试：覆盖通用停止路径先把 active 目标标记为 blocked 后，暂停操作仍会最终落到 paused，并清理阻塞原因。
+- 未改运行时业务逻辑，只锁定暂停按钮当前依赖的状态顺序，防止后续重构重新引入暂停后显示阻塞的隐患。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、32 个测试全部通过。
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts` 退出码 0。
+- `git diff --check` 退出码 0；Git 仅提示 3 个 agent-shell 文件 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：新增停止路径后再暂停目标的回归测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts progress.md`。
+
+## 2026-07-13 - Task: 目标模式修复交付验证补齐
+
+### What was done
+- 补跑目标模式暂停继续和工具循环修复的可靠验证，覆盖 agent-core 状态测试、agent-shell 工具测试、browser backend/UI typecheck、Biome 和 diff 检查。
+- 尝试执行 `pnpm -F stagewise package:fast` 验证 Electron 产物；运行过程中 Codex 工具层重复触发长命令，造成多棵 Electron Forge 打包进程并发写同一输出目录，已清理本仓库相关残留打包进程。
+- 确认 dev 产物 `apps/browser/out/dev/stagewise-dev-win32-x64/stagewise-dev.exe` 已更新到 2026/7/13 23:03:50，但本轮不能把 `package:fast` 作为可靠通过证据，因为未获得单实例完整退出输出。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、32 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell test -- execute-shell-command` 通过，1 个测试文件、4 个测试全部通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/types/agent.ts packages/agent-shell/src/schemas/index.ts packages/agent-shell/src/tools/execute-shell-command.test.ts packages/agent-shell/src/tools/execute-shell-command.ts` 退出码 0，检查 16 个文件通过。
+- `git diff --check` 退出码 0；Git 仅提示 3 个 agent-shell 文件 CRLF/LF 工作区换行提醒。
+- `Get-Item apps/browser/out/dev/stagewise-dev-win32-x64/stagewise-dev.exe` 显示产物大小 214031872 字节，更新时间 2026/7/13 23:03:50。
+- `pnpm -F stagewise package:fast` 未作为通过项记录：命令在 Codex 工具层被重复触发，后续用互斥包装能阻止第二个实例，但残留 Electron Forge 子进程导致本轮未拿到单实例完整退出输出。
+
+### Notes
+改动文件清单：
+- progress.md：追加本轮验证记录和 `package:fast` 验证限制说明。回滚：删除本条记录。
+统一回滚点：删除本条 `progress.md` 记录。
+
+## 2026-07-14 - Task: 模型对话静默卡住可恢复诊断
+
+### What was done
+- 给 agent-core 单步执行增加活动 watchdog，流式消息、finish、error、abort 和 UI stream 合并都会刷新活动时间，避免“无输出但一直 working”长期静默。
+- 普通对话超过 watchdog 阈值仍无进展时，会清理当前卡住的 step 并写入可见 runtime error，便于用户和日志定位。
+- 目标模式 active goal 超过 watchdog 阈值仍无进展时，不把目标标记为 blocked；运行时会清理卡住的 step，注入不可见 goal continuation，并自动进入下一轮。
+- 新增保留目标状态的 working 清理 mutation，避免复用通用 stop 分支导致 active goal 被误标 blocked。
+- 更新目标模式文档，明确 watchdog 在普通对话和 active goal 下的不同语义。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation state-mutations` 通过，7 个测试文件、41 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts docs/agent-goal-mode.md` 通过。
+- `git diff --check` 退出码 0；Git 仅提示若干已有 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/agents/base-agent.ts：增加单步活动 watchdog，并在 active goal 卡住时自动续跑而非阻塞目标。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/chat/goal-continuation.test.ts：补充普通对话静默卡住转可见错误、active goal 静默卡住自动恢复的测试。回滚：`git checkout -- packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：新增保留目标状态的 working 清理 mutation。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：暴露保留目标状态的 working 清理 mutation。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：补充 active goal 清理 working 状态不阻塞目标的测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- docs/agent-goal-mode.md：同步目标模式 watchdog 自动恢复语义。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts docs/agent-goal-mode.md progress.md`。
+
+## 2026-07-14 - Task: 上下文超窗压缩恢复
+
+### What was done
+- 复核现有历史压缩逻辑，确认项目已有 post-step 异步压缩，但缺少发请求前的同步超窗兜底，导致 provider 仍可能返回 `context_too_large`。
+- 在 agent-core 单步执行中增加请求前上下文估算：最终 model messages 接近当前模型 context window 时，先同步压缩历史并重建上下文，再发起 LLM 请求。
+- 增加 `context_too_large` provider 错误恢复：如果 provider 仍返回上下文超窗错误，运行时会压缩历史并自动重试当前 step 一次；压缩无效时才把原始错误展示给用户。
+- 让 preflight 和 context-error 恢复等待正在进行的后台压缩，避免后台压缩未结束时继续发送 oversized 请求。
+- 目标模式和普通对话共用同一套上下文压缩逻辑；active goal 超窗恢复时会保留目标状态，并在需要时恢复不可见 goal continuation。
+- 新增 `docs/agent-context-compression.md`，并在目标模式文档中补充共享上下文压缩语义。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation state-mutations` 通过，7 个测试文件、41 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts docs/agent-goal-mode.md docs/agent-context-compression.md` 通过。
+- `git diff --check` 退出码 0；Git 仅提示若干已有 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/agents/base-agent.ts：增加请求前上下文估算压缩、context-too-large 压缩重试、并发压缩等待和目标模式续跑保留。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- docs/agent-context-compression.md：新增 agent 上下文压缩与超窗恢复维护说明。回滚：`git clean -f docs/agent-context-compression.md`。
+- docs/agent-goal-mode.md：补充目标模式共享上下文压缩和超窗恢复语义。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/agents/base-agent.ts docs/agent-goal-mode.md progress.md && git clean -f docs/agent-context-compression.md`。
+
+## 2026-07-14 - Task: 恢复目标编辑删除按钮
+
+### What was done
+- 恢复目标状态卡右侧的编辑和删除图标，并保留已有暂停、继续按钮。
+- 编辑目标改为卡片内原位输入，保存后更新当前目标 objective；空目标不会保存。
+- 删除目标重新接入后端状态变更链路，避免只做前端隐藏。
+- 补齐 Karton procedure、browser 后端转发、agent-core manager 方法、状态 mutation 测试和中英文文案。
+- 更新目标模式文档，明确目标卡右侧包含编辑、删除、暂停/继续控制。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、32 个测试全部通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts` 退出码 0，检查 8 个文件通过。
+- `git diff --check` 退出码 0；Git 仅提示 3 个已有 agent-shell 文件 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/agent-manager/agent-manager.ts：恢复目标编辑和删除 RPC 的 browser 转发注册。回滚：`git checkout -- apps/browser/src/backend/services/agent-manager/agent-manager.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：恢复目标编辑和删除 server procedure 类型。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/i18n/dict/chat.ts：补回目标编辑、删除、保存、取消文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：恢复目标卡右侧编辑、删除图标和原位编辑 UI，并接入真实目标更新/删除调用。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- docs/agent-goal-mode.md：同步目标卡编辑、删除、暂停/继续控制说明。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：恢复目标 objective 更新和目标删除方法及 RPC 注册。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：补充目标更新和删除状态 mutation 回归测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：将目标更新和删除 mutation 暴露到绑定 bundle。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：恢复目标 objective 更新和目标删除 mutation。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- progress.md：追加本轮恢复记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts progress.md`。
+
+## 2026-07-13 - Task: 目标模式循环修复最终校准
+
+### What was done
+- 复核目标模式循环修复的最终范围：保留暂停、继续状态和 UI 图标，确认未残留编辑目标或删除目标的超范围入口。
+- 重新验证目标模式状态机、shell 工具参数容错、browser 后端/UI 类型声明消费和触及文件 lint。
+- 清理本轮遗留的未跟踪 `tmp-package-fast.*` 临时文件。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、31 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell test -- execute-shell-command` 通过，1 个测试文件、4 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 过程中出现一次 `dist` 删除 `EPERM` 输出；随后确认 `packages/agent-core/dist/index.d.ts` 已更新，且 browser 后续类型检查通过，说明共享声明产物可用。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/types/agent.ts packages/agent-shell/src/schemas/index.ts packages/agent-shell/src/tools/execute-shell-command.test.ts packages/agent-shell/src/tools/execute-shell-command.ts` 退出码 0，检查 16 个文件通过。
+- `git diff --check` 退出码 0；Git 仅提示 3 个 agent-shell 文件 CRLF/LF 工作区换行提醒。
+- `rg -n "updateGoalObjective|deleteGoal|chat\\.goalStatus\\.(edit|delete|save|cancel|editAria)|CheckIcon|PencilIcon|Trash2Icon|XIcon|onUpdateObjective|onDelete" ...` 只命中无关的 `diff-history/schema.ts` 数据库 cascade 字段。
+- `git status --short` 确认未跟踪 `tmp-package-fast.*` 已清理，只剩本轮源码、文档和 `progress.md` 改动。
+
+### Notes
+改动文件清单：
+- progress.md：追加最终校准验证记录。回滚：删除本条记录。
+统一回滚点：删除本条 `progress.md` 记录。
+
+## 2026-07-14 - Task: 补齐目标模式自动续跑
+
+### What was done
+- 将目标模式的 `active` 状态从展示状态补齐为运行时状态：模型正常停止输出但目标仍未完成时，agent-core 会注入不可见续跑指令并自动开启下一轮。
+- 续跑只在 clean idle 且目标仍为 `active` 时触发；遇到暂停、完成、阻塞、运行错误或等待用户队列消息时不会自动续跑。
+- 调整目标工具语义：`createGoal` 不再鼓励替换现有目标，`updateGoal` 只用于真正完成或阻塞；模型误传 active/running/continue 类状态时作为继续执行处理，避免再次进入工具参数校验循环。
+- 补充目标续跑回归测试和目标模式维护文档，说明 active 不是终态，运行时会持续推进到 complete、blocked、暂停、删除、停止或错误。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation` 通过，1 个测试文件、4 个测试全部通过。
+- `pnpm -F @stagewise/agent-core test -- state-mutations` 通过，6 个测试文件、32 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts docs/agent-goal-mode.md` 退出码 0，检查 2 个文件通过。
+- `git diff --check` 退出码 0；Git 仅提示 3 个已有 agent-shell 文件 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/agents/base-agent.ts：在 clean idle 尾部加入 active goal 自动续跑，并更新目标上下文和目标工具语义。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/chat/goal-continuation.test.ts：新增目标续跑、防误触发和不可见续跑消息的回归测试。回滚：`git clean -f packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+- docs/agent-goal-mode.md：同步目标模式自动续跑、暂停/继续、编辑/删除和终态规则。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/agents/base-agent.ts docs/agent-goal-mode.md progress.md && git clean -f packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+
+## 2026-07-14 - Task: 目标模式无人值守推进
+
+### What was done
+- 补齐目标模式无人值守语义：active goal 在模型正常停止但目标未完成时自动注入不可见续跑指令并开启下一轮，不再等待用户继续。
+- 目标模式下禁止交互卡死：browser chat active goal 不暴露 `askUserQuestions`，host 侧兜底也返回无人值守提示而不是弹出待答问题。
+- 目标模式下 shell 审批自动放行，暂停或结束目标后恢复用户原本审批设置。
+- 修复续跑隐患：目标 token budget 达到后标记为 blocked 并停止自动续跑，paused goal 不会被普通 beginStep 隐式恢复。
+- 保留并接入目标卡右侧编辑、删除、暂停、继续图标；目标卡位于输入框上方，避免遮挡聊天历史。
+- 修复 shell 工具参数循环隐患：schema 不再提前拒绝 command+stdin，运行时对空 stdin 视为未传，对非空 command+stdin 返回可修复提示。
+- 更新目标模式维护文档，明确 active 不是终态、无人值守、自动续跑、预算停止、交互禁用和 UI 控制规则。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation state-mutations` 通过，7 个测试文件、37 个测试全部通过。
+- `pnpm -F stagewise test -- chat.test.ts tool-approval-mode.test.ts` 通过，2 个测试文件、7 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell test -- execute-shell-command.test.ts` 通过，1 个测试文件、4 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false ...` 对本轮触及的 agent-core、browser、agent-shell、docs 文件检查通过。
+- `git diff --check` 退出码 0；Git 仅提示若干已有 CRLF/LF 工作区换行提醒。
+- `pnpm -F @stagewise/agent-shell build` 未通过；失败集中在 `@stagewise/agent-core/env`、`@stagewise/agent-core/toolbox`、`@stagewise/agent-core/types/tool-approval` 子路径声明解析，属于包导出/声明消费链路问题，非本轮 shell 参数容错逻辑的测试失败。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/agents/chat/chat.ts：active goal 时不向模型暴露 `askUserQuestions` 工具。回滚：`git checkout -- apps/browser/src/backend/agents/chat/chat.ts`。
+- apps/browser/src/backend/agents/chat/chat.test.ts：补充目标模式隐藏用户交互工具的回归测试。回滚：`git checkout -- apps/browser/src/backend/agents/chat/chat.test.ts`。
+- apps/browser/src/backend/services/agent-manager/agent-manager.ts：注册目标暂停、继续、编辑、删除 RPC 转发。回滚：`git checkout -- apps/browser/src/backend/services/agent-manager/agent-manager.ts`。
+- apps/browser/src/backend/services/toolbox/index.ts：按目标状态解析工具审批模式。回滚：`git checkout -- apps/browser/src/backend/services/toolbox/index.ts`。
+- apps/browser/src/backend/services/toolbox/tool-approval-mode.ts：新增 active goal 强制 shell 自动审批的解析函数。回滚：`git clean -f apps/browser/src/backend/services/toolbox/tool-approval-mode.ts`。
+- apps/browser/src/backend/services/toolbox/tool-approval-mode.test.ts：补充审批模式在 active/paused goal 下的回归测试。回滚：`git clean -f apps/browser/src/backend/services/toolbox/tool-approval-mode.test.ts`。
+- apps/browser/src/backend/services/toolbox/tools/user-interaction/ask-user-questions.ts：active goal 下兜底返回无人值守提示，不创建待用户回答弹窗。回滚：`git checkout -- apps/browser/src/backend/services/toolbox/tools/user-interaction/ask-user-questions.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：补齐目标控制 procedure 类型。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/i18n/dict/chat.ts：补齐目标 paused、暂停、继续、编辑、删除、保存、取消文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：移除历史顶部目标卡，避免遮挡聊天内容并交给 footer 展示。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：在输入框上方展示目标卡，并接入编辑、删除、暂停、继续逻辑。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- docs/agent-goal-mode.md：同步目标模式完整运行规则和维护说明。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- packages/agent-core/src/agents/base-agent.ts：实现 active goal clean idle 自动续跑、预算停止、无人值守提示和目标工具语义收紧。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/chat/goal-continuation.test.ts：新增目标自动续跑、防误触发、预算停止和不可见续跑消息测试。回滚：`git clean -f packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：新增目标暂停、继续、编辑、删除 manager 方法和 RPC 注册。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：补充目标暂停、继续、编辑、删除 mutation 测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：暴露目标控制 mutation 到绑定 bundle。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts：clean idle 不再自动 complete goal，普通 beginStep 不再隐式恢复 paused goal。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts：补充 clean idle 保持 active、paused 不被隐式恢复的测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：新增目标暂停、继续、编辑、删除 mutation。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/types/agent.ts：新增 `paused` 目标状态和 `pausedAt` 字段。回滚：`git checkout -- packages/agent-core/src/types/agent.ts`。
+- packages/agent-shell/src/schemas/index.ts：把 command/stdin 冲突从 schema 校验下沉到运行时提示。回滚：`git checkout -- packages/agent-shell/src/schemas/index.ts`。
+- packages/agent-shell/src/tools/execute-shell-command.ts：空 stdin 不再阻断 command，非空 command+stdin 返回可修复提示。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.ts`。
+- packages/agent-shell/src/tools/execute-shell-command.test.ts：补充 shell 参数容错回归测试。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.test.ts`。
+- progress.md：追加本轮无人值守目标模式记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/agents/chat/chat.test.ts apps/browser/src/backend/agents/chat/chat.ts apps/browser/src/backend/services/agent-manager/agent-manager.ts apps/browser/src/backend/services/toolbox/index.ts apps/browser/src/backend/services/toolbox/tools/user-interaction/ask-user-questions.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/types/agent.ts packages/agent-shell/src/schemas/index.ts packages/agent-shell/src/tools/execute-shell-command.test.ts packages/agent-shell/src/tools/execute-shell-command.ts progress.md && git clean -f apps/browser/src/backend/services/toolbox/tool-approval-mode.ts apps/browser/src/backend/services/toolbox/tool-approval-mode.test.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+
+## 2026-07-14 - Task: 目标模式无人值守最终复核
+
+### What was done
+- 复核目标模式无人值守链路，确认 active goal 正常停止输出后会自动续跑，不会把“对话结束”误当成目标完成。
+- 复核交互卡死风险，确认 active goal 下模型侧不暴露 `askUserQuestions`，host 工具侧也不会创建 pending question。
+- 复核目标控制入口，确认目标卡保留编辑、删除按钮，并新增暂停、继续按钮，暂停不会被普通 begin step 隐式恢复。
+- 复核工具调用循环隐患，确认 shell 参数冲突下沉到运行时可恢复提示，避免 schema 参数修复循环。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation state-mutations` 通过，7 个测试文件、37 个测试全部通过。
+- `pnpm -F stagewise test -- chat.test.ts tool-approval-mode.test.ts` 通过，2 个测试文件、7 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell test -- execute-shell-command.test.ts` 通过，1 个测试文件、4 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false ...` 对 23 个触及文件检查通过。
+- `git diff --check` 退出码 0；Git 仅提示若干已有 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- progress.md：追加本轮最终复核记录。回滚：删除本条记录。
+统一回滚点：删除本条 `progress.md` 记录。
+
+## 2026-07-14 - Task: 目标模式无人值守最终复核
+
+### What was done
+- 复核目标模式无人值守链路，确认 active goal 正常停止输出后会自动续跑，不会把“对话结束”误当成目标完成。
+- 复核交互卡死风险，确认 active goal 下模型侧不暴露 `askUserQuestions`，host 工具侧也不会创建 pending question。
+- 复核目标控制入口，确认目标卡保留编辑、删除按钮，并新增暂停、继续按钮，暂停不会被普通 begin step 隐式恢复。
+- 复核工具调用循环隐患，确认 shell 参数冲突下沉到运行时可恢复提示，避免 schema 参数修复循环。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation state-mutations` 通过，7 个测试文件、37 个测试全部通过。
+- `pnpm -F stagewise test -- chat.test.ts tool-approval-mode.test.ts` 通过，2 个测试文件、7 个测试全部通过。
+- `pnpm -F @stagewise/agent-shell test -- execute-shell-command.test.ts` 通过，1 个测试文件、4 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false ...` 对 23 个触及文件检查通过。
+- `git diff --check` 退出码 0；Git 仅提示若干已有 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- progress.md：追加本轮最终复核记录。回滚：删除本条记录。
+统一回滚点：删除本条 `progress.md` 记录。
+
+## 2026-07-14 - Task: 压缩上下文可见状态提示
+
+### What was done
+- 为 agent 运行状态新增临时 `runtimePhase`，在历史压缩开始时标记为 `compressing-context`，压缩结束、步骤开始、步骤错误或停止工作时清理，避免 UI 残留假状态。
+- 聊天历史加载提示读取 `runtimePhase`，压缩期间把泛化 `Working...` 替换为 `正在压缩上下文…`，让长时间等待能看出当前还活着并且在压缩。
+- 同步步骤间的小型加载提示，长回答后继续压缩时也显示同一压缩文案，不只在用户消息后的主加载位显示。
+- 更新压缩上下文维护文档，说明压缩期间的可见状态来源和 UI 行为。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation state-mutations` 通过，7 个测试文件、42 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false ...` 对本轮触及的 12 个代码/文档文件检查通过。
+- `git diff --check` 退出码 0；Git 仅提示若干已有 CRLF/LF 工作区换行提醒。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/i18n/dict/chat.ts：新增压缩上下文运行阶段的中英文提示。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：读取 agent `runtimePhase` 并在主加载提示、步骤间提示中显示压缩状态。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx：把步骤间提示文案传给 `MessageBetweenSteps` 并纳入 memo 比较。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-between-steps.tsx：允许步骤间加载提示接收自定义文案。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-between-steps.tsx`。
+- docs/agent-context-compression.md：记录压缩期间 UI 可见状态。回滚：`git checkout -- docs/agent-context-compression.md`。
+- packages/agent-core/src/agents/base-agent.ts：在历史压缩开始和结束时设置/清理 `runtimePhase`。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：补充运行阶段 mutation 和停止清理测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：把运行阶段 mutation 暴露给 agent 命令 bundle。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts：补充 begin step 和 step error 清理运行阶段断言。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts：步骤开始和错误结束时清理运行阶段。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：停止工作时清理运行阶段。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts：新增 `setRuntimePhase` mutation。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts`。
+- packages/agent-core/src/store/state-annotation.md：标注 `runtimePhase` 为 ephemeral 状态。回滚：`git checkout -- packages/agent-core/src/store/state-annotation.md`。
+- packages/agent-core/src/types/agent.ts：新增 `AgentRuntimePhase` 和 `runtimePhase` 状态字段。回滚：`git checkout -- packages/agent-core/src/types/agent.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-between-steps.tsx docs/agent-context-compression.md packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts packages/agent-core/src/store/state-annotation.md packages/agent-core/src/types/agent.ts progress.md`。
+
+## 2026-07-14 - Task: 目标模式卡住阶段可见化与产物更新
+
+### What was done
+- 将 agent 运行阶段从单一压缩提示扩展到准备上下文、准备工具、等待模型响应和压缩上下文，避免 UI 长时间只显示泛化 `Working...`。
+- 将步骤活动 watchdog 提前到 `beginStep` 后启动，使模型解析、上下文生成和工具准备阶段的静默卡住也能被发现；目标模式下超过阈值后继续安排下一轮，而不是直接 abort。
+- 在 UI 主加载位和步骤间加载位显示当前运行阶段文案，用户能区分是在准备上下文、准备工具、等待模型还是压缩上下文。
+- 停止占用旧开发包目录的 `stagewise-dev.exe` 进程，重新执行 `package:fast`，并确认新的 `app.asar` 已包含运行阶段状态字段和中文提示文案。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation state-mutations` 通过，7 个测试文件、43 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false ...` 对本轮运行阶段可见化相关文件检查通过。
+- `git diff --check` 退出码 0；Git 仅提示若干 CRLF/LF 工作区换行提醒。
+- `pnpm -F stagewise package:fast` 打包通过，生成 `apps/browser/out/dev/stagewise-dev-win32-x64/resources/app.asar`。
+- 产物检查确认 `app.asar` 主进程 bundle 包含 `preparing-context`、`preparing-tools`、`waiting-for-model`、`compressing-context`，渲染端 bundle 包含 `正在等待模型响应` 和 `正在压缩上下文`。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/i18n/dict/chat.ts：新增目标暂停/继续按钮文案和运行阶段提示文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：读取 `runtimePhase` 并显示阶段化加载提示。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx：向步骤间加载提示传递运行阶段文案。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-between-steps.tsx：允许步骤间加载提示显示自定义文案。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-between-steps.tsx`。
+- docs/agent-runtime-visibility.md：新增运行阶段可见化和 watchdog 行为说明。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- docs/agent-context-compression.md：补充上下文压缩阶段的可见状态说明。回滚：`git checkout -- docs/agent-context-compression.md`。
+- packages/agent-core/src/agents/base-agent.ts：提前启动 watchdog，并在上下文、工具、模型等待和压缩阶段设置 `runtimePhase`。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/chat/goal-continuation.test.ts：补充准备阶段卡住清理和目标模式续跑测试。回滚：`git checkout -- packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：补充运行阶段状态 mutation 测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：暴露 `setRuntimePhase` 命令。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts：补充 lifecycle 清理运行阶段断言。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts：步骤开始和错误结束时清理运行阶段。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：停止工作时清理运行阶段。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts：新增运行阶段状态 mutation。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts`。
+- packages/agent-core/src/store/state-annotation.md：标注 `runtimePhase` 是临时运行状态。回滚：`git checkout -- packages/agent-core/src/store/state-annotation.md`。
+- packages/agent-core/src/types/agent.ts：扩展 `AgentRuntimePhase` 类型和值。回滚：`git checkout -- packages/agent-core/src/types/agent.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-between-steps.tsx docs/agent-runtime-visibility.md docs/agent-context-compression.md packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.test.ts packages/agent-core/src/services/agent-manager/state-mutations/lifecycle.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts packages/agent-core/src/store/state-annotation.md packages/agent-core/src/types/agent.ts progress.md`。
+
+## 2026-07-14 - Task: 目标模式编辑历史消息后恢复未完成目标
+
+### What was done
+- 将目标状态镜像到最新用户消息 metadata 的 `goalSnapshot`，并在删除目标时写入 `null` tombstone，避免重启后误恢复更早目标。
+- agent 恢复时从持久化历史里扫描最后一个目标快照；如果目标仍为 active，自动触发模型内部续跑，不需要用户重新发送消息。
+- 历史用户消息编辑提交时，如果底部目标模式开关已开启，后端会恢复本会话最后一个目标并把 paused/blocked 快照重新激活，让编辑后的消息继续服务于原目标。
+- 目标暂停、继续、编辑目标和删除目标后立即持久化，避免应用关闭后丢失目标状态。
+- 前端新增目标模式开关状态事件，编辑历史消息组件提交 replace RPC 时携带 `restoreLastGoal`。
+
+### Testing
+- `pnpm -F @stagewise/agent-core exec tsc --noEmit` 退出码 0。
+- `pnpm -F @stagewise/agent-core test -- state-mutations goal-continuation` 通过，7 个测试文件、43 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false ...` 对本轮触及代码文件检查通过。
+
+### Notes
+改动文件清单：
+- apps/browser/src/shared/karton-contracts/ui/index.ts：给 `replaceUserMessage` 增加目标恢复选项。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-user.tsx：编辑历史消息时读取目标模式开关并传递 `restoreLastGoal`。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-user.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：广播底部目标模式开关状态。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_lib/chat-goal-mode-event.ts：新增目标模式开关事件类型。回滚：删除该文件。
+- docs/agent-goal-mode.md：记录目标快照持久化、历史消息编辑恢复和重启续跑语义。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- packages/agent-core/src/agents/base-agent.ts：新增 `continueActiveGoal()` 用于恢复 active 目标后内部续跑。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：恢复目标快照、编辑消息恢复目标、目标变化立即持久化。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：暴露 `syncGoalSnapshot` mutation。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：目标状态变化时同步 `goalSnapshot`。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/types/metadata.ts：新增 `goalSnapshot` metadata schema。回滚：`git checkout -- packages/agent-core/src/types/metadata.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-user.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/types/metadata.ts progress.md && git clean -f -- apps/browser/src/ui/screens/main/agent-chat/chat/_lib/chat-goal-mode-event.ts`。
+
+## 2026-07-15 - Task: 模型对话卡住时保存运行日志和请求日志
+
+### What was done
+- 给浏览器后端 Logger 增加本地文件落盘和轮转，保留 Console 输出的同时写入 debug 级总日志与 warn/error 日志，避免打包环境卡住后无现场记录。
+- 给 LLM 网络请求包装层增加 request id、请求摘要、代理路径、响应状态、异常和耗时日志，便于区分请求未发出、上游无响应、代理/节点切换失败和 provider 返回错误。
+- 给 agent step 增加 `agent-runtime-YYYY-MM-DD.jsonl` 结构化运行轨迹，记录 step、模型解析、上下文准备、工具准备、streamText 开始/结束/错误/abort 以及上下文压缩开始/结束/失败等事件。
+- 更新运行可见性文档，说明开发版/正式版日志目录、关键文件、traceId 排查方式和敏感信息处理边界。
+
+### Testing
+- `pnpm -F @stagewise/agent-core exec tsc --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise test -- --run llm-network` 通过，1 个测试文件、13 个测试全部通过。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/services/logger.ts apps/browser/src/backend/agents/llm-network.ts packages/agent-core/src/agents/base-agent.ts docs/agent-runtime-visibility.md` 退出码 0。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/services/logger.ts：新增持久化 backend 日志和 warn/error 日志的文件 transport 与轮转配置。回滚：`git checkout -- apps/browser/src/backend/services/logger.ts`。
+- apps/browser/src/backend/agents/llm-network.ts：为模型网络请求增加 request id、请求开始、响应、异常和耗时日志。回滚：`git checkout -- apps/browser/src/backend/agents/llm-network.ts`。
+- packages/agent-core/src/agents/base-agent.ts：新增 agent runtime JSONL trace，覆盖 step、streamText 和上下文压缩关键阶段。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- docs/agent-runtime-visibility.md：补充运行日志、请求日志和卡住时排查路径。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/services/logger.ts apps/browser/src/backend/agents/llm-network.ts packages/agent-core/src/agents/base-agent.ts docs/agent-runtime-visibility.md progress.md`。
+
+## 2026-07-15 - Task: 模型对话日志验证补充
+
+### What was done
+- 补充执行 agent-core build，确认运行时代码改动可生成包产物。
+
+### Testing
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+
+### Notes
+改动文件清单：
+- progress.md：追加本轮验证补充记录。回滚：删除本条记录。
+统一回滚点：删除本条 `模型对话日志验证补充` 记录。
+
+## 2026-07-15 - Task: 启动后台任务异步化与前台加载提示
+
+### What was done
+- 新增 `startupBackgroundTasks` UI 状态，用于向前台报告非关键启动任务的运行、完成和失败状态。
+- 增加启动后台任务包装器，将搜索引擎加载、插件发现、通知音效同步、ripgrep 检查、内置技能发现、资源缓存清理和工作区清理扫描纳入后台异步执行与状态上报。
+- 将资源缓存 DB 初始化和过期清理从前台 `await` 启动链路移到后台执行，避免该类缓存维护阻塞窗口可操作性。
+- 主界面新增非模态后台加载浮层，提示用户“后台正在加载某某内容”，且不阻止用户继续操作 UI。
+- 更新启动性能文档，说明哪些任务应后台化、哪些核心路径仍必须保持前台初始化。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/main.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/index.tsx apps/browser/src/ui/screens/main/_components/startup-background-tasks-floating.tsx docs/startup-performance-profiling.md` 退出码 0；当前 Biome 配置只检查了代码文件，docs markdown 被忽略。
+
+### Notes
+改动文件清单：
+- apps/browser/src/backend/main.ts：新增后台启动任务调度器，并将低风险启动任务改为异步后台执行。回滚：`git checkout -- apps/browser/src/backend/main.ts`。
+- apps/browser/src/shared/karton-contracts/ui/index.ts：新增 `StartupBackgroundTaskStatus` 和 `startupBackgroundTasks` 状态字段。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/index.ts`。
+- apps/browser/src/ui/screens/main/index.tsx：挂载启动后台任务浮层。回滚：`git checkout -- apps/browser/src/ui/screens/main/index.tsx`。
+- apps/browser/src/ui/screens/main/_components/startup-background-tasks-floating.tsx：新增非模态后台加载提示组件。回滚：删除该文件。
+- docs/startup-performance-profiling.md：补充启动后台任务策略说明。回滚：`git checkout -- docs/startup-performance-profiling.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/backend/main.ts apps/browser/src/shared/karton-contracts/ui/index.ts apps/browser/src/ui/screens/main/index.tsx docs/startup-performance-profiling.md progress.md && git clean -f -- apps/browser/src/ui/screens/main/_components/startup-background-tasks-floating.tsx`。
+
+## 2026-07-19 - Task: 普通对话误触目标模式入口收口
+
+### What was done
+- 收口模型可见工具集：普通对话无目标时不再暴露任何目标工具，避免模型在用户未开启目标模式时自行创建目标。
+- 已存在目标时只保留读取和更新能力，不再向模型暴露目标创建入口；目标创建仍由前端目标模式开关和后端 send-message options 触发。
+- 修正目标续跑回归测试中重复插入的用例块，补充并保留“无目标不暴露工具 / 有目标不含 createGoal”的断言。
+- 更新目标模式文档，明确 createGoal 不再是模型工具，目标创建只走 UI/后端入口。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation` 通过，1 个测试文件、11 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false D:/work/ai/stagewise/packages/agent-core/src/agents/base-agent.ts D:/work/ai/stagewise/packages/agent-core/src/agents/chat/goal-continuation.test.ts D:/work/ai/stagewise/docs/agent-goal-mode.md` 退出码 0。
+- `git diff --check` 退出码 0；仅输出 CRLF/LF 提示，无 whitespace error。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/agents/base-agent.ts：按是否已有 goal 控制目标工具暴露，并移除模型侧 createGoal 工具。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/chat/goal-continuation.test.ts：增加目标工具暴露回归断言，并清理重复嵌套的测试块。回滚：`git checkout -- packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+- docs/agent-goal-mode.md：记录目标创建只走前端/后端入口，模型不接收 createGoal 工具。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts docs/agent-goal-mode.md progress.md`。
+
+## 2026-07-19 - Task: 目标模式累计 token 误当上下文窗口阻断
+
+### What was done
+- 修正截图中的 `Goal token budget reached (...)` 误阻断：目标模式不再把累计 `usedTokens` 当成当前上下文窗口大小，也不再因为累计 token 超过旧预算而停止无人值守续跑。
+- 保留已有上下文压缩链路：请求前仍按模型上下文窗口做 preflight 压缩，provider 返回 `context_too_large` 时仍压缩后重试一次。
+- 旧版本遗留的 `Goal token budget reached (...)` blocked 目标在恢复时会自动重新激活并清掉陈旧预算，避免历史会话一直卡在已阻断状态。
+- 目标卡片对 blocked 状态也显示继续按钮，用户可以手动恢复被阻断的目标并继续执行。
+- 更新目标模式文档，明确累计 token 不是当前上下文窗口，压缩负责处理上下文窗口压力。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation state-mutations` 通过，7 个测试文件、46 个测试全部通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 最终重跑退出码 0；首次与 agent-core build 并发执行时因 dist declarations 被重建出现临时 TS7016，build 完成后重跑通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 最终重跑退出码 0；修正 blocked 按钮状态判断后通过。
+- `pnpm exec biome check --formatter-enabled=false D:/work/ai/stagewise/packages/agent-core/src/agents/base-agent.ts D:/work/ai/stagewise/packages/agent-core/src/agents/chat/goal-continuation.test.ts D:/work/ai/stagewise/packages/agent-core/src/services/agent-manager/agent-manager.ts D:/work/ai/stagewise/packages/agent-core/src/services/agent-manager/state-mutations/simple.ts D:/work/ai/stagewise/packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts D:/work/ai/stagewise/apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx D:/work/ai/stagewise/docs/agent-goal-mode.md` 退出码 0。
+- `git diff --check` 退出码 0；仅输出 CRLF/LF 提示，无 whitespace error。
+
+### Notes
+改动文件清单：
+- packages/agent-core/src/agents/base-agent.ts：移除累计 token 预算触发的目标阻断，目标上下文中改为 `cumulative_used_tokens`。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/chat/goal-continuation.test.ts：将目标预算用例改为验证累计 token 超过旧预算后仍继续。回滚：`git checkout -- packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：恢复历史目标时自动重新激活旧的 token-budget blocked 快照并清除陈旧预算。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：允许 blocked 目标 resume，并清除旧 token-budget 阻断遗留字段。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：补充 blocked 目标恢复并清除陈旧预算的回归测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：blocked 目标卡片也显示继续按钮并走恢复逻辑。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- docs/agent-goal-mode.md：记录累计 token 与上下文窗口的边界，以及旧预算阻断的恢复语义。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx docs/agent-goal-mode.md progress.md`。
+
+## 2026-07-19 - Task: 目标模式里重复显示两个“正在等待模型响应”提示
+
+### What was done
+- 收掉了同一状态的双重渲染：当外层消息列表已经显示 loading 提示时，assistant 消息内部的 between-steps 提示不再重复显示。
+- 保持模型等待态的单一来源仍然是外层 `MessageLoading`，这样等待模型响应只出现一次。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false D:/work/ai/stagewise/apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0；仅输出 CRLF/LF 提示，无 whitespace error。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：当外层 loading 提示存在时，禁止 assistant 内部 between-steps 提示重复渲染。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx progress.md`。
+
+## 2026-07-19 - Task: 目标模式卡片遮挡错误重试按钮
+
+### What was done
+- 给目标模式状态卡片增加独立高度测量，写入 `--goal-status-card-height`。
+- 聊天历史底部预留空间现在同时包含 footer 状态卡高度和目标模式卡片高度，避免最后一条错误卡片的重试按钮被目标卡片盖住。
+- 目标卡片卸载时会清理高度变量，避免普通对话残留额外底部空白。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false D:/work/ai/stagewise/apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx D:/work/ai/stagewise/apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0；仅输出 CRLF/LF 提示，无 whitespace error。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx：测量目标模式卡片高度并同步到 CSS 变量。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：聊天历史底部 padding 增加目标模式卡片高度预留。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/panel-footer.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx progress.md`。
+
+## 2026-07-19 - Task: 通用运行错误的重试按钮没有明显反应
+
+### What was done
+- 调整通用 runtime error 的重试语义：`kind` 为空的错误现在直接重发上一条用户消息，而不是继续当前错误现场。
+- 保留 typed provider/risk 错误的原有继续逻辑，避免把账号/上游类错误的处理路径改坏。
+- 这样 `LLM stream stalled` 这类普通超时/卡死错误点重试后会立刻进入真正的重新执行流程。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false D:/work/ai/stagewise/apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check` 退出码 0；仅输出 CRLF/LF 提示，无 whitespace error。
+
+### Notes
+改动文件清单：
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx：通用 runtime error 的重试按钮改为直接重发上一条用户消息。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+统一回滚点：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx progress.md`。
+
+## 2026-07-19 - Task: 修复目标完成后重启复活
+### What was done
+- 确认目标模式按 agent 会话历史隔离恢复，不是全局目标状态串用。
+- 修复目标快照持久化：保存 agent 状态时会把承载 `goalSnapshot` 的最新用户消息行标记为 dirty，确保完成、暂停、删除等终态写入 SQLite 的消息表。
+- 补充目标持久化回归测试，覆盖“用户消息后面已有助手消息时，完成态快照仍要持久化到用户消息行”的场景。
+
+### Testing
+- `pnpm exec biome check --write packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/state-mutations/simple.ts packages/agent-core/src/services/agent-manager/agent-manager.goal-persistence.test.ts`
+- `pnpm -F @stagewise/agent-core test -- agent-manager.goal-persistence state-mutations`
+- `pnpm -F @stagewise/agent-core build`
+
+### Notes
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：持久化前同步目标快照后重新读取 store，并把最新用户消息索引并入 dirtyMessageIndices。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts：目标快照同步会为缺失 metadata 的用户消息补最小 metadata，并返回承载快照的消息索引。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/simple.ts`。
+- packages/agent-core/src/services/agent-manager/agent-manager.goal-persistence.test.ts：新增目标快照非尾消息持久化回归测试。回滚：`rm packages/agent-core/src/services/agent-manager/agent-manager.goal-persistence.test.ts`。
+- docs/agent-goal-mode.md：补充说明目标快照所在用户消息行必须作为 dirty 行持久化。回滚：`git checkout -- docs/agent-goal-mode.md`。
+
+## 2026-07-19 - Task: 兼容历史目标完成态恢复
+### What was done
+- 增加历史数据兼容：重启恢复时如果用户消息里的 `goalSnapshot` 还是旧的 active，但其后的助手消息里已有同一目标的 `updateGoal` 完成输出，则以工具输出里的 complete 状态为准。
+- 扩展回归测试，覆盖旧数据“用户快照 active、助手工具结果 complete”时重启不继续自动执行的场景。
+
+### Testing
+- `pnpm exec biome check --write packages/agent-core/src/services/agent-manager/agent-manager.ts packages/agent-core/src/services/agent-manager/agent-manager.goal-persistence.test.ts`
+- `pnpm -F @stagewise/agent-core test -- agent-manager.goal-persistence state-mutations`
+- `pnpm -F @stagewise/agent-core build`
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`
+
+### Notes
+- packages/agent-core/src/services/agent-manager/agent-manager.ts：恢复目标时读取较新的 `updateGoal` 工具输出，避免旧 active 快照覆盖已完成结果。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/agent-manager.ts`。
+- packages/agent-core/src/services/agent-manager/agent-manager.goal-persistence.test.ts：新增旧 active 快照被 newer complete 工具输出纠正的恢复测试。回滚：`rm packages/agent-core/src/services/agent-manager/agent-manager.goal-persistence.test.ts`。
+- docs/agent-goal-mode.md：补充历史旧数据恢复优先级说明。回滚：`git checkout -- docs/agent-goal-mode.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: 修复上下文超窗误发与压缩超时
+### What was done
+- 在请求前增加对进行中历史压缩的等待，并把预检上限同时受 85% 比例和 100k 硬上限约束，避免继续用旧上下文反复发起超窗请求。
+- 把历史压缩单次超时从 30s 放宽到 90s，给大历史压缩留出完成时间。
+- 同步更新历史压缩测试里的超时用例和上下文压缩维护说明。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/shared/history-compression/index.ts packages/agent-core/src/agents/shared/history-compression.test.ts docs/agent-context-compression.md`
+- `pnpm -F @stagewise/agent-core build`
+- `pnpm -F @stagewise/agent-core test -- history-compression`
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`
+
+### Notes
+- packages/agent-core/src/agents/base-agent.ts：请求前先等待进行中的历史压缩，并把 preflight 上限也卡到硬上限以下。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/shared/history-compression/index.ts：历史压缩单次超时从 30 秒放宽到 90 秒。回滚：`git checkout -- packages/agent-core/src/agents/shared/history-compression/index.ts`。
+- packages/agent-core/src/agents/shared/history-compression.test.ts：同步更新超时测试断言与等待时长。回滚：`git checkout -- packages/agent-core/src/agents/shared/history-compression.test.ts`。
+- docs/agent-context-compression.md：补充压缩等待与硬上限说明。回滚：`git checkout -- docs/agent-context-compression.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: 避免上下文压缩期间误触发 stream stalled watchdog
+### What was done
+- 把 step activity watchdog 从上下文准备阶段挪到真正进入 `waiting-for-model` 之后才启动，避免压缩/预检阶段被误判成模型流卡死。
+- 同步更新运行时说明，让 watchdog 行为和真实阶段边界一致。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts docs/agent-runtime-visibility.md docs/agent-context-compression.md`
+- `pnpm -F @stagewise/agent-core build`
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`（当前工作区存在一批既有 `@stagewise/agent-core` 声明/隐式 any 报错，与本次改动无关）
+
+### Notes
+- packages/agent-core/src/agents/base-agent.ts：watchdog 改为在 `waiting-for-model` 阶段启动。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- docs/agent-runtime-visibility.md：更新 watchdog 触发边界说明。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- docs/agent-context-compression.md：保持与压缩/等待说明一致。回滚：`git checkout -- docs/agent-context-compression.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: 大 HAR/日志附件上下文瘦身
+### What was done
+- 新增 HAR 文件读取摘要：默认只注入网络请求索引，包含 hosts、method/status 分布、失败请求、慢请求、内容类型和 GraphQL operation；请求/响应 body 默认不进模型上下文。
+- 新增大日志摘要：`.log` 超过 64KB 或 1000 行时只注入首尾样本、级别计数、时间范围和重复错误摘要；精确内容仍可通过行范围读取。
+- 大 `.textclip` 粘贴复用日志摘要逻辑，避免大段 HAR/日志文本粘贴后反复触发上下文压缩。
+- 为诊断附件摘要补回归测试，并更新文件读取与上下文压缩文档。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/file-read-transformer/index.ts packages/agent-core/src/file-read-transformer/transformers/index.ts packages/agent-core/src/file-read-transformer/transformers/diagnostic-text.ts packages/agent-core/src/file-read-transformer/transformers/har.ts packages/agent-core/src/file-read-transformer/transformers/text-blob.ts packages/agent-core/src/file-read-transformer/diagnostic-attachments.test.ts` 退出码 0。
+- `pnpm -F @stagewise/agent-core test -- diagnostic-attachments` 退出码 0。
+- `pnpm -F @stagewise/agent-core test -- file-read-transformer diagnostic-attachments content-limits preview-promotion serialization` 退出码 0，95 个测试通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `git diff --check -- packages/agent-core/src/file-read-transformer/index.ts packages/agent-core/src/file-read-transformer/transformers/index.ts packages/agent-core/src/file-read-transformer/transformers/text-blob.ts packages/agent-core/src/file-read-transformer/README.md` 退出码 0；仅输出 CRLF/LF 提示，无 whitespace error。
+
+### Notes
+- packages/agent-core/src/file-read-transformer/transformers/har.ts：新增 HAR 摘要转换器，默认省略 request/response body 并保留按行读取入口。回滚：`rm packages/agent-core/src/file-read-transformer/transformers/har.ts`。
+- packages/agent-core/src/file-read-transformer/transformers/diagnostic-text.ts：新增大日志/大文本摘要工具。回滚：`rm packages/agent-core/src/file-read-transformer/transformers/diagnostic-text.ts`。
+- packages/agent-core/src/file-read-transformer/index.ts：把 `.har`、`.log` 路由到诊断摘要转换器，并给诊断类缓存加版本片段。回滚：`git checkout -- packages/agent-core/src/file-read-transformer/index.ts`。
+- packages/agent-core/src/file-read-transformer/transformers/index.ts：导出新增转换器。回滚：`git checkout -- packages/agent-core/src/file-read-transformer/transformers/index.ts`。
+- packages/agent-core/src/file-read-transformer/transformers/text-blob.ts：大 `.textclip` 默认走诊断摘要。回滚：`git checkout -- packages/agent-core/src/file-read-transformer/transformers/text-blob.ts`。
+- packages/agent-core/src/file-read-transformer/diagnostic-attachments.test.ts：新增 HAR、`.log`、`.textclip` 摘要回归测试。回滚：`rm packages/agent-core/src/file-read-transformer/diagnostic-attachments.test.ts`。
+- packages/agent-core/src/file-read-transformer/README.md：补充诊断附件摘要行为。回滚：`git checkout -- packages/agent-core/src/file-read-transformer/README.md`。
+- docs/agent-context-compression.md：补充大 HAR/日志附件先摘要再进上下文的说明。回滚：`rm docs/agent-context-compression.md` 或恢复到本轮前内容。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: 对话结束后展示 token 统计摘要
+### What was done
+- 在每次 assistant 步结束后，把累计 token、输入/输出、缓存命中、缓存命中率、上下文占用、调用次数和耗时写入最后一条 assistant 消息的 metadata。
+- 在聊天消息底部增加 token 统计条，并补充中英文词条与文档说明。
+- 增加核心状态 mutation 回归测试，确认累计统计会从上一条 assistant 的历史摘要继续累加。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/types/metadata.ts apps/browser/src/shared/karton-contracts/ui/agent/metadata.ts packages/agent-core/src/services/agent-manager/state-mutations/metadata.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.ts packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts packages/agent-core/src/agents/base-agent.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx apps/browser/src/ui/i18n/dict/chat.ts` 退出码 0。
+- `pnpm -F @stagewise/agent-core test -- bind` 退出码 0。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+
+### Notes
+- packages/agent-core/src/types/metadata.ts：新增 usage summary 元数据 schema。回滚：`git checkout -- packages/agent-core/src/types/metadata.ts`。
+- apps/browser/src/shared/karton-contracts/ui/agent/metadata.ts：把 usage summary 透出到浏览器侧契约。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/agent/metadata.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/metadata.ts：新增最后一条 assistant 的 usage summary 追加逻辑。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/metadata.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts：把 usage summary mutation 挂到 bound bundle。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts：新增累计 usage summary 回归测试。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/bind.test.ts`。
+- packages/agent-core/src/agents/base-agent.ts：记录本步 context / duration 并在结束后写入最后 assistant 消息。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx：新增消息底部 token 统计行。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：补充 token 统计文案词条。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- docs/agent-usage-summary.md：记录该统计条的来源与含义。回滚：`rm docs/agent-usage-summary.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: 将上下文压缩改为压缩后重基线
+### What was done
+- 将 post-step 上下文压缩触发从“会话累计 usedTokens”改为“距上次成功压缩后的新增 usedTokens”，避免压缩后因为历史累计值仍然很高而几轮对话内反复压缩。
+- 在压缩边界消息 metadata 中写入 `compressionState`，把压缩时的 `baselineUsedTokens` 和 `compressedAt` 持久化到消息表；重启后仍按压缩后的新基线继续判断。
+- 对旧历史数据做兼容：如果历史中已有 `compressedHistory` 但没有新 `compressionState`，本轮判断把当前 usedTokens 当作兜底基线，不再因为旧累计值立即重复压缩。
+- 同步更新 core/browser metadata schema 和上下文压缩文档说明。
+
+### Testing
+- `pnpm exec biome check --write apps/browser/src/shared/karton-contracts/ui/agent/metadata.ts packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts packages/agent-core/src/services/agent-manager/state-mutations/streaming.test.ts packages/agent-core/src/types/metadata.ts docs/agent-context-compression.md`
+- `pnpm -F @stagewise/agent-core test -- state-mutations streaming`
+- `pnpm -F @stagewise/agent-core build`
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit`
+- `git diff --check -- packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts packages/agent-core/src/services/agent-manager/state-mutations/streaming.test.ts packages/agent-core/src/types/metadata.ts apps/browser/src/shared/karton-contracts/ui/agent/metadata.ts docs/agent-context-compression.md progress.md` 退出码 0；仅有 progress.md CRLF/LF 提示。
+
+### Notes
+- packages/agent-core/src/agents/base-agent.ts：post-step 压缩触发改为按最近压缩基线后的增量计算，并在压缩完成时写入压缩基线。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts：`storeCompressedHistory` 支持写入 `compressionState`。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/streaming.ts`。
+- packages/agent-core/src/services/agent-manager/state-mutations/streaming.test.ts：补充压缩状态写入断言。回滚：`git checkout -- packages/agent-core/src/services/agent-manager/state-mutations/streaming.test.ts`。
+- packages/agent-core/src/types/metadata.ts：新增 `compressionStateSchema` 和 `CompressionState` metadata 字段。回滚：`git checkout -- packages/agent-core/src/types/metadata.ts`。
+- apps/browser/src/shared/karton-contracts/ui/agent/metadata.ts：同步浏览器侧 metadata schema。回滚：`git checkout -- apps/browser/src/shared/karton-contracts/ui/agent/metadata.ts`。
+- docs/agent-context-compression.md：说明压缩后按新基线继续判断。回滚：`git checkout -- docs/agent-context-compression.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+- Correction：docs/agent-context-compression.md 当前仍是未跟踪文件；若只回滚本轮改动，应删除本轮新增的压缩基线说明段落；若丢弃整个未跟踪文档，可执行 `Remove-Item -LiteralPath docs/agent-context-compression.md`。
+
+## 2026-07-19 - Task: 降低准备上下文提示频率
+### What was done
+- 确认 `正在准备上下文…` 不是压缩本身，而是每轮模型请求前和步骤收尾重建上下文时的常规 runtime phase。
+- 对 UI 提示做降噪：`preparing-context` 持续超过 1200ms 才显示，避免每个短 step 都闪出“正在准备上下文…”。
+- 保持 `compressing-context`、`waiting-for-model` 等真正需要用户感知的状态即时显示。
+
+### Testing
+- `pnpm exec biome check --write apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit`
+- `git diff --check -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx progress.md` 退出码 0；仅有 progress.md CRLF/LF 提示。
+
+### Notes
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：新增 `preparing-context` 延迟显示逻辑，减少短暂上下文准备状态的频繁闪现。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: 修复长工具执行误触发 LLM stream stalled
+### What was done
+- 确认截图中的 `LLM stream stalled` 发生在工具执行阶段，不是上下文压缩阶段，也不是模型请求前准备阶段。
+- 为工具执行包装增加 step activity heartbeat：工具开始、执行期间、结束时都会刷新 watchdog 活跃时间，避免长时间 shell 命令或其他工具运行时被误判为模型流卡死。
+- 保留原有 watchdog 语义：工具结束后如果后续确实没有模型输出或生命周期事件，仍会按原 120 秒规则报错。
+- 补充回归测试与运行时可见性文档。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts` 退出码 0。
+- `pnpm -F @stagewise/agent-core test -- goal-continuation` 退出码 0，12 个测试通过。
+- `pnpm -F @stagewise/agent-core build` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts docs/agent-runtime-visibility.md` 退出码 0。
+
+### Notes
+- packages/agent-core/src/agents/base-agent.ts：工具执行期间增加 activity heartbeat，避免长工具被 step watchdog 误杀。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/chat/goal-continuation.test.ts：新增长工具执行期间 watchdog 保持活跃的回归测试。回滚：`git checkout -- packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+- docs/agent-runtime-visibility.md：补充工具执行 heartbeat 与 watchdog 边界说明。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: 模型回复语言跟随用户输入语言
+### What was done
+- 在 chat 系统提示词里补充了更明确的语言规则，要求模型始终使用用户最新消息的语言回复，用户切换语言时立即跟随切换。
+- 同步更新了 core 和 browser 两套 `soul.md`，保证浏览器主链路和 core fallback 的行为一致。
+- 增加了回归测试，分别覆盖 core 的系统 prompt 组装结果和 browser 侧 `soul.md` 内容。
+- 追加了简短文档说明，记录这条语言跟随规则已经进入主 chat prompt。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/chat/prompts/soul.md packages/agent-core/src/agents/chat/system-prompt-builder/system-prompt-builder.test.ts apps/browser/src/backend/agents/chat/prompts/soul.md apps/browser/src/backend/agents/chat/prompts/soul.test.ts docs/unrestricted-technical-prompts.md`
+- `pnpm -F @stagewise/agent-core test -- system-prompt-builder`
+- `pnpm -F stagewise test -- src/backend/agents/chat/prompts/soul.test.ts`
+
+### Notes
+- packages/agent-core/src/agents/chat/prompts/soul.md：补充用户语言跟随规则。回滚：`git checkout -- packages/agent-core/src/agents/chat/prompts/soul.md`。
+- apps/browser/src/backend/agents/chat/prompts/soul.md：补充浏览器主链路语言跟随规则。回滚：`git checkout -- apps/browser/src/backend/agents/chat/prompts/soul.md`。
+- packages/agent-core/src/agents/chat/system-prompt-builder/system-prompt-builder.test.ts：增加 core prompt 语言规则断言。回滚：`git checkout -- packages/agent-core/src/agents/chat/system-prompt-builder/system-prompt-builder.test.ts`。
+- apps/browser/src/backend/agents/chat/prompts/soul.test.ts：新增 browser prompt 直测。回滚：`Remove-Item -LiteralPath apps/browser/src/backend/agents/chat/prompts/soul.test.ts`。
+- docs/unrestricted-technical-prompts.md：补充 prompt 行为说明。回滚：`git checkout -- docs/unrestricted-technical-prompts.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+## 2026-07-19 - Task: clarify context usage vs compression threshold
+### What was done
+- 在 assistant 消耗摘要里补了“压缩阈值”显示，直接把当前上下文估算值和下一轮触发预检压缩的阈值拆开。
+- 保持原有上下文估算口径不变，只增加一条辅助提示，避免用户把 `95,939/1,000,000` 误认为压缩触发线。
+- 同步补了中英文文案和简短文档说明。
+
+### Testing
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit`
+
+### Notes
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx：在 usage summary 中新增“压缩阈值”一行。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：新增 usage summary 的压缩阈值文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- docs/agent-usage-summary.md：补充说明 usage summary 还会展示压缩阈值。回滚：`git checkout -- docs/agent-usage-summary.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: large-context compression threshold follows real window
+### What was done
+- 确认截图里的“重新打包后仍压缩”不是旧包问题，而是 1M 模型仍被 100k 绝对硬上限触发。
+- 移除 post-step 和 preflight 压缩触发里的 100k 硬封顶，让阈值按当前模型真实 context window 缩放：chat post-step 约 50%，preflight 约 85%。
+- 保留压缩后最近消息保留预算的 40k 上限，避免压缩结果本身过大。
+- 把 UI 的提示从“压缩阈值”改成“预检阈值”，并按 85% 窗口展示；1M 模型会显示 850,000，而不是 100,000。
+- 补充纯函数回归测试和相关文档/技能说明，防止后续又按旧硬上限排查。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/index.ts packages/agent-core/src/agents/shared/context-compression-thresholds.ts packages/agent-core/src/agents/shared/context-compression-thresholds.test.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx apps/browser/src/ui/i18n/dict/chat.ts docs/agent-context-compression.md docs/agent-usage-summary.md .agents/skills/history-compression/SKILL.md`
+- `pnpm -F @stagewise/agent-core test -- context-compression-thresholds`
+- `pnpm -F @stagewise/agent-core build`
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit`
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`
+- `git diff --check -- packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/index.ts packages/agent-core/src/agents/shared/context-compression-thresholds.ts packages/agent-core/src/agents/shared/context-compression-thresholds.test.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx apps/browser/src/ui/i18n/dict/chat.ts docs/agent-context-compression.md docs/agent-usage-summary.md .agents/skills/history-compression/SKILL.md progress.md` 退出码 0；仅有 CRLF/LF 提示。
+
+### Notes
+- packages/agent-core/src/agents/base-agent.ts：压缩触发阈值改为按 context window 缩放，不再套 100k 绝对硬上限。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/shared/context-compression-thresholds.ts：新增压缩阈值纯函数。回滚：`Remove-Item -LiteralPath packages/agent-core/src/agents/shared/context-compression-thresholds.ts`。
+- packages/agent-core/src/agents/shared/context-compression-thresholds.test.ts：新增 1M context 阈值回归测试。回滚：`Remove-Item -LiteralPath packages/agent-core/src/agents/shared/context-compression-thresholds.test.ts`。
+- packages/agent-core/src/agents/index.ts：导出压缩阈值 helper。回滚：`git checkout -- packages/agent-core/src/agents/index.ts`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx：usage summary 的预检阈值按 85% context window 展示。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx`。
+- apps/browser/src/ui/i18n/dict/chat.ts：文案改为“预检阈值”。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/chat.ts`。
+- docs/agent-context-compression.md：更新压缩阈值说明。回滚：`git checkout -- docs/agent-context-compression.md`。
+- docs/agent-usage-summary.md：更新 usage summary 阈值说明。回滚：`git checkout -- docs/agent-usage-summary.md`。
+- .agents/skills/history-compression/SKILL.md：更新 history-compression 技能里的触发公式。回滚：`git checkout -- .agents/skills/history-compression/SKILL.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: hide waiting/tokens UI while model is actively streaming
+### What was done
+- 收紧了等待提示的显示条件：当当前最后一条 assistant 消息已经有正文在流式输出时，不再在下面继续显示“正在等待模型响应…”。
+- 收紧了 tokens 统计框的显示条件：当前这轮 assistant 还在流式响应时，不再展示 usage summary，等这轮真正结束后再显示。
+- 同步补了 runtime visibility 和 usage summary 的说明，避免后续把“等待中/统计框”误当成流式输出的一部分。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx docs/agent-runtime-visibility.md docs/agent-usage-summary.md`
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit`
+- `git diff --check -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx docs/agent-runtime-visibility.md docs/agent-usage-summary.md progress.md` 退出码 0；仅有 CRLF/LF 提示。
+
+### Notes
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx：等待状态在 assistant 已开始输出时不再继续挂载。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/chat-history.tsx`。
+- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx：当前流式 assistant 的 usage summary 改为完成后再显示。回滚：`git checkout -- apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-assistant.tsx`。
+- docs/agent-runtime-visibility.md：补充 waiting-for-model 的展示边界。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- docs/agent-usage-summary.md：补充 summary 只在本轮 settled 后显示。回滚：`git checkout -- docs/agent-usage-summary.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-19 - Task: context-too-large recovery does not stop when LLM compression aborts
+### What was done
+- 根据运行日志确认本次“跑着跑着停下”不是 UI 假死，而是 provider 返回 `context window exceeded` 后触发强制压缩，压缩模型随后 abort/超时，恢复链路直接落入可见错误。
+- 在 `preflight` / `context-too-large` 这两类强制恢复路径中增加本地 emergency compression fallback：LLM 压缩失败时写入小型本地摘要并继续保留最近未压缩消息，避免任务直接停止在原始上下文超限错误上。
+- 普通 post-step 后台压缩失败仍保持原行为，不把非强制压缩失败误包装成成功。
+- 运行日志新增 `compression-emergency-fallback` 事件，便于后续区分“LLM 压缩成功”和“本地兜底压缩”。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts`
+- `pnpm -F @stagewise/agent-core build`
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts docs/agent-context-compression.md docs/agent-runtime-visibility.md`
+- `git diff --check -- packages/agent-core/src/agents/base-agent.ts docs/agent-context-compression.md docs/agent-runtime-visibility.md progress.md` 退出码 0；仅有 progress.md CRLF/LF 提示。
+
+### Notes
+- packages/agent-core/src/agents/base-agent.ts：强制压缩路径增加本地 emergency fallback，压缩模型 abort 时继续恢复下一轮。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- docs/agent-context-compression.md：补充强制恢复路径的本地兜底说明。回滚：`git checkout -- docs/agent-context-compression.md`。
+- docs/agent-runtime-visibility.md：补充 `compression-emergency-fallback` 日志事件说明。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。

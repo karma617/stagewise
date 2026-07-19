@@ -879,7 +879,7 @@ describe('generateSimpleCompressedHistory', () => {
     expect(generateTextMock).toHaveBeenCalledTimes(2);
   });
 
-  it('aborts a hanging first model via the 30s timeout and falls back', async () => {
+  it('aborts a hanging first model via the 90s timeout and falls back', async () => {
     generateTextMock.mockImplementationOnce(({ abortSignal }: any) => {
       return new Promise((_resolve, reject) => {
         abortSignal.addEventListener('abort', () => {
@@ -898,7 +898,7 @@ describe('generateSimpleCompressedHistory', () => {
       'agent-1',
     );
 
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(90_000);
 
     const result = await promise;
     expect(result).toBe(
@@ -927,7 +927,7 @@ describe('generateSimpleCompressedHistory', () => {
       generateSimpleCompressedHistory(makeMessages(4), mps, 'agent-1'),
     ).rejects.toThrow('timed out and did not settle after abort');
 
-    await vi.advanceTimersByTimeAsync(32_000);
+    await vi.advanceTimersByTimeAsync(92_000);
     await promise;
     expect(generateTextMock).toHaveBeenCalledTimes(1);
     expect(mps.getWithOptions).toHaveBeenCalledTimes(1);

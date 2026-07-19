@@ -30,11 +30,13 @@ import { useHotKeyListener } from '@ui/hooks/use-hotkey-listener';
 import { useEventListener } from '@ui/hooks/use-event-listener';
 import { useTrack } from '@ui/hooks/use-track';
 import { useI18n } from '@ui/hooks/use-i18n';
+import { createRafResizeObserver } from '@ui/utils/resize-observer';
 import {
   ChatInput,
   ChatInputActions,
   type ChatInputHandle,
 } from './chat-input';
+import { Button } from '@stagewise/stage-ui/components/button';
 import {
   WorkspaceSelect,
   applyMountedWorkspaceActionDefault,
@@ -63,7 +65,10 @@ import {
 } from '@ui/utils/attachment-conversions';
 import { normalizePath } from '@shared/path-utils';
 import { selectedElementToSwDomElement } from '@shared/selected-elements/swdomelement';
-import type { AgentMessage } from '@shared/karton-contracts/ui/agent';
+import type {
+  AgentGoalState,
+  AgentMessage,
+} from '@shared/karton-contracts/ui/agent';
 import { EMPTY_MOUNTS, type MountEntry } from '@shared/karton-contracts/ui';
 import { useOpenAgent } from '@ui/hooks/use-open-chat';
 import { useContentCollapsed } from '../../../_components/content-collapsed-context';
@@ -81,6 +86,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@stagewise/stage-ui/components/tooltip';
+import {
+  CheckIcon,
+  PencilIcon,
+  PauseIcon,
+  PlayIcon,
+  Trash2Icon,
+  XIcon,
+} from 'lucide-react';
+import { CHAT_GOAL_MODE_CHANGED_EVENT } from '../_lib/chat-goal-mode-event';
 
 // Stable empty arrays to avoid new-reference re-renders
 const EMPTY_HISTORY: AgentMessage[] = [];
@@ -130,6 +144,271 @@ function WorkspaceActionErrorMessage({ message }: { message: string }) {
         </div>
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+function GoalStatusCard({
+  goal,
+  onPause,
+  onResume,
+  onUpdateObjective,
+  onDelete,
+}: {
+  goal: AgentGoalState;
+  onPause: () => Promise<void>;
+  onResume: () => Promise<void>;
+  onUpdateObjective: (objective: string) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const { t } = useI18n();
+  const statusKey = `chat.goalStatus.${goal.status}` as const;
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftObjective, setDraftObjective] = useState(goal.objective);
+  const [isTogglingRunState, setIsTogglingRunState] = useState(false);
+  const [isSavingObjective, setIsSavingObjective] = useState(false);
+  const [isDeletingGoal, setIsDeletingGoal] = useState(false);
+  const trimmedDraftObjective = draftObjective.trim();
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+
+    const updateHeight = () => {
+      document.documentElement.style.setProperty(
+        '--goal-status-card-height',
+        `${card.offsetHeight}px`,
+      );
+    };
+
+    updateHeight();
+    const { observer, disconnect } = createRafResizeObserver(updateHeight);
+    observer.observe(card);
+
+    return () => {
+      disconnect();
+      document.documentElement.style.setProperty(
+        '--goal-status-card-height',
+        '0px',
+      );
+    };
+  }, [goal.status, goal.objective, goal.blockReason]);
+
+  useEffect(() => {
+    if (!isEditing) setDraftObjective(goal.objective);
+  }, [goal.objective, isEditing]);
+
+  const handleToggleRunState = useCallback(async () => {
+    if (isTogglingRunState) return;
+
+    setIsTogglingRunState(true);
+    try {
+      if (goal.status === 'active') {
+        await onPause();
+      } else if (goal.status === 'paused' || goal.status === 'blocked') {
+        await onResume();
+      }
+    } finally {
+      setIsTogglingRunState(false);
+    }
+  }, [goal.status, isTogglingRunState, onPause, onResume]);
+
+  const handleStartEditing = useCallback(() => {
+    setDraftObjective(goal.objective);
+    setIsEditing(true);
+  }, [goal.objective]);
+
+  const handleCancelEditing = useCallback(() => {
+    setDraftObjective(goal.objective);
+    setIsEditing(false);
+  }, [goal.objective]);
+
+  const handleSaveObjective = useCallback(async () => {
+    if (!trimmedDraftObjective || isSavingObjective) return;
+    if (trimmedDraftObjective === goal.objective) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsSavingObjective(true);
+    try {
+      await onUpdateObjective(trimmedDraftObjective);
+      setIsEditing(false);
+    } finally {
+      setIsSavingObjective(false);
+    }
+  }, [
+    goal.objective,
+    isSavingObjective,
+    onUpdateObjective,
+    trimmedDraftObjective,
+  ]);
+
+  const handleDeleteGoal = useCallback(async () => {
+    if (isDeletingGoal) return;
+
+    setIsDeletingGoal(true);
+    try {
+      await onDelete();
+    } finally {
+      setIsDeletingGoal(false);
+    }
+  }, [isDeletingGoal, onDelete]);
+
+  return (
+    <div
+      ref={cardRef}
+      className="pointer-events-auto absolute right-2 bottom-[calc(100%+var(--status-card-height,0px)+0.5rem)] left-2 z-10 mx-auto max-w-3xl rounded-xl border border-derived bg-surface-1/95 px-3 py-2 shadow-elevation-2 backdrop-blur"
+    >
+      <div className="flex items-start gap-2">
+        <div
+          className={cn(
+            'mt-1 size-2 rounded-full',
+            goal.status === 'active' && 'animate-pulse-full bg-info-solid',
+            goal.status === 'paused' && 'bg-muted-foreground',
+            goal.status === 'complete' && 'bg-success-solid',
+            goal.status === 'blocked' && 'bg-warning-solid',
+          )}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-xs">
+              {t('chat.goalStatus.title')}
+            </span>
+            <span
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[10px]',
+                goal.status === 'active' &&
+                  'bg-info-background text-info-foreground',
+                goal.status === 'paused' && 'bg-surface-2 text-muted-foreground',
+                goal.status === 'complete' &&
+                  'bg-success-background text-success-foreground',
+                goal.status === 'blocked' &&
+                  'bg-warning-background text-warning-foreground',
+              )}
+            >
+              {t(statusKey)}
+            </span>
+          </div>
+          <div className="mt-1 line-clamp-2 break-words text-muted-foreground text-xs">
+            {isEditing ? (
+              <input
+                className="w-full rounded-md border border-derived bg-background px-2 py-1 text-foreground text-xs outline-none ring-0 focus:border-primary-solid dark:bg-surface-2"
+                value={draftObjective}
+                autoFocus
+                onChange={(event) => setDraftObjective(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void handleSaveObjective();
+                  } else if (event.key === 'Escape') {
+                    handleCancelEditing();
+                  }
+                }}
+              />
+            ) : (
+              goal.objective
+            )}
+          </div>
+          {goal.status === 'blocked' && goal.blockReason && (
+            <div className="mt-1 line-clamp-2 break-words text-[11px] text-warning-foreground">
+              {goal.blockReason}
+            </div>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {isEditing ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    disabled={!trimmedDraftObjective || isSavingObjective}
+                    aria-label={t('chat.goalStatus.save')}
+                    onClick={() => void handleSaveObjective()}
+                  >
+                    <CheckIcon className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('chat.goalStatus.save')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={t('chat.goalStatus.cancel')}
+                    onClick={handleCancelEditing}
+                  >
+                    <XIcon className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('chat.goalStatus.cancel')}</TooltipContent>
+              </Tooltip>
+            </>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label={t('chat.goalStatus.edit')}
+                  onClick={handleStartEditing}
+                >
+                  <PencilIcon className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('chat.goalStatus.edit')}</TooltipContent>
+            </Tooltip>
+          )}
+          <Tooltip>
+            <TooltipTrigger>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                disabled={isDeletingGoal}
+                aria-label={t('chat.goalStatus.delete')}
+                onClick={() => void handleDeleteGoal()}
+              >
+                <Trash2Icon className="size-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('chat.goalStatus.delete')}</TooltipContent>
+          </Tooltip>
+          {goal.status !== 'complete' && (
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={isTogglingRunState}
+                  aria-label={t(
+                    goal.status === 'active'
+                      ? 'chat.goalStatus.pause'
+                      : 'chat.goalStatus.resume',
+                  )}
+                  onClick={() => void handleToggleRunState()}
+                >
+                  {goal.status === 'active' ? (
+                    <PauseIcon className="size-3" />
+                  ) : (
+                    <PlayIcon className="size-3" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t(
+                  goal.status === 'active'
+                    ? 'chat.goalStatus.pause'
+                    : 'chat.goalStatus.resume',
+                )}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -244,6 +523,21 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
 
   const [canSendMessage, setCanSendMessage] = useState(false);
   const [goalModeEnabled, setGoalModeEnabled] = useState(false);
+  const updateGoalModeEnabled = useCallback(
+    (next: boolean | ((current: boolean) => boolean)) => {
+      setGoalModeEnabled((current) => {
+        const enabled = typeof next === 'function' ? next(current) : next;
+        window.__stagewiseGoalModeState = { agentId: openAgent, enabled };
+        window.dispatchEvent(
+          new CustomEvent(CHAT_GOAL_MODE_CHANGED_EVENT, {
+            detail: { agentId: openAgent, enabled },
+          }),
+        );
+        return enabled;
+      });
+    },
+    [openAgent],
+  );
 
   // Re-sync local input state when the active agent changes
   const prevOpenAgentRef = useRef(openAgent);
@@ -256,8 +550,8 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
     localInputStateRef.current = parsed;
     setLocalInputState(parsed);
     // Reset goal mode when switching agents
-    setGoalModeEnabled(false);
-  }, [openAgent]);
+    updateGoalModeEnabled(false);
+  }, [openAgent, updateGoalModeEnabled]);
 
   const updateChatInputState = useCallback(
     (newInputState: Content) => {
@@ -343,9 +637,9 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
   );
   useEffect(() => {
     if (goal?.status === 'blocked' && goalModeEnabled) {
-      setGoalModeEnabled(false);
+      updateGoalModeEnabled(false);
     }
-  }, [goal?.status, goalModeEnabled]);
+  }, [goal?.status, goalModeEnabled, updateGoalModeEnabled]);
 
   const activeTabUrl = useKartonState((s) => {
     const tabId = s.contentTabs.activeTabId;
@@ -384,6 +678,12 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
   // Karton procedures
   const sendUserMessage = useKartonProcedure((p) => p.agents.sendUserMessage);
   const stopAgent = useKartonProcedure((p) => p.agents.stop);
+  const pauseGoal = useKartonProcedure((p) => p.agents.pauseGoal);
+  const resumeGoal = useKartonProcedure((p) => p.agents.resumeGoal);
+  const updateGoalObjective = useKartonProcedure(
+    (p) => p.agents.updateGoalObjective,
+  );
+  const deleteGoal = useKartonProcedure((p) => p.agents.deleteGoal);
   const createWorkspaceGitWorktree = useKartonProcedure(
     (p) => p.toolbox.createWorkspaceGitWorktree,
   );
@@ -1728,6 +2028,37 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
     chatInputRef.current?.focus();
   }, []);
 
+  const handlePauseGoal = useCallback(async () => {
+    if (!openAgent) return;
+    await pauseGoal(openAgent);
+  }, [openAgent, pauseGoal]);
+
+  const handleResumeGoal = useCallback(async () => {
+    if (!openAgent) return;
+
+    await resumeGoal(openAgent);
+    const message: AgentMessage & { role: 'user' } = {
+      id: generateId(),
+      parts: [{ type: 'text' as const, text: '继续当前目标。' }],
+      role: 'user',
+      metadata: collectUserMessageMetadata(),
+    };
+    await sendUserMessage(openAgent, message, { goalMode: false });
+  }, [openAgent, resumeGoal, sendUserMessage]);
+
+  const handleUpdateGoalObjective = useCallback(
+    async (objective: string) => {
+      if (!openAgent) return;
+      await updateGoalObjective(openAgent, objective);
+    },
+    [openAgent, updateGoalObjective],
+  );
+
+  const handleDeleteGoal = useCallback(async () => {
+    if (!openAgent) return;
+    await deleteGoal(openAgent);
+  }, [deleteGoal, openAgent]);
+
   const focusChatInputAfterWorkspaceChange = useCallback(() => {
     chatInputActiveRef.current = true;
     setChatInputActive(true);
@@ -1825,10 +2156,19 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
             showImageUploadButton
             onAddFileAttachment={handleAddFileAttachment}
             goalModeEnabled={goalModeEnabled}
-            onToggleGoalMode={() => setGoalModeEnabled((current) => !current)}
+            onToggleGoalMode={() => updateGoalModeEnabled((current) => !current)}
             canSendMessage={effectiveCanSendMessage}
             onSubmit={handleSubmit}
           />
+          {goal && (
+            <GoalStatusCard
+              goal={goal}
+              onPause={handlePauseGoal}
+              onResume={handleResumeGoal}
+              onUpdateObjective={handleUpdateGoalObjective}
+              onDelete={handleDeleteGoal}
+            />
+          )}
           <StatusCard />
         </div>
       </MessageAttachmentsProvider>

@@ -39,6 +39,7 @@ import { FileTreeToggleButton } from './file-tree/file-tree-toggle-button';
 import { SettingsSidebar } from '../settings/sidebar';
 import { SettingsContent } from '../settings/content';
 import { AccountPoolBatchTaskFloating } from '../settings/sections/account-pool-batch-task-floating';
+import { StartupBackgroundTasksFloating } from './_components/startup-background-tasks-floating';
 import {
   DEFAULT_EXPANDED_SIDEBAR_SIZE,
   SIDEBAR_PANEL_CLASS_NAME,
@@ -397,6 +398,7 @@ function DefaultLayoutInner({ show }: { show: boolean }) {
           )}
         </ResizablePanelGroup>
       </div>
+      {show && <StartupBackgroundTasksFloating />}
       {show && <AccountPoolBatchTaskFloating />}
     </>
   );

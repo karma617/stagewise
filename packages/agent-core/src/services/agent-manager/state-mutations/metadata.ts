@@ -1,6 +1,7 @@
 import type { AgentStore } from '../../../store/agent-store';
 import type { DomainId, EnvStateEntry } from '../../../env/contract';
 import type {
+  AgentUsageSummary,
   AttachmentMetadata,
   UserMessageMetadata,
 } from '../../../types/metadata';
@@ -33,6 +34,46 @@ export function attachAttachmentsToLastAssistant(
       const md = last.metadata as UserMessageMetadata;
       md.attachments = [...(md.attachments ?? []), ...args.attachments];
     }
+  });
+}
+
+export function attachUsageSummaryToLastAssistant(
+  store: AgentStore,
+  agentInstanceId: string,
+  args: Omit<AgentUsageSummary, 'modelCallCount'>,
+): void {
+  updateAgentInstanceState(store, agentInstanceId, (state) => {
+    const lastIndex = state.history.length - 1;
+    const last = state.history[lastIndex];
+    if (last?.role !== 'assistant') return;
+
+    let previous: AgentUsageSummary | undefined;
+    for (let i = lastIndex - 1; i >= 0; i--) {
+      const message = state.history[i];
+      if (message?.role !== 'assistant') continue;
+      previous = (message.metadata as UserMessageMetadata | undefined)
+        ?.usageSummary;
+      if (previous) break;
+    }
+
+    last.metadata ??= {
+      createdAt: new Date(),
+      partsMetadata: [],
+    } as unknown as UserMessageMetadata;
+    const md = last.metadata as UserMessageMetadata;
+    md.usageSummary = {
+      totalTokens: (previous?.totalTokens ?? 0) + args.totalTokens,
+      inputTokens: (previous?.inputTokens ?? 0) + args.inputTokens,
+      outputTokens: (previous?.outputTokens ?? 0) + args.outputTokens,
+      cachedInputTokens:
+        (previous?.cachedInputTokens ?? 0) + args.cachedInputTokens,
+      cacheWriteTokens:
+        (previous?.cacheWriteTokens ?? 0) + args.cacheWriteTokens,
+      contextTokens: args.contextTokens,
+      contextWindowTokens: args.contextWindowTokens,
+      modelCallCount: (previous?.modelCallCount ?? 0) + 1,
+      durationMs: (previous?.durationMs ?? 0) + args.durationMs,
+    };
   });
 }
 

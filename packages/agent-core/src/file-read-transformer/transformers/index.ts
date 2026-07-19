@@ -8,6 +8,8 @@ export { textTransformer } from './text';
 export { svgTransformer } from './svg';
 export { markdownTransformer } from './markdown';
 export { textBlobTransformer } from './text-blob';
+export { diagnosticTextTransformer } from './diagnostic-text';
+export { harTransformer } from './har';
 export { pdfTransformer } from './pdf';
 export { archiveTransformer } from './archive';
 export { rawImageTransformer } from './raw-image';

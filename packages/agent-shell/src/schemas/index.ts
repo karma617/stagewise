@@ -44,8 +44,11 @@ export const createShellSessionToolSchema = {
 // Execute Shell Command Tool (session input)
 // ============================================================================
 
-export const executeShellCommandToolInputSchema = z
-  .object({
+// Action-mode conflicts are intentionally handled by the runtime tool instead
+// of schema validation. LLM repair can preserve both `command` and `stdin`;
+// rejecting that shape here surfaces a red validation error before the tool can
+// return corrective guidance.
+export const executeShellCommandToolInputSchema = z.object({
     explanation: z
       .string()
       .describe(
@@ -126,31 +129,7 @@ export const executeShellCommandToolInputSchema = z
       })
       .optional()
       .describe('Controls when the tool returns.'),
-  })
-  .superRefine((val, ctx) => {
-    // Mirror the runtime guards in `executeShellCommand`: `command`,
-    // `stdin`, and `kill` are mutually exclusive action modes. `command`
-    // stays optional so an empty/omitted command is a valid poll.
-    const hasCommand =
-      typeof val.command === 'string' && val.command.length > 0;
-    const hasStdin = val.stdin !== undefined;
-    const isKill = val.kill === true;
-
-    if (hasStdin && (hasCommand || isKill)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['stdin'],
-        message: 'stdin is mutually exclusive with command and kill.',
-      });
-    }
-    if (isKill && hasCommand) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['kill'],
-        message: 'kill is mutually exclusive with command.',
-      });
-    }
-  });
+});
 
 export const executeShellCommandToolOutputSchema = z.object({
   session_id: z.string().nullable(),

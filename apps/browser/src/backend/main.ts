@@ -3,6 +3,7 @@
  */
 
 import { app, clipboard, dialog } from 'electron';
+import type { StartupBackgroundTaskStatus } from '@shared/karton-contracts/ui';
 import { AuthService } from './services/auth';
 import { AgentManagerService } from './services/agent-manager';
 import { enrichHistoryEntryWorkspaces } from './services/agent-manager/history-workspace-enrichment';
@@ -71,6 +72,7 @@ import { AssetCacheService } from './services/asset-cache';
 import { detectShell, resolveShellEnv } from '@stagewise/agent-shell';
 import path from 'node:path';
 import { registerStartupUrlHandler } from './startup-url-events';
+import type { KartonService } from './services/karton';
 import { AgentPowerSaveBlockerService } from './services/agent-power-save-blocker';
 import { AgentRuntimeRecoveryService } from './services/agent-runtime-recovery';
 import { MacOSClosedLidSleepService } from './services/macos-closed-lid-sleep';
@@ -99,6 +101,94 @@ export type MainParameters = {
     verbose?: boolean;
   };
 };
+
+type StartupBackgroundTaskDeps = {
+  uiKarton: KartonService;
+  logger: Logger;
+};
+
+function updateStartupBackgroundTask(
+  uiKarton: KartonService,
+  task: StartupBackgroundTaskStatus,
+): void {
+  uiKarton.setState((draft) => {
+    const index = draft.startupBackgroundTasks.findIndex(
+      (item) => item.id === task.id,
+    );
+    if (index >= 0) {
+      draft.startupBackgroundTasks[index] = task;
+    } else {
+      draft.startupBackgroundTasks.push(task);
+    }
+  });
+}
+
+function removeStartupBackgroundTask(
+  uiKarton: KartonService,
+  id: string,
+): void {
+  uiKarton.setState((draft) => {
+    draft.startupBackgroundTasks = draft.startupBackgroundTasks.filter(
+      (task) => task.id !== id,
+    );
+  });
+}
+
+function runStartupBackgroundTask(
+  deps: StartupBackgroundTaskDeps,
+  task: {
+    id: string;
+    title: string;
+    run: () => Promise<void>;
+  },
+): void {
+  const startedAt = Date.now();
+  updateStartupBackgroundTask(deps.uiKarton, {
+    id: task.id,
+    title: task.title,
+    status: 'running',
+    startedAt,
+    finishedAt: null,
+    message: null,
+  });
+
+  setTimeout(() => {
+    void task
+      .run()
+      .then(() => {
+        updateStartupBackgroundTask(deps.uiKarton, {
+          id: task.id,
+          title: task.title,
+          status: 'succeeded',
+          startedAt,
+          finishedAt: Date.now(),
+          message: null,
+        });
+        setTimeout(
+          () => removeStartupBackgroundTask(deps.uiKarton, task.id),
+          4000,
+        );
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        deps.logger.warn(
+          `[Main] Startup background task failed: ${task.id}: ${message}`,
+        );
+        updateStartupBackgroundTask(deps.uiKarton, {
+          id: task.id,
+          title: task.title,
+          status: 'failed',
+          startedAt,
+          finishedAt: Date.now(),
+          message,
+        });
+        setTimeout(
+          () => removeStartupBackgroundTask(deps.uiKarton, task.id),
+          30000,
+        );
+      });
+  }, 250);
+}
 
 export async function main({ launchOptions: { verbose } }: MainParameters) {
   // In this file you can include the rest of your app's specific main process
@@ -238,21 +328,23 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
     resolvedEnvPromise,
   });
 
-  // Push search engine definitions to UI karton state.
-  webDataService
-    .getSearchEngines()
-    .then((engines) => {
-      uiKarton.setState((draft) => {
-        draft.searchEngines = engines;
-      });
-      if (verbose)
-        logger.debug(
-          `[Main] Pushed ${engines.length} search engines to UI karton`,
-        );
-    })
-    .catch((error) => {
-      logger.warn('[Main] Failed to load search engines', error);
-    });
+  runStartupBackgroundTask(
+    { uiKarton, logger },
+    {
+      id: 'load-search-engines',
+      title: '加载搜索引擎',
+      run: async () => {
+        const engines = await webDataService.getSearchEngines();
+        uiKarton.setState((draft) => {
+          draft.searchEngines = engines;
+        });
+        if (verbose)
+          logger.debug(
+            `[Main] Pushed ${engines.length} search engines to UI karton`,
+          );
+      },
+    },
+  );
 
   // Phase 3a: build the agent-core seam (store + controllers + registry)
   // early so services that consume store-canonical state — currently
@@ -276,16 +368,23 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
     models: lazyHostModels.hostModels,
   });
 
-  // Push bundled plugin definitions to UI karton state
-  discoverPlugins(getPluginsPath()).then((plugins) => {
-    uiKarton.setState((draft: { plugins: typeof plugins }) => {
-      draft.plugins = plugins;
-    });
-    if (verbose)
-      logger.debug(
-        `[Main] Pushed ${plugins.length} bundled plugins to UI karton`,
-      );
-  });
+  runStartupBackgroundTask(
+    { uiKarton, logger },
+    {
+      id: 'discover-plugins',
+      title: '加载插件列表',
+      run: async () => {
+        const plugins = await discoverPlugins(getPluginsPath());
+        uiKarton.setState((draft: { plugins: typeof plugins }) => {
+          draft.plugins = plugins;
+        });
+        if (verbose)
+          logger.debug(
+            `[Main] Pushed ${plugins.length} bundled plugins to UI karton`,
+          );
+      },
+    },
+  );
 
   // Phase D.2: the host enumerates `AgentCorePersistence` once instead
   // of constructing each persistence service by name. The facade owns
@@ -401,37 +500,42 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
     });
   };
 
-  void syncAvailableSoundPacks().catch((err) => {
-    logger.error('[Main] Failed to save discovered sound packs', err);
-  });
+  runStartupBackgroundTask(
+    { uiKarton, logger },
+    {
+      id: 'sync-sound-packs',
+      title: '加载通知音效',
+      run: () => syncAvailableSoundPacks(),
+    },
+  );
 
-  ensureRipgrepInstalled({
-    rgBinaryBasePath: getRipgrepBasePath(),
-    onLog: logger.debug,
-  })
-    .then((result) => {
-      if (!result.success) {
-        telemetryService.captureException(
-          new Error(result.error ?? 'Unknown error'),
-          { service: 'main', operation: 'ensureRipgrep' },
-        );
-        logger.warn(
-          `Ripgrep installation failed: ${result.error}. Grep/glob operations will use slower Node.js implementations.`,
-        );
-      } else {
-        if (verbose)
+  runStartupBackgroundTask(
+    { uiKarton, logger },
+    {
+      id: 'ensure-ripgrep',
+      title: '检查搜索工具',
+      run: async () => {
+        const result = await ensureRipgrepInstalled({
+          rgBinaryBasePath: getRipgrepBasePath(),
+          onLog: logger.debug,
+        });
+        if (!result.success) {
+          const error = new Error(result.error ?? 'Unknown error');
+          telemetryService.captureException(error, {
+            service: 'main',
+            operation: 'ensureRipgrep',
+          });
+          logger.warn(
+            `Ripgrep installation failed: ${result.error}. Grep/glob operations will use slower Node.js implementations.`,
+          );
+          throw error;
+        }
+        if (verbose) {
           logger.debug('Ripgrep is available for grep/glob operations');
-      }
-    })
-    .catch((error) => {
-      logger.warn(
-        `Ripgrep installation failed: ${error}. Grep/glob operations will use slower Node.js implementations.`,
-      );
-      telemetryService.captureException(error as Error, {
-        service: 'main',
-        operation: 'ensureRipgrep',
-      });
-    });
+        }
+      },
+    },
+  );
 
   logger.debug('[Main] Global services bootstrapped');
 
@@ -546,28 +650,36 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
     learn: 3,
   };
 
-  discoverSkills(getBuiltinSkillsPath()).then((skills: Skill[]) => {
-    const builtins: SkillDefinition[] = skills
-      .map((s) => ({
-        id: `command:${s.name.toLowerCase()}`,
-        displayName: s.name,
-        description: s.description,
-        source: 'builtin' as const,
-        contentPath: `${s.path}/SKILL.md`,
-        userInvocable: s.userInvocable,
-        agentInvocable: s.agentInvocable,
-      }))
-      .sort(
-        (a, b) =>
-          (BUILTIN_ORDER[a.displayName.toLowerCase()] ?? 99) -
-          (BUILTIN_ORDER[b.displayName.toLowerCase()] ?? 99),
-      );
-    toolboxService.setBuiltinSkills(builtins);
-    if (verbose)
-      logger.debug(
-        `[Main] Pushed ${builtins.length} bundled skills to UI karton`,
-      );
-  });
+  runStartupBackgroundTask(
+    { uiKarton, logger },
+    {
+      id: 'discover-skills',
+      title: '加载内置技能',
+      run: async () => {
+        const skills: Skill[] = await discoverSkills(getBuiltinSkillsPath());
+        const builtins: SkillDefinition[] = skills
+          .map((s) => ({
+            id: `command:${s.name.toLowerCase()}`,
+            displayName: s.name,
+            description: s.description,
+            source: 'builtin' as const,
+            contentPath: `${s.path}/SKILL.md`,
+            userInvocable: s.userInvocable,
+            agentInvocable: s.agentInvocable,
+          }))
+          .sort(
+            (a, b) =>
+              (BUILTIN_ORDER[a.displayName.toLowerCase()] ?? 99) -
+              (BUILTIN_ORDER[b.displayName.toLowerCase()] ?? 99),
+          );
+        toolboxService.setBuiltinSkills(builtins);
+        if (verbose)
+          logger.debug(
+            `[Main] Pushed ${builtins.length} bundled skills to UI karton`,
+          );
+      },
+    },
+  );
 
   const _appMenuService = new AppMenuService(
     logger,
@@ -594,9 +706,19 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
   // constructed after the toolbox itself.
   toolboxService.setModelProviderService(modelProviderService);
 
-  const assetCacheService = await AssetCacheService.create(
-    () => authService.accessToken,
-    logger,
+  let assetCacheService: AssetCacheService | null = null;
+  runStartupBackgroundTask(
+    { uiKarton, logger },
+    {
+      id: 'asset-cache',
+      title: '清理资源缓存',
+      run: async () => {
+        assetCacheService = await AssetCacheService.create(
+          () => authService.accessToken,
+          logger,
+        );
+      },
+    },
   );
 
   const processedImageCacheService = persistence.processedImageCache;
@@ -1211,13 +1333,14 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
 
   logger.debug('[Main] Normal operation services bootstrapped');
 
-  void toolboxService
-    .scanWorkspaceGitCleanupCandidatesOnStartup()
-    .catch((error) => {
-      logger.warn(
-        `[Main] Failed to scan worktree cleanup candidates: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    });
+  runStartupBackgroundTask(
+    { uiKarton, logger },
+    {
+      id: 'workspace-cleanup-scan',
+      title: '扫描工作区清理项',
+      run: () => toolboxService.scanWorkspaceGitCleanupCandidatesOnStartup(),
+    },
+  );
 
   logger.debug('[Main] Startup complete');
 
@@ -1256,7 +1379,12 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
       runTeardown('faviconService', () => faviconService.teardown());
       runTeardown('diffHistoryService', () => diffHistoryService.teardown());
       runTeardown('agentCorePersistence', () => persistence.teardown());
-      runTeardown('assetCacheService', () => assetCacheService.teardown());
+      const activeAssetCacheService = assetCacheService;
+      if (activeAssetCacheService) {
+        runTeardown('assetCacheService', () =>
+          activeAssetCacheService.teardown(),
+        );
+      }
       runTeardown('autoUpdateService', () => autoUpdateService.teardown());
       runTeardown('agentPowerSaveBlockerService', () =>
         agentPowerSaveBlockerService.teardown(),

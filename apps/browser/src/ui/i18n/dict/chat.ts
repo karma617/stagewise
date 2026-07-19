@@ -53,6 +53,10 @@ export const chatDict: Dict = {
     'zh-CN': '执行中',
     en: 'Active',
   },
+  'chat.goalStatus.paused': {
+    'zh-CN': '已暂停',
+    en: 'Paused',
+  },
   'chat.goalStatus.complete': {
     'zh-CN': '已完成',
     en: 'Complete',
@@ -60,6 +64,30 @@ export const chatDict: Dict = {
   'chat.goalStatus.blocked': {
     'zh-CN': '已阻塞',
     en: 'Blocked',
+  },
+  'chat.goalStatus.pause': {
+    'zh-CN': '暂停目标',
+    en: 'Pause goal',
+  },
+  'chat.goalStatus.resume': {
+    'zh-CN': '继续目标',
+    en: 'Resume goal',
+  },
+  'chat.goalStatus.edit': {
+    'zh-CN': '编辑目标',
+    en: 'Edit goal',
+  },
+  'chat.goalStatus.delete': {
+    'zh-CN': '删除目标',
+    en: 'Delete goal',
+  },
+  'chat.goalStatus.save': {
+    'zh-CN': '保存目标',
+    en: 'Save goal',
+  },
+  'chat.goalStatus.cancel': {
+    'zh-CN': '取消编辑',
+    en: 'Cancel edit',
   },
   'chat.llmNetwork.readingNodes': {
     'zh-CN': '正在读取 Clash 可用节点…',
@@ -72,6 +100,22 @@ export const chatDict: Dict = {
   'chat.llmNetwork.retryingRequest': {
     'zh-CN': '节点已切换，正在重试对话请求 {attempt}：{node}…',
     en: 'Node switched. Retrying chat request {attempt}: {node}...',
+  },
+  'chat.runtimePhase.compressingContext': {
+    'zh-CN': '正在压缩上下文…',
+    en: 'Compressing context...',
+  },
+  'chat.runtimePhase.preparingContext': {
+    'zh-CN': '正在准备上下文…',
+    en: 'Preparing context...',
+  },
+  'chat.runtimePhase.preparingTools': {
+    'zh-CN': '正在准备工具…',
+    en: 'Preparing tools...',
+  },
+  'chat.runtimePhase.waitingForModel': {
+    'zh-CN': '正在等待模型响应…',
+    en: 'Waiting for model response...',
   },
   'chat.slash.group.skills': {
     'zh-CN': '技能',
@@ -682,6 +726,22 @@ export const chatDict: Dict = {
   'chat.usage.window.daily': { 'zh-CN': '每日', en: 'daily' },
   'chat.usage.window.weekly': { 'zh-CN': '每周', en: 'weekly' },
   'chat.usage.window.monthly': { 'zh-CN': '每月', en: 'monthly' },
+  'chat.usageSummary.total': { 'zh-CN': '总计', en: 'Total' },
+  'chat.usageSummary.input': { 'zh-CN': '输入', en: 'input' },
+  'chat.usageSummary.output': { 'zh-CN': '输出', en: 'output' },
+  'chat.usageSummary.cacheHit': { 'zh-CN': '缓存命中', en: 'cache hit' },
+  'chat.usageSummary.cacheHitRate': {
+    'zh-CN': '缓存命中率',
+    en: 'cache hit rate',
+  },
+  'chat.usageSummary.context': { 'zh-CN': '上下文', en: 'context' },
+  'chat.usageSummary.preflightLimit': {
+    'zh-CN': '预检阈值',
+    en: 'preflight threshold',
+  },
+  'chat.usageSummary.calls': { 'zh-CN': '调用', en: 'calls' },
+  'chat.usageSummary.times': { 'zh-CN': '次', en: 'times' },
+  'chat.usageSummary.elapsed': { 'zh-CN': '耗时', en: 'elapsed' },
   'chat.mentions.tabPreview': { 'zh-CN': '标签预览', en: 'Tab preview' },
   'chat.mentions.openOriginalUrl': { 'zh-CN': '在新标签中打开原始 URL', en: 'Open original URL in new tab' },
   'chat.agentList.deleteWorktree': { 'zh-CN': '删除工作树', en: 'Delete worktree' },

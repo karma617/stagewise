@@ -51,7 +51,7 @@ const HISTORY_COMPRESSION_MODELS = [
 ] as const;
 
 /** Maximum time (ms) allowed for a single history compression attempt. */
-const HISTORY_COMPRESSION_TIMEOUT_MS = 30_000;
+const HISTORY_COMPRESSION_TIMEOUT_MS = 90_000;
 
 /**
  * Grace period after aborting a timed-out compression request.

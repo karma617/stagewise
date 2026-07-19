@@ -56,6 +56,7 @@ export function beginStep(
   let queueFlushIndex: number | undefined;
   updateAgentInstanceState(store, agentInstanceId, (state) => {
     state.isWorking = true;
+    state.runtimePhase = undefined;
     state.error = undefined;
     if (state.goal?.status === 'blocked') {
       state.goal.status = 'active';
@@ -87,6 +88,7 @@ export function recordStepError(
 ): void {
   updateAgentInstanceState(store, agentInstanceId, (state) => {
     state.isWorking = false;
+    state.runtimePhase = undefined;
     if (args.error !== undefined) {
       state.error = args.error;
       if (state.goal?.status === 'active') {
@@ -97,12 +99,6 @@ export function recordStepError(
         state.goal.blockReason = args.error.message;
         state.goal.finalTokenUsage = state.usedTokens;
       }
-    } else if (state.goal?.status === 'active') {
-      const now = Date.now();
-      state.goal.status = 'complete';
-      state.goal.updatedAt = now;
-      state.goal.completedAt = now;
-      state.goal.finalTokenUsage = state.usedTokens;
     }
     if (args.markUnread === 'always' || args.markUnread === 'mark-unread') {
       state.unread = true;

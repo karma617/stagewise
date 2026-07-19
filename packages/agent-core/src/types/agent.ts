@@ -53,7 +53,7 @@ export type AgentRuntimeError =
       stack?: string;
     };
 
-export type AgentGoalStatus = 'active' | 'complete' | 'blocked';
+export type AgentGoalStatus = 'active' | 'paused' | 'complete' | 'blocked';
 
 export type AgentGoalState = {
   id: string;
@@ -65,9 +65,16 @@ export type AgentGoalState = {
   tokenBudget?: number;
   finalTokenUsage?: number;
   completedAt?: number;
+  pausedAt?: number;
   blockedAt?: number;
   blockReason?: string;
 };
+
+export type AgentRuntimePhase =
+  | 'preparing-context'
+  | 'preparing-tools'
+  | 'waiting-for-model'
+  | 'compressing-context';
 
 /**
  * Per-agent reasoning and chat runtime state.
@@ -91,6 +98,8 @@ export type AgentState<TMessage = AgentMessage> = {
   titleLockedByUser?: boolean;
   /** @persistence ephemeral — always reset to `false` on `resumeAgent` and set by the agent runloop. */
   isWorking: boolean;
+  /** @persistence ephemeral — transient detail for the visible working indicator. */
+  runtimePhase?: AgentRuntimePhase;
   /**
    * @persistence persisted-core — stored on the `agentMessages` side-table
    * keyed by `agentInstanceId, seq` (one row per message) rather than the

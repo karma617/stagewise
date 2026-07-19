@@ -15,7 +15,7 @@
 import { z } from 'zod';
 import nodePath from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { readFile as fsReadFile } from '../fs';
+import { appendFile, mkdir, readFile as fsReadFile } from '../fs';
 import type {
   AgentMessage,
   AgentRuntimeError,
@@ -64,6 +64,29 @@ type AgentFinishOutputSchemaOf<T> = [T] extends [
 ]
   ? S
   : z.ZodType | null;
+
+function getLastCompressionBaselineUsedTokens(
+  history: AgentMessage[],
+  fallbackUsedTokens: number,
+): number {
+  let hasCompressedHistory = false;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i]?.metadata?.compressedHistory) {
+      hasCompressedHistory = true;
+    }
+    const baseline = history[i]?.metadata?.compressionState?.baselineUsedTokens;
+    if (typeof baseline === 'number') return baseline;
+  }
+  return hasCompressedHistory ? fallbackUsedTokens : 0;
+}
+
+const STEP_ACTIVITY_TIMEOUT_MS = 120_000;
+const STEP_ACTIVITY_CHECK_INTERVAL_MS = 10_000;
+const STEP_ACTIVITY_TOOL_HEARTBEAT_MS = 30_000;
+const STEP_ACTIVITY_ERROR_MESSAGE =
+  'LLM stream stalled: no model output or lifecycle event was received for 120 seconds.';
+const CONTEXT_TOO_LARGE_RECOVERY_ATTEMPTS = 1;
+const RUNTIME_TRACE_LOG_PREFIX = 'agent-runtime';
 import {
   convertAgentMessagesToModelMessages,
   capitalizeFirstLetter,
@@ -92,6 +115,10 @@ import { type DomainAdapterRegistry, resolveEffectiveEnvStates } from '../env';
 import { MessageCacheAnalyzer } from './shared/message-cache-analyzer';
 import { stripStrictFromToolSet } from './shared/strip-strict-from-tools';
 import { reasoningSourcesMatch } from './shared/reasoning-signatures';
+import {
+  getContextPreflightCompressionLimit,
+  getPostStepCompressionTriggerTokens,
+} from './shared/context-compression-thresholds';
 import type { SkillDefinition } from '../types/skills';
 import type {
   AttachmentMetadata,
@@ -574,6 +601,11 @@ export abstract class BaseAgent<
   private _stepGeneration = 0;
   private _stepStartTime = 0;
   private _stepProviderMode = '';
+  private _stepTraceId = '';
+  private _stepLastActivityAt = 0;
+  private _stepActivityWatchdog: ReturnType<typeof setInterval> | null = null;
+  private _contextTooLargeRecoveryAttempts = 0;
+  private _historyCompressionPromise: Promise<boolean> | null = null;
   private _toolCallDurations = new Map<string, number>();
   private _memoryWriter: AgentMemoryWriter | null = null;
   private _memoryWriteTimer: ReturnType<typeof setTimeout> | null = null;
@@ -603,7 +635,11 @@ export abstract class BaseAgent<
    * step without writing anything to visible/persisted chat history.
    */
   private _pendingSyntheticContinuation: {
-    reason: 'system-resumed' | 'event-loop-stalled' | 'quota-account-switched';
+    reason:
+      | 'system-resumed'
+      | 'event-loop-stalled'
+      | 'quota-account-switched'
+      | 'goal-active';
   } | null = null;
 
   /**
@@ -954,6 +990,20 @@ export abstract class BaseAgent<
     );
 
     this._pendingSyntheticContinuation = { reason };
+    void this.runStep();
+  }
+
+  /**
+   * Continue an active restored goal without appending a visible user message.
+   * Used after app restart or message replacement restores the durable goal.
+   *
+   * @note DO NOT OVERRIDE
+   */
+  public continueActiveGoal(): void {
+    if (this.state.get().goal?.status !== 'active') return;
+    if (this.state.get().isWorking) return;
+
+    this._pendingSyntheticContinuation = { reason: 'goal-active' };
     void this.runStep();
   }
 
@@ -1392,6 +1442,236 @@ export abstract class BaseAgent<
     return Promise.resolve();
   }
 
+  protected shouldAutoContinueGoal(): boolean {
+    const state = this.state.get();
+    return (
+      state.goal?.status === 'active' &&
+      !state.error &&
+      state.queuedMessages.length === 0 &&
+      Object.keys(state.pendingApprovals).length === 0
+    );
+  }
+
+  protected hasActiveGoal(): boolean {
+    return this.state.get().goal?.status === 'active';
+  }
+
+  protected setSyntheticContinuation(
+    reason:
+      | 'system-resumed'
+      | 'event-loop-stalled'
+      | 'quota-account-switched'
+      | 'goal-active',
+  ): void {
+    this._pendingSyntheticContinuation = { reason };
+  }
+
+  protected isStepActivityWatchdogRunning(): boolean {
+    return this._stepActivityWatchdog !== null;
+  }
+
+  protected startStepActivityWatchdogForTest(
+    stepGen: number,
+    timeoutMs = STEP_ACTIVITY_TIMEOUT_MS,
+    checkIntervalMs = STEP_ACTIVITY_CHECK_INTERVAL_MS,
+  ): void {
+    this.startStepActivityWatchdog(stepGen, timeoutMs, checkIntervalMs);
+  }
+
+  protected stopStepActivityWatchdogForTest(stepGen?: number): void {
+    this.stopStepActivityWatchdog(stepGen);
+  }
+
+  protected markStepActivityForTest(now = Date.now()): void {
+    this.markStepActivity(now);
+  }
+
+  protected runWithStepActivityHeartbeatForTest<T>(
+    fn: () => Promise<T>,
+    heartbeatMs: number,
+  ): Promise<T> {
+    return this.runWithStepActivityHeartbeat(fn, heartbeatMs);
+  }
+
+  protected getStepGenerationForTest(): number {
+    return this._stepGeneration;
+  }
+
+  protected handleStepActivityTimeoutForTest(
+    stepGen: number,
+    timeoutMs: number,
+    scheduleContinuation = false,
+  ): void {
+    this.handleStepActivityTimeout(stepGen, timeoutMs, scheduleContinuation);
+  }
+
+  private markStepActivity(now = Date.now()): void {
+    this._stepLastActivityAt = now;
+  }
+
+  private async runWithStepActivityHeartbeat<T>(
+    fn: () => Promise<T>,
+    heartbeatMs = STEP_ACTIVITY_TOOL_HEARTBEAT_MS,
+  ): Promise<T> {
+    this.markStepActivity();
+    const heartbeat = setInterval(() => {
+      this.markStepActivity();
+    }, heartbeatMs);
+    heartbeat.unref?.();
+    try {
+      return await fn();
+    } finally {
+      clearInterval(heartbeat);
+      this.markStepActivity();
+    }
+  }
+
+  private startStepActivityWatchdog(
+    stepGen: number,
+    timeoutMs = STEP_ACTIVITY_TIMEOUT_MS,
+    checkIntervalMs = STEP_ACTIVITY_CHECK_INTERVAL_MS,
+  ): void {
+    this.stopStepActivityWatchdog();
+    this.markStepActivity();
+    this._stepActivityWatchdog = setInterval(() => {
+      if (this._stepGeneration !== stepGen) {
+        this.stopStepActivityWatchdog(stepGen);
+        return;
+      }
+
+      if (Date.now() - this._stepLastActivityAt < timeoutMs) return;
+
+      this.handleStepActivityTimeout(stepGen, timeoutMs, true);
+    }, checkIntervalMs);
+    this._stepActivityWatchdog.unref?.();
+  }
+
+  private stopStepActivityWatchdog(stepGen?: number): void {
+    if (stepGen !== undefined && this._stepGeneration !== stepGen) return;
+    if (this._stepActivityWatchdog) {
+      clearInterval(this._stepActivityWatchdog);
+      this._stepActivityWatchdog = null;
+    }
+  }
+
+  private handleStepActivityTimeout(
+    stepGen: number,
+    timeoutMs: number,
+    scheduleContinuation: boolean,
+  ): void {
+    if (this._stepGeneration !== stepGen) return;
+
+    this.host.logger.warn(
+      `[BaseAgent:${this.instanceId}] Step activity watchdog timed out after ${timeoutMs}ms without model output or lifecycle event.`,
+    );
+    this.report(
+      new Error(STEP_ACTIVITY_ERROR_MESSAGE),
+      'stepActivityWatchdog',
+      {
+        timeoutMs,
+        goalStatus: this.state.get().goal?.status,
+      },
+    );
+    this.stopStepActivityWatchdog(stepGen);
+    this._stepGeneration++;
+    this.stepAbortController?.abort();
+    this.stepAbortController = null;
+    this._pendingContinue = null;
+    this.state.commands.setRuntimePhase({ phase: undefined });
+
+    if (this.hasActiveGoal()) {
+      this._pendingSyntheticContinuation = null;
+      this.setSyntheticContinuation('goal-active');
+      this.state.commands.setIsWorkingFalsePreserveGoal();
+      if (scheduleContinuation) setTimeout(() => void this.runStep(), 0);
+      return;
+    }
+
+    this._pendingSyntheticContinuation = null;
+    this.state.commands.recordStepError({
+      error: {
+        message: STEP_ACTIVITY_ERROR_MESSAGE,
+      },
+      markUnread: 'mark-unread',
+    });
+    this.emitNotificationEvent('error');
+  }
+
+  private isContextWindowExceededError(error: Error): boolean {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes('context_too_large') ||
+      message.includes('context too large') ||
+      message.includes('exceeds the context window') ||
+      (message.includes('exceed') && message.includes('context window'))
+    );
+  }
+
+  private recoverFromContextWindowExceeded(
+    stepGen: number,
+    error: Error,
+  ): void {
+    if (this._stepGeneration !== stepGen) return;
+
+    if (
+      this._contextTooLargeRecoveryAttempts >=
+      CONTEXT_TOO_LARGE_RECOVERY_ATTEMPTS
+    ) {
+      this.state.commands.recordStepError({
+        error: {
+          message: `LLM provider error: ${error.message}`,
+          stack: error.stack,
+        },
+        markUnread: 'mark-unread',
+      });
+      this.emitNotificationEvent('error');
+      return;
+    }
+
+    this._contextTooLargeRecoveryAttempts++;
+    this.stopStepActivityWatchdog(stepGen);
+    this._stepGeneration++;
+    this.stepAbortController?.abort();
+    this.stepAbortController = null;
+    this._pendingContinue = null;
+    this._pendingSyntheticContinuation = null;
+    this.state.commands.setIsWorkingFalsePreserveGoal();
+
+    void this.compressHistoryInternal({ reason: 'context-too-large' })
+      .then((compressed) => {
+        if (!compressed) {
+          this.state.commands.recordStepError({
+            error: {
+              message: `LLM provider error: ${error.message}`,
+              stack: error.stack,
+            },
+            markUnread: 'mark-unread',
+          });
+          this.emitNotificationEvent('error');
+          return;
+        }
+
+        if (this.hasActiveGoal()) {
+          this.setSyntheticContinuation('goal-active');
+        }
+        setTimeout(() => void this.runStep(), 0);
+      })
+      .catch((compressionError) => {
+        const normalized =
+          compressionError instanceof Error
+            ? compressionError
+            : new Error(String(compressionError));
+        this.state.commands.recordStepError({
+          error: {
+            message: `Failed to compress context after context window error: ${normalized.message}`,
+            stack: normalized.stack,
+          },
+          markUnread: 'mark-unread',
+        });
+        this.emitNotificationEvent('error');
+      });
+  }
+
   /**
    * Fire-and-forget dispatch of a {@link AgentNotificationEvent} to the
    * optional host handler. Never throws — handler rejections are logged
@@ -1571,6 +1851,40 @@ export abstract class BaseAgent<
     }
   }
 
+  private writeRuntimeTrace(
+    event: string,
+    details: Record<string, unknown> = {},
+  ): void {
+    const logsDir = this.host.paths.logsDir();
+    const date = new Date().toISOString().slice(0, 10);
+    const logPath = nodePath.join(
+      logsDir,
+      `${RUNTIME_TRACE_LOG_PREFIX}-${date}.jsonl`,
+    );
+    const state = this.state.get();
+    const payload = {
+      ts: new Date().toISOString(),
+      event,
+      agentId: this.instanceId,
+      agentType: this.agentType,
+      stepGeneration: this._stepGeneration,
+      traceId: this._stepTraceId || undefined,
+      runtimePhase: state.runtimePhase,
+      isWorking: state.isWorking,
+      ...details,
+    };
+
+    void mkdir(logsDir, { recursive: true })
+      .then(() => appendFile(logPath, `${JSON.stringify(payload)}\n`, 'utf8'))
+      .catch((error) => {
+        const normalizedError =
+          error instanceof Error ? error : new Error(String(error));
+        this.host.logger.warn(
+          `[BaseAgent:${this.instanceId}] Failed to write runtime trace: ${normalizedError.message}`,
+        );
+      });
+  }
+
   /**
    * Should be executed after a user or tool approval message was added to the agent
    */
@@ -1589,10 +1903,15 @@ export abstract class BaseAgent<
     // Increment step generation so stale callbacks from previous steps are
     // ignored. Capture it in a local const for the closures below.
     const stepGen = ++this._stepGeneration;
+    this._stepTraceId = randomUUID();
     this._stepStartTime = Date.now();
+    this.markStepActivity(this._stepStartTime);
     // Reset continuation flag at the start of every step so a leftover
     // value from a prior aborted step cannot leak into the tail.
     this._pendingContinue = null;
+    if (!isApprovalContinuation && this.state.get().queuedMessages.length > 0) {
+      this._contextTooLargeRecoveryAttempts = 0;
+    }
 
     // Tracks whether the just-finished step ended on an open tool-approval
     // request. Used by the idle tail to suppress the `done` notification
@@ -1621,11 +1940,18 @@ export abstract class BaseAgent<
     // `state.activeModelId` from async callbacks (telemetry, onError) could
     // attribute the outcome to a model the user switched to mid-flight.
     const stepModelId = this.state.get().activeModelId;
+    this.writeRuntimeTrace('step-start', {
+      modelId: stepModelId,
+      isApprovalContinuation,
+      queueFlushIndex,
+      queuedMessages: this.state.get().queuedMessages.length,
+    });
 
     // Get the current model — wrapped in try-catch so a deleted custom model
     // or endpoint doesn't wedge the agent with isWorking=true and no error.
     let modelWithOptions: ModelWithOptions;
     try {
+      this.state.commands.setRuntimePhase({ phase: 'preparing-context' });
       modelWithOptions = await this.host.models.getWithOptions(
         stepModelId,
         this.instanceId,
@@ -1636,8 +1962,17 @@ export abstract class BaseAgent<
         },
       );
       this._stepProviderMode = modelWithOptions.providerMode;
+      this.writeRuntimeTrace('model-resolved', {
+        modelId: stepModelId,
+        providerMode: modelWithOptions.providerMode,
+      });
     } catch (error) {
+      if (this._stepGeneration !== stepGen) return;
       const err = error as Error;
+      this.writeRuntimeTrace('model-resolve-error', {
+        modelId: stepModelId,
+        error: err.message,
+      });
       this.host.logger.error(
         `[BaseAgent:${this.instanceId}] Failed to resolve model "${stepModelId}": ${err.message}`,
       );
@@ -1653,17 +1988,41 @@ export abstract class BaseAgent<
       this.emitNotificationEvent('error');
       return;
     }
+    if (this._stepGeneration !== stepGen) return;
 
     let modelMessages: Awaited<
       ReturnType<typeof this.generateContextForNewStep>
     >;
     let tools: Awaited<ReturnType<typeof this.getToolsForStep>>;
     let resolvedConfig: BaseAgentConfig<TFinishToolOutputSchema>;
+    let stepContextTokens = 0;
+    let stepContextWindowTokens = 0;
+    let stepDurationMs = 0;
     try {
+      const syntheticContinuationBeforeContext =
+        this._pendingSyntheticContinuation;
+      this.state.commands.setRuntimePhase({ phase: 'preparing-context' });
       modelMessages = await this.generateContextForNewStep(
         queueFlushIndex >= 0 ? queueFlushIndex : undefined,
         modelWithOptions.reasoningSignatureSource,
       );
+      modelMessages = await this.compressAndRegenerateContextIfNeeded(
+        modelMessages,
+        {
+          queueFlushIndex,
+          reasoningSignatureSource: modelWithOptions.reasoningSignatureSource,
+          syntheticContinuation: syntheticContinuationBeforeContext,
+        },
+      );
+      this.writeRuntimeTrace('context-ready', {
+        modelId: stepModelId,
+        providerMode: this._stepProviderMode,
+        messageCount: modelMessages.length,
+        estimatedTokens: this.estimateModelMessagesTokens(modelMessages),
+      });
+      stepContextTokens = this.estimateModelMessagesTokens(modelMessages);
+      stepContextWindowTokens = await this.getActiveContextWindowSize();
+      this.state.commands.setRuntimePhase({ phase: 'preparing-tools' });
       tools = await this.getToolsForStep();
       this._toolCallDurations.clear();
       tools = this.wrapToolsWithTiming(tools);
@@ -1671,12 +2030,19 @@ export abstract class BaseAgent<
       if (modelWithOptions.stripStrictFromTools) {
         tools = this.stripStrictFromTools(tools);
       }
+      this.writeRuntimeTrace('tools-ready', {
+        toolCount: Object.keys(tools).length,
+      });
       resolvedConfig = {
         ...this.config,
         ...(await this.getModelSettings(this.messages)),
       };
     } catch (e) {
+      if (this._stepGeneration !== stepGen) return;
       const error = e as Error;
+      this.writeRuntimeTrace('prepare-step-error', {
+        error: error.message,
+      });
       this.host.logger.error(
         `[BaseAgent:${this.instanceId}] Failed to prepare step context: ${this.formatError(error)}`,
       );
@@ -1692,6 +2058,7 @@ export abstract class BaseAgent<
       this.emitNotificationEvent('error');
       return;
     }
+    if (this._stepGeneration !== stepGen) return;
 
     if (isApprovalContinuation)
       modelMessages = this.ensureToolApprovalResponseIsLast(modelMessages);
@@ -1702,6 +2069,17 @@ export abstract class BaseAgent<
     this.host.logger.debug(`[BaseAgent:${this.instanceId}] Running step`);
 
     this.stepAbortController = new AbortController();
+    this.state.commands.setRuntimePhase({ phase: 'waiting-for-model' });
+    this.startStepActivityWatchdog(stepGen);
+    this.writeRuntimeTrace('stream-request-start', {
+      modelId: stepModelId,
+      providerMode: this._stepProviderMode,
+      messageCount: modelMessages.length,
+      toolCount: Object.keys(tools).length,
+      maxRetries: resolvedConfig.maxRetries ?? 1,
+      maxOutputTokens: resolvedConfig.maxOutputTokens,
+      timeoutMs: resolvedConfig.maxTime,
+    });
 
     const stream = streamText({
       model: modelWithOptions.model,
@@ -1720,16 +2098,33 @@ export abstract class BaseAgent<
       onAbort: () => {
         // Guard: ignore if a newer step has started (e.g. queue flush)
         if (this._stepGeneration !== stepGen) return;
+        this.markStepActivity();
+        this.writeRuntimeTrace('stream-abort', {
+          elapsedMs: Date.now() - this._stepStartTime,
+        });
+        this.stopStepActivityWatchdog(stepGen);
         this.state.commands.setIsWorkingFalse();
       },
       onFinish: async (result) => {
         // Guard: ignore if a newer step has started (e.g. queue flush)
         if (this._stepGeneration !== stepGen) return;
+        this.markStepActivity();
 
         stepHasApprovalRequest = result.content.some(
           (part) => part.type === 'tool-approval-request',
         );
         finishedResult = result;
+        this._contextTooLargeRecoveryAttempts = 0;
+        this.writeRuntimeTrace('stream-finish', {
+          finishReason: result.finishReason,
+          elapsedMs: Date.now() - this._stepStartTime,
+          outputTokens: result.usage.outputTokens,
+          inputTokens: result.usage.inputTokens,
+          totalTokens: result.usage.totalTokens,
+          toolCalls: result.toolCalls.length,
+          hasApprovalRequest: stepHasApprovalRequest,
+        });
+        stepDurationMs = Date.now() - this._stepStartTime;
 
         // Log step completion details
         this.host.logger.debug(
@@ -1749,6 +2144,7 @@ export abstract class BaseAgent<
           const shouldContinue = await this.handlePostStep(result);
           // Re-check after async work — internalStop may have been called
           if (this._stepGeneration !== stepGen) return;
+          this.markStepActivity();
           this.stepAbortController = null;
 
           // Defer both scheduling the next step and flipping to idle
@@ -1759,6 +2155,7 @@ export abstract class BaseAgent<
           this._pendingContinue = shouldContinue;
         } catch (err) {
           const error = err as Error;
+          this.stopStepActivityWatchdog(stepGen);
           this.host.logger.error(
             `[BaseAgent:${this.instanceId}] Error in onFinish: ${this.formatError(error)}`,
           );
@@ -1780,6 +2177,8 @@ export abstract class BaseAgent<
       onError: (ev) => {
         // Guard: ignore if a newer step has started (e.g. queue flush)
         if (this._stepGeneration !== stepGen) return;
+        this.markStepActivity();
+        this.stopStepActivityWatchdog(stepGen);
         // ev.error may not be a real Error instance (e.g. network abort
         // events, plain objects from the AI SDK). Normalize so every
         // downstream consumer (logger, PostHog, UI state) gets a proper Error.
@@ -1797,7 +2196,17 @@ export abstract class BaseAgent<
         this.host.logger.error(
           `[BaseAgent:${this.instanceId}] Error in 'streamText': ${this.formatError(error)}`,
         );
+        this.writeRuntimeTrace('stream-error', {
+          elapsedMs: Date.now() - this._stepStartTime,
+          error: error.message,
+          stack: error.stack,
+        });
         this.report(error, 'streamText');
+
+        if (this.isContextWindowExceededError(error)) {
+          this.recoverFromContextWindowExceeded(stepGen, error);
+          return;
+        }
 
         const parsedPlanLimit = this.parsePlanLimitError(error);
         if (parsedPlanLimit?.kind === 'plan-limit-exceeded') {
@@ -1929,6 +2338,8 @@ export abstract class BaseAgent<
         ),
         stream.consumeStream(),
       ]);
+      this.markStepActivity();
+      this.state.commands.setRuntimePhase({ phase: 'preparing-context' });
 
       // ─── Populate pathReferences on the assistant message ───────────
       // MUST run AFTER Promise.all resolves so the UI stream has fully
@@ -1965,6 +2376,24 @@ export abstract class BaseAgent<
         }
       }
 
+      if (finishedResult && this._stepGeneration === stepGen) {
+        const stepResult = finishedResult as StepResult<ToolSet>;
+        const inputTokens = stepResult.usage.inputTokens ?? 0;
+        const outputTokens = stepResult.usage.outputTokens ?? 0;
+        this.state.commands.attachUsageSummaryToLastAssistant({
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          cachedInputTokens:
+            stepResult.usage.inputTokenDetails.cacheReadTokens ?? 0,
+          cacheWriteTokens:
+            stepResult.usage.inputTokenDetails.cacheWriteTokens ?? 0,
+          contextTokens: stepContextTokens,
+          contextWindowTokens: stepContextWindowTokens,
+          durationMs: stepDurationMs || Date.now() - this._stepStartTime,
+        });
+      }
+
       // Re-persist so the DB row carries the just-populated references.
       // The initial saveState() in handlePostStep ran before the refs
       // were known, so this second save is required for crash safety.
@@ -1978,6 +2407,7 @@ export abstract class BaseAgent<
       // mismatch in case `internalStop` bumped the generation while we
       // were awaiting fs I/O above.
       if (this._stepGeneration === stepGen) {
+        this.stopStepActivityWatchdog(stepGen);
         const pending = this._pendingContinue;
         this._pendingContinue = null;
         if (pending === true) {
@@ -1989,6 +2419,14 @@ export abstract class BaseAgent<
           const hasAssistantMessage = this.state
             .get()
             .history.some((m) => m.role === 'assistant');
+          if (this.shouldAutoContinueGoal()) {
+            this.host.logger.debug(
+              `[BaseAgent:${this.instanceId}] Goal is still active after clean idle. Scheduling goal continuation.`,
+            );
+            this.setSyntheticContinuation('goal-active');
+            setTimeout(() => void this.runStep(), 0);
+            return;
+          }
           this.state.commands.recordStepError({
             error: undefined,
             markUnread: 'if-assistant-history',
@@ -2010,6 +2448,8 @@ export abstract class BaseAgent<
       }
     } catch (err) {
       const raw = err;
+      this.stopStepActivityWatchdog(stepGen);
+      if (this._stepGeneration !== stepGen) return;
       const error =
         raw instanceof Error
           ? raw
@@ -2054,15 +2494,6 @@ export abstract class BaseAgent<
   private static readonly KEPT_BUDGET_FRACTION = 0.2;
 
   /**
-   * Absolute maximum (in tokens) for the compression trigger threshold.
-   * Used via `Math.min(fraction * contextWindowSize, HARD_CAP)` so
-   * large-context models (e.g. 1M) compress at the same absolute token
-   * count as the 200k-model sweet spot. Calibrated to `0.5 × 200_000`
-   * matching the chat agent's `historyCompressionThreshold = 0.5`.
-   */
-  private static readonly HISTORY_COMPRESSION_HARD_CAP_TOKENS = 100_000;
-
-  /**
    * Absolute maximum (in tokens) for the kept-uncompressed budget after
    * compression. Calibrated to `0.2 × 200_000` so the "recent messages"
    * budget after compression stays bounded regardless of model context
@@ -2070,20 +2501,45 @@ export abstract class BaseAgent<
    */
   private static readonly KEPT_BUDGET_HARD_CAP_TOKENS = 40_000;
 
-  private async compressHistoryInternal(): Promise<void> {
+  private async compressHistoryInternal(args?: {
+    reason?: 'post-step' | 'preflight' | 'context-too-large';
+  }): Promise<boolean> {
     // Prevent concurrent compression runs — a second trigger while
     // compression is in-flight would see stale history and produce
     // a redundant (or conflicting) summary.
     if (this._isCompressingHistory) {
+      if (args?.reason !== 'post-step' && this._historyCompressionPromise) {
+        this.writeRuntimeTrace('compression-wait-existing', {
+          reason: args?.reason ?? 'preflight',
+        });
+        this.host.logger.debug(
+          `[BaseAgent:${this.instanceId}] Waiting for in-flight history compression. reason=${args?.reason ?? 'preflight'}`,
+        );
+        return await this._historyCompressionPromise;
+      }
+      this.writeRuntimeTrace('compression-skip-existing', {
+        reason: args?.reason ?? 'post-step',
+      });
       this.host.logger.debug(
         `[BaseAgent:${this.instanceId}] Skipping history compression — already in progress.`,
       );
-      return;
+      return false;
     }
     this._isCompressingHistory = true;
+    let compressionResult = false;
+    let resolveCompression: (value: boolean) => void = () => {};
+    this._historyCompressionPromise = new Promise<boolean>((resolve) => {
+      resolveCompression = resolve;
+    });
     try {
+      this.state.commands.setRuntimePhase({ phase: 'compressing-context' });
       const state = this.state.get();
       const { history } = state;
+      this.writeRuntimeTrace('compression-start', {
+        reason: args?.reason ?? 'post-step',
+        historyMessages: history.length,
+        modelId: state.activeModelId,
+      });
 
       // ── Compute token budget for kept messages ────────────────────
       let contextWindowSize: number;
@@ -2103,6 +2559,8 @@ export abstract class BaseAgent<
         5,
         this.config.minUncompressedMessages ?? 10,
       );
+      const forceCompression =
+        args?.reason === 'preflight' || args?.reason === 'context-too-large';
 
       // ── Adaptive boundary: walk backward, respect token budget ────
       let boundaryIndex = history.length; // start past the end
@@ -2128,8 +2586,21 @@ export abstract class BaseAgent<
           break;
         }
 
-        // Scanned everything, it all fits — nothing to compress
-        if (i === 0) return;
+        // Scanned everything, it all fits by history estimate. For
+        // request preflight/provider context errors we may still need to
+        // compress because final prompt overhead can exceed history estimate.
+        if (i === 0) {
+          if (!forceCompression) return false;
+          break;
+        }
+      }
+
+      if (boundaryIndex >= history.length && forceCompression) {
+        if (history.length < 2) return false;
+        boundaryIndex = history.length - 1;
+        this.host.logger.warn(
+          `[BaseAgent:${this.instanceId}] Forcing history compression to keep only the latest message. reason=${args?.reason}`,
+        );
       }
 
       // Edge case: even the last message alone exceeds the budget
@@ -2140,7 +2611,7 @@ export abstract class BaseAgent<
         );
       }
 
-      if (boundaryIndex < 1) return; // nothing meaningful to compress
+      if (boundaryIndex < 1) return false; // nothing meaningful to compress
 
       const actualKept = history.length - boundaryIndex;
       if (actualKept < preferredFloor) {
@@ -2150,24 +2621,60 @@ export abstract class BaseAgent<
       }
 
       const boundaryMessageId = history[boundaryIndex]?.id;
-      if (!boundaryMessageId) return;
+      if (!boundaryMessageId) return false;
 
       // If the boundary message already has compressed history, the
       // previous summary is included in messagesToCompact and will be
       // folded into the new summary by the LLM.
       const messagesToCompact = history.slice(0, boundaryIndex);
+      this.writeRuntimeTrace('compression-boundary-selected', {
+        reason: args?.reason ?? 'post-step',
+        compactMessages: messagesToCompact.length,
+        keptMessages: actualKept,
+        keptBudget,
+        contextWindowSize,
+      });
 
       this.host.logger.debug(
-        `[BaseAgent:${this.instanceId}] Compressing history (${messagesToCompact.length} messages, keeping ${actualKept})...`,
+        `[BaseAgent:${this.instanceId}] Compressing history (${messagesToCompact.length} messages, keeping ${actualKept}, reason=${args?.reason ?? 'post-step'})...`,
       );
 
-      const compressedHistory = await this.compressHistory(messagesToCompact);
+      let compressedHistory: string;
+      let usedEmergencyFallback = false;
+      try {
+        compressedHistory = await this.compressHistory(messagesToCompact);
+      } catch (compressionError) {
+        if (!forceCompression) throw compressionError;
+        usedEmergencyFallback = true;
+        const normalizedError =
+          compressionError instanceof Error
+            ? compressionError
+            : new Error(String(compressionError));
+        this.writeRuntimeTrace('compression-emergency-fallback', {
+          reason: args?.reason ?? 'preflight',
+          error: normalizedError.message,
+          compactMessages: messagesToCompact.length,
+          keptMessages: actualKept,
+        });
+        this.host.logger.warn(
+          `[BaseAgent:${this.instanceId}] History compression model failed during forced compression. Using emergency local summary. reason=${args?.reason ?? 'preflight'}, error=${normalizedError.message}`,
+        );
+        compressedHistory = this.buildEmergencyCompressedHistory(
+          messagesToCompact,
+          normalizedError,
+        );
+      }
+      const compressionState = {
+        baselineUsedTokens: state.usedTokens,
+        compressedAt: Date.now(),
+      };
 
       // Re-fetch by id inside the command — user could've undone/
       // manipulated messages while we were busy compressing.
       const writeResult = this.state.commands.storeCompressedHistory({
         boundaryMessageId,
         compressedHistory,
+        compressionState,
       });
       if (writeResult === 'missing') {
         this.host.logger.warn(
@@ -2184,18 +2691,181 @@ export abstract class BaseAgent<
         .history.findIndex((m) => m.id === boundaryMessageId);
       await this.saveState(boundarySeq >= 0 ? [boundarySeq] : undefined);
       this.scheduleMemorySnapshotWrite('compression');
+      compressionResult = true;
+      this.writeRuntimeTrace('compression-finish', {
+        reason: args?.reason ?? 'post-step',
+        compactMessages: messagesToCompact.length,
+        keptMessages: actualKept,
+        stored: writeResult !== 'missing',
+        emergencyFallback: usedEmergencyFallback,
+      });
+      return true;
     } catch (e) {
       // Fail silently — compression is best-effort. The agent continues
       // without compression until the context window is exhausted, at which
       // point the normal model error handling will show an error in the chat.
       const error = e as Error;
+      this.writeRuntimeTrace('compression-error', {
+        reason: args?.reason ?? 'post-step',
+        error: error.message,
+        stack: error.stack,
+      });
       this.host.logger.error(
         `[BaseAgent:${this.instanceId}] History compression failed silently: ${error.message}`,
       );
       this.report(error, 'compressHistory');
+      return false;
     } finally {
+      this.state.commands.setRuntimePhase({ phase: undefined });
       this._isCompressingHistory = false;
+      resolveCompression(compressionResult);
+      this._historyCompressionPromise = null;
     }
+  }
+
+  private async getActiveContextWindowSize(): Promise<number> {
+    try {
+      return (
+        await this.host.models.getWithOptions(
+          this.state.get().activeModelId,
+          '',
+        )
+      ).contextWindowSize;
+    } catch {
+      return 100_000;
+    }
+  }
+
+  private buildEmergencyCompressedHistory(
+    messages: AgentMessage[],
+    error: Error,
+  ): string {
+    const lastTextSnippets: string[] = [];
+    for (let i = messages.length - 1; i >= 0 && lastTextSnippets.length < 6; i--) {
+      const message = messages[i];
+      if (!message) continue;
+      const text = message.parts
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text.trim())
+        .filter(Boolean)
+        .join('\n')
+        .trim();
+      if (!text) continue;
+      const clippedText =
+        text.length > 1200 ? `${text.slice(0, 1200)}…` : text;
+      lastTextSnippets.unshift(
+        `### ${message.role} message near compression boundary\n${clippedText}`,
+      );
+    }
+
+    const previousCompressedHistory = [...messages]
+      .reverse()
+      .find((message) => message.metadata?.compressedHistory)?.metadata
+      ?.compressedHistory;
+    const clippedPrevious =
+      previousCompressedHistory && previousCompressedHistory.length > 4000
+        ? `${previousCompressedHistory.slice(0, 4000)}…`
+        : previousCompressedHistory;
+
+    return [
+      '## Emergency local context compression',
+      'The normal LLM-based history compression failed while recovering from an oversized context. Older raw transcript details before this boundary were intentionally omitted so the next request can continue instead of stopping.',
+      `Compression failure: ${error.message}`,
+      `Messages compacted locally: ${messages.length}`,
+      clippedPrevious
+        ? `## Previous compressed briefing excerpt\n${clippedPrevious}`
+        : '',
+      lastTextSnippets.length > 0
+        ? `## Recent compacted text snippets\n${lastTextSnippets.join('\n\n')}`
+        : '',
+      '## Continuation note',
+      'Continue from the uncompressed recent messages that follow this boundary. If needed, inspect the workspace files directly instead of relying on omitted older transcript details.',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  private estimateModelMessagesTokens(modelMessages: ModelMessage[]): number {
+    let totalChars = 0;
+    for (const message of modelMessages) {
+      try {
+        totalChars += JSON.stringify(message).length;
+      } catch {
+        totalChars += 4000;
+      }
+    }
+    return Math.ceil(totalChars / 4);
+  }
+
+  private async compressAndRegenerateContextIfNeeded(
+    modelMessages: ModelMessage[],
+    args: {
+      queueFlushIndex: number;
+      reasoningSignatureSource?: ReasoningSignatureSource;
+      syntheticContinuation: {
+        reason:
+          | 'system-resumed'
+          | 'event-loop-stalled'
+          | 'quota-account-switched'
+          | 'goal-active';
+      } | null;
+    },
+  ): Promise<ModelMessage[]> {
+    let nextModelMessages = modelMessages;
+
+    if (this._historyCompressionPromise) {
+      const compressed = await this.compressHistoryInternal({
+        reason: 'preflight',
+      });
+      if (compressed) {
+        this._pendingSyntheticContinuation = args.syntheticContinuation;
+        nextModelMessages = await this.generateContextForNewStep(
+          args.queueFlushIndex >= 0 ? args.queueFlushIndex : undefined,
+          args.reasoningSignatureSource,
+        );
+      }
+    }
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const contextWindowSize = await this.getActiveContextWindowSize();
+      const estimatedTokens =
+        this.estimateModelMessagesTokens(nextModelMessages);
+      const preflightLimit =
+        getContextPreflightCompressionLimit(contextWindowSize);
+
+      if (estimatedTokens <= preflightLimit) return nextModelMessages;
+
+      this.host.logger.warn(
+        `[BaseAgent:${this.instanceId}] Model context preflight exceeded limit (${estimatedTokens}/${preflightLimit}, window=${contextWindowSize}). Compressing history before request.`,
+      );
+      this.writeRuntimeTrace('context-preflight-compression', {
+        attempt: attempt + 1,
+        estimatedTokens,
+        contextWindowSize,
+        preflightLimit,
+      });
+
+      const compressed = await this.compressHistoryInternal({
+        reason: 'preflight',
+      });
+      if (!compressed) {
+        this.writeRuntimeTrace('context-preflight-compression-skip', {
+          attempt: attempt + 1,
+          estimatedTokens,
+          contextWindowSize,
+          preflightLimit,
+        });
+        return nextModelMessages;
+      }
+
+      this._pendingSyntheticContinuation = args.syntheticContinuation;
+      nextModelMessages = await this.generateContextForNewStep(
+        args.queueFlushIndex >= 0 ? args.queueFlushIndex : undefined,
+        args.reasoningSignatureSource,
+      );
+    }
+
+    return nextModelMessages;
   }
 
   private getMemoryWriter(): AgentMemoryWriter {
@@ -2440,27 +3110,31 @@ export abstract class BaseAgent<
     this.emitToolCallEvents(result);
 
     // Check the current token usage. If necessary, summarize the chat history.
-    // Compress when used tokens exceed MIN(fraction * contextWindow, hardCap)
-    // — the hard cap prevents large-context models (1M+) from accumulating
-    // far more tokens than the fractional sweet-spot tuned for 200k models.
+    // Compress when tokens used since the latest compression checkpoint exceed
+    // the configured fraction of the active model's real context window.
     const compactionThreshold = this.config.historyCompressionThreshold ?? 0.65;
     try {
+      const postStepState = this.state.get();
       const contextWindowSize = (
-        await this.host.models.getWithOptions(
-          this.state.get().activeModelId,
-          '',
-        )
+        await this.host.models.getWithOptions(postStepState.activeModelId, '')
       ).contextWindowSize;
-      const fractionalTriggerTokens = compactionThreshold * contextWindowSize;
-      const effectiveTriggerTokens = Math.min(
-        fractionalTriggerTokens,
-        BaseAgent.HISTORY_COMPRESSION_HARD_CAP_TOKENS,
+      const effectiveTriggerTokens = getPostStepCompressionTriggerTokens(
+        contextWindowSize,
+        compactionThreshold,
+      );
+      const compressionBaselineTokens = getLastCompressionBaselineUsedTokens(
+        postStepState.history,
+        postStepState.usedTokens,
+      );
+      const tokensSinceLastCompression = Math.max(
+        0,
+        postStepState.usedTokens - compressionBaselineTokens,
       );
       if (
         compactionThreshold >= 0 &&
-        this.state.get().usedTokens > effectiveTriggerTokens
+        tokensSinceLastCompression > effectiveTriggerTokens
       ) {
-        void this.compressHistoryInternal();
+        void this.compressHistoryInternal({ reason: 'post-step' });
       }
     } catch {
       // Model may have been deleted between step start and finish — skip compaction check
@@ -2579,15 +3253,12 @@ export abstract class BaseAgent<
       `status: ${goal.status}`,
       `objective: ${goal.objective}`,
     ];
-    if (goal.tokenBudget !== undefined) {
-      lines.push(`token_budget: ${goal.tokenBudget}`);
-    }
-    lines.push(`used_tokens: ${this.state.get().usedTokens}`);
+    lines.push(`cumulative_used_tokens: ${this.state.get().usedTokens}`);
     if (goal.status === 'blocked' && goal.blockReason) {
       lines.push(`block_reason: ${goal.blockReason}`);
     }
     lines.push(
-      'Use getGoal to inspect this state. Use updateGoal only when the goal is actually complete or genuinely blocked.',
+      'Use getGoal to inspect this state. While status is active, operate unattended: do not wait for user input, do not ask the user to choose, and do not call askUserQuestions. If information is missing, choose the most reasonable path, try viable alternatives, and continue toward the objective. If the goal is still active at the end of a response, the runtime will automatically continue with another step. Use updateGoal only when the goal is actually complete or when no further progress is possible without an external state change.',
       '</goal_mode>',
     );
 
@@ -2618,7 +3289,10 @@ export abstract class BaseAgent<
     // does not re-explore files it already analyzed in the previous account's
     // session. For other synthetic-continuation reasons (system-resumed,
     // event-loop-stalled) the generic 'continue' signal is sufficient.
-    const continuationContent = 'Do not re-read the file or repeat the completed analysis.Please continue the task from where you left off last time and proceed according to the original plan.';
+    const continuationContent =
+      continuation.reason === 'goal-active'
+        ? 'Current goal is still active. Continue unattended from the existing context. Do not wait for user input or ask the user to choose. Pick the most reasonable next step, try viable alternatives when needed, and continue until you can call updateGoal with complete or no further progress is possible without an external state change.'
+        : 'Do not re-read the file or repeat the completed analysis.Please continue the task from where you left off last time and proceed according to the original plan.';
     return [...modelMessages, { role: 'user', content: continuationContent }];
   }
 
@@ -2856,7 +3530,7 @@ export abstract class BaseAgent<
 
   private async getToolsForStep(): Promise<Partial<ToolSet>> {
     const userTools = await this.getTools(this.messages);
-    const goalTools = this.getGoalTools();
+    const goalTools = this.state.get().goal ? this.getGoalTools() : {};
     const maybeFinish = this.getFinishTool();
     const finishTool: Partial<ToolSet> = maybeFinish
       ? { finish: maybeFinish as ToolSet[string] }
@@ -2881,33 +3555,34 @@ export abstract class BaseAgent<
           };
         },
       }) as ToolSet[string],
-      createGoal: tool({
-        description:
-          'Create or replace the current goal for this chat task. Use only when the user explicitly asks to start goal mode or defines a concrete objective.',
-        inputSchema: z.object({
-          objective: z.string().min(1),
-          tokenBudget: z.number().int().positive().optional(),
-        }),
-        execute: async ({ objective, tokenBudget }) => {
-          const id = randomUUID();
-          this.state.commands.startGoal({
-            id,
-            objective,
-            tokenBudget,
-          });
-          return { goal: this.state.get().goal };
-        },
-      }) as ToolSet[string],
       updateGoal: tool({
         description:
-          'Mark the current goal complete or blocked. Complete only after the objective is actually achieved. Block only when progress cannot continue without user input or an external state change.',
+          'Mark the current goal complete or blocked. Complete only after the objective is actually achieved. Block only when progress cannot continue without an external state change. Missing user input or an unresolved choice is not enough to block: decide, try viable alternatives, and keep working. If the goal is still active, do not call this tool.',
         inputSchema: z.object({
-          status: z.enum(['complete', 'blocked']),
+          status: z.string(),
           reason: z.string().optional(),
         }),
         execute: async ({ status, reason }) => {
           const current = this.state.get().goal;
           if (!current) return { ok: false, message: 'No active goal.' };
+          const normalizedStatus = status.trim().toLowerCase();
+          if (
+            [
+              'active',
+              'running',
+              'in_progress',
+              'in-progress',
+              'continue',
+              'continuing',
+            ].includes(normalizedStatus)
+          ) {
+            return {
+              ok: true,
+              message:
+                'Goal remains active. Later user messages are supplemental instructions.',
+              goal: current,
+            };
+          }
           if (current.status !== 'active') {
             return {
               ok: false,
@@ -2915,20 +3590,37 @@ export abstract class BaseAgent<
               goal: current,
             };
           }
-          if (status === 'complete') {
+          if (
+            normalizedStatus === 'complete' ||
+            normalizedStatus === 'completed'
+          ) {
             this.state.commands.completeGoal({
               finalTokenUsage: this.state.get().usedTokens,
             });
-          } else {
+          } else if (
+            normalizedStatus === 'blocked' ||
+            normalizedStatus === 'block'
+          ) {
             this.state.commands.blockGoal({
               reason: reason?.trim() || 'Goal blocked.',
               finalTokenUsage: this.state.get().usedTokens,
             });
+          } else {
+            return {
+              ok: false,
+              message:
+                'Invalid goal status. Use complete only when done, blocked only when no further progress is possible without an external state change, or do not call updateGoal while continuing.',
+              goal: current,
+            };
           }
           return { ok: true, goal: this.state.get().goal };
         },
       }) as ToolSet[string],
     };
+  }
+
+  protected getGoalToolsForTest(): Partial<ToolSet> {
+    return this.state.get().goal ? this.getGoalTools() : {};
   }
 
   private getFinishTool(): Tool | null {
@@ -2971,6 +3663,7 @@ export abstract class BaseAgent<
         ? structuredClone(lastAssistantMessage)
         : undefined,
     })) {
+      this.markStepActivity();
       this.state.commands.mergeUIMessageStream({
         uiMessage,
         onApprovalRequested: ({ approvalId, toolPart }) => {
@@ -2992,6 +3685,7 @@ export abstract class BaseAgent<
           }
         },
       });
+      this.state.commands.setRuntimePhase({ phase: 'waiting-for-model' });
     }
   }
 
@@ -3010,6 +3704,7 @@ export abstract class BaseAgent<
     // recovery path sets a fresh one after calling internalStop().
     this._pendingContinue = null;
     this._pendingSyntheticContinuation = null;
+    this.stopStepActivityWatchdog();
     try {
       this.stepAbortController?.abort();
     } catch {}
@@ -3436,12 +4131,14 @@ export abstract class BaseAgent<
         execute: async (input: unknown, options: { toolCallId: string }) => {
           const start = Date.now();
           try {
-            return await (
-              originalExecute as (
-                input: unknown,
-                options: { toolCallId: string },
-              ) => Promise<unknown>
-            )(input, options);
+            return await this.runWithStepActivityHeartbeat(() =>
+              (
+                originalExecute as (
+                  input: unknown,
+                  options: { toolCallId: string },
+                ) => Promise<unknown>
+              )(input, options),
+            );
           } finally {
             this._toolCallDurations.set(options.toolCallId, Date.now() - start);
           }

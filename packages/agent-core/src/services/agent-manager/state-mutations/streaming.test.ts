@@ -200,11 +200,19 @@ describe('state-mutations/streaming', () => {
     const result = storeCompressedHistory(store, 'a1', {
       boundaryMessageId: 'b-1',
       compressedHistory: 'blob',
+      compressionState: {
+        baselineUsedTokens: 321,
+        compressedAt: 1234567890,
+      },
     });
 
     expect(result).toBe('written');
     const after = store.get().agents.instances.a1!.state.history[0]!;
     expect(after.metadata?.compressedHistory).toBe('blob');
+    expect(after.metadata?.compressionState).toEqual({
+      baselineUsedTokens: 321,
+      compressedAt: 1234567890,
+    });
   });
 
   it('setAssistantOwnedReasoningDetails replaces the array on the target message', () => {

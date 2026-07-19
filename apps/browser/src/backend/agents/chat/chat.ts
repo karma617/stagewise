@@ -24,13 +24,16 @@ export class BrowserChatAgent extends ChatAgent {
   protected async getAdditionalTools(): Promise<Record<string, any>> {
     const id = this.instanceId;
     const box = this.toolbox;
+    const askUserQuestions = this.hasActiveGoal()
+      ? null
+      : await box.getTool('askUserQuestions', id);
     return {
       executeSandboxJs: await box.getTool('executeSandboxJs', id),
       listLibraryDocs: await box.getTool('listLibraryDocs', id),
       searchInLibraryDocs: await box.getTool('searchInLibraryDocs', id),
       getLintingDiagnostics: await box.getTool('getLintingDiagnostics', id),
       readConsoleLogs: await box.getTool('readConsoleLogs', id),
-      askUserQuestions: await box.getTool('askUserQuestions', id),
+      askUserQuestions,
       createShellSession: await box.getTool('createShellSession', id),
       executeShellCommand: await box.getTool('executeShellCommand', id),
     };

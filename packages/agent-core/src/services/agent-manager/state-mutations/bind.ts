@@ -13,6 +13,7 @@ import { beginStep, hydrateInitialState, recordStepError } from './lifecycle';
 import {
   attachAttachmentsToLastAssistant,
   attachEnvState,
+  attachUsageSummaryToLastAssistant,
   mergeAssistantPathReferences,
   setUserPathReferences,
 } from './metadata';
@@ -24,20 +25,27 @@ import {
 } from './queue';
 import {
   recordUsage,
+  deleteGoal,
+  pauseGoal,
+  resumeGoal,
   setActiveModel,
   blockGoal,
   clearGoal,
   completeGoal,
   setInputState,
   setIsWorkingFalse,
+  setIsWorkingFalsePreserveGoal,
   startGoal,
   setTitle,
+  syncGoalSnapshot,
   setUsageWarning,
   setUserTitle,
+  updateGoalObjective,
 } from './simple';
 import {
   mergeUIMessageStream,
   setAssistantOwnedReasoningDetails,
+  setRuntimePhase,
   storeCompressedHistory,
 } from './streaming';
 
@@ -77,12 +85,21 @@ export function bindStateMutations(store: AgentStore, agentInstanceId: string) {
     setActiveModel: (args: Parameters<typeof setActiveModel>[2]) =>
       setActiveModel(store, agentInstanceId, args),
     setIsWorkingFalse: () => setIsWorkingFalse(store, agentInstanceId),
+    setIsWorkingFalsePreserveGoal: () =>
+      setIsWorkingFalsePreserveGoal(store, agentInstanceId),
     setUsageWarning: (args: Parameters<typeof setUsageWarning>[2]) =>
       setUsageWarning(store, agentInstanceId, args),
     recordUsage: (args: Parameters<typeof recordUsage>[2]) =>
       recordUsage(store, agentInstanceId, args),
     startGoal: (args: Parameters<typeof startGoal>[2]) =>
       startGoal(store, agentInstanceId, args),
+    syncGoalSnapshot: () => syncGoalSnapshot(store, agentInstanceId),
+    pauseGoal: () => pauseGoal(store, agentInstanceId),
+    resumeGoal: () => resumeGoal(store, agentInstanceId),
+    updateGoalObjective: (
+      args: Parameters<typeof updateGoalObjective>[2],
+    ) => updateGoalObjective(store, agentInstanceId, args),
+    deleteGoal: () => deleteGoal(store, agentInstanceId),
     completeGoal: (args?: Parameters<typeof completeGoal>[2]) =>
       completeGoal(store, agentInstanceId, args),
     blockGoal: (args: Parameters<typeof blockGoal>[2]) =>
@@ -119,6 +136,8 @@ export function bindStateMutations(store: AgentStore, agentInstanceId: string) {
 
     mergeUIMessageStream: (args: Parameters<typeof mergeUIMessageStream>[2]) =>
       mergeUIMessageStream(store, agentInstanceId, args),
+    setRuntimePhase: (args: Parameters<typeof setRuntimePhase>[2]) =>
+      setRuntimePhase(store, agentInstanceId, args),
     storeCompressedHistory: (
       args: Parameters<typeof storeCompressedHistory>[2],
     ) => storeCompressedHistory(store, agentInstanceId, args),
@@ -129,6 +148,9 @@ export function bindStateMutations(store: AgentStore, agentInstanceId: string) {
     attachAttachmentsToLastAssistant: (
       args: Parameters<typeof attachAttachmentsToLastAssistant>[2],
     ) => attachAttachmentsToLastAssistant(store, agentInstanceId, args),
+    attachUsageSummaryToLastAssistant: (
+      args: Parameters<typeof attachUsageSummaryToLastAssistant>[2],
+    ) => attachUsageSummaryToLastAssistant(store, agentInstanceId, args),
     attachEnvState: (args: Parameters<typeof attachEnvState>[2]) =>
       attachEnvState(store, agentInstanceId, args),
     setUserPathReferences: (

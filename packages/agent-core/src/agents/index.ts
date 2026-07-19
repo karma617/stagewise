@@ -41,6 +41,11 @@ export {
 } from './shared/metadata-converter/slash-items';
 export { stripStrictFromToolSet } from './shared/strip-strict-from-tools';
 export { reasoningSourcesMatch } from './shared/reasoning-signatures';
+export {
+  CONTEXT_PREFLIGHT_FRACTION,
+  getContextPreflightCompressionLimit,
+  getPostStepCompressionTriggerTokens,
+} from './shared/context-compression-thresholds';
 export { clearPendingApproval } from './shared/pending-approvals-cleanup';
 export {
   repairToolCall,

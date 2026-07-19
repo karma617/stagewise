@@ -76,6 +76,8 @@ import {
   rawImageTransformer,
   diskImageTransformer,
   sourceCodeTransformer,
+  diagnosticTextTransformer,
+  harTransformer,
 } from './transformers/index';
 import { LANGUAGE_MAP } from '../ast';
 
@@ -103,6 +105,10 @@ const TRANSFORMER_BY_EXT: Record<string, FileTransformer> = {
 
   // PDF — extract text + images per page
   '.pdf': pdfTransformer,
+
+  // Network captures / diagnostic logs — summarized by default
+  '.har': harTransformer,
+  '.log': diagnosticTextTransformer,
 
   // Archives — list file tree
   '.zip': archiveTransformer,
@@ -422,6 +428,7 @@ export async function fileReadTransformer(
     effectiveReadParams,
     maxReadChars,
     maxPreviewLines,
+    fastPathExt,
   );
   const fastPathKey = FileReadCacheService.buildCacheKey(
     expectedHash,
@@ -529,6 +536,7 @@ export async function fileReadTransformer(
     effectiveReadParams,
     maxReadChars,
     maxPreviewLines,
+    ext,
   );
   const currentCacheKey = FileReadCacheService.buildCacheKey(
     currentHash,
@@ -866,8 +874,12 @@ function buildReadParamsSuffix(
   params: ReadParams,
   maxReadChars: number,
   maxPreviewLines: number,
+  ext?: string,
 ): string {
   const parts: string[] = [];
+  if (ext === '.har' || ext === '.log' || ext === '.textclip') {
+    parts.push('diagv=1');
+  }
   if (params.startLine !== undefined) parts.push(`sl=${params.startLine}`);
   if (params.endLine !== undefined) parts.push(`el=${params.endLine}`);
   if (params.startPage !== undefined) parts.push(`sp=${params.startPage}`);

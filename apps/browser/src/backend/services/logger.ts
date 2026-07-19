@@ -1,5 +1,8 @@
 import winston from 'winston';
 import chalk from 'chalk';
+import fs from 'node:fs';
+import path from 'node:path';
+import { getLogsDir } from '@/utils/paths';
 
 // Custom format for colorized console output
 const colorizeFormat = winston.format.printf(
@@ -21,18 +24,51 @@ const colorizeFormat = winston.format.printf(
   },
 );
 
+const fileFormat = winston.format.combine(
+  winston.format.timestamp(),
+  winston.format.errors({ stack: true }),
+  winston.format.splat(),
+  winston.format.printf(({ level, message, timestamp, stack, ...meta }) => {
+    const metaJson =
+      Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
+    return `${timestamp} ${level}: ${stack ?? message}${metaJson}`;
+  }),
+);
+
 export class Logger {
   private readonly logger: winston.Logger;
 
   public constructor(verbose: boolean) {
     const logLevel: 'debug' | 'info' = verbose ? 'debug' : 'info';
+    const logsDir = getLogsDir();
+    fs.mkdirSync(logsDir, { recursive: true });
+
     this.logger = winston.createLogger({
       level: logLevel,
-      format: winston.format.combine(
-        winston.format.timestamp({ format: 'HH:mm:ss' }),
-        colorizeFormat,
-      ),
-      transports: [new winston.transports.Console()],
+      transports: [
+        new winston.transports.Console({
+          format: winston.format.combine(
+            winston.format.timestamp({ format: 'HH:mm:ss' }),
+            colorizeFormat,
+          ),
+        }),
+        new winston.transports.File({
+          filename: path.join(logsDir, 'stagewise-backend.log'),
+          level: 'debug',
+          maxsize: 5 * 1024 * 1024,
+          maxFiles: 5,
+          tailable: true,
+          format: fileFormat,
+        }),
+        new winston.transports.File({
+          filename: path.join(logsDir, 'stagewise-backend-error.log'),
+          level: 'warn',
+          maxsize: 5 * 1024 * 1024,
+          maxFiles: 3,
+          tailable: true,
+          format: fileFormat,
+        }),
+      ],
     });
   }
 

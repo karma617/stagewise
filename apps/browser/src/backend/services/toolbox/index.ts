@@ -24,10 +24,9 @@ import {
   READ_ONLY_PERMISSIONS,
   type MountDescriptor,
 } from '../sandbox/ipc';
-import {
-  DEFAULT_TOOL_APPROVAL_MODE,
-  type WorkspaceAgentSettings,
-  type ToolApprovalMode,
+import type {
+  WorkspaceAgentSettings,
+  ToolApprovalMode,
 } from '@shared/karton-contracts/ui/shared-types';
 import type { Attachment } from '@shared/karton-contracts/ui/agent/metadata';
 import type { KartonService } from '@/services/karton';
@@ -108,6 +107,7 @@ import {
   getGlobalSkillsMounts,
   getEnabledGlobalSkillsMounts,
 } from './global-skills';
+import { resolveAgentToolApprovalMode } from './tool-approval-mode';
 export { getGlobalSkillsMounts, getEnabledGlobalSkillsMounts };
 
 type MountedPrefix = string;
@@ -576,8 +576,9 @@ export class ToolboxService
     if (!mountedLspServices) return null;
 
     const getToolApprovalMode = (): ToolApprovalMode =>
-      this.uiKarton.state.agents.instances[agentInstanceId]?.state
-        .toolApprovalMode ?? DEFAULT_TOOL_APPROVAL_MODE;
+      resolveAgentToolApprovalMode(
+        this.uiKarton.state.agents.instances[agentInstanceId]?.state,
+      );
 
     switch (tool) {
       case 'write':

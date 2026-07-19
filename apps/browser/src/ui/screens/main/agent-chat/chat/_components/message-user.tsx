@@ -45,6 +45,10 @@ import {
   CHAT_EDIT_USER_MESSAGE_REQUESTED_EVENT,
   type ChatEditUserMessageRequestedEvent,
 } from '../_lib/chat-edit-user-message-event';
+import {
+  CHAT_GOAL_MODE_CHANGED_EVENT,
+  type ChatGoalModeChangedEvent,
+} from '../_lib/chat-goal-mode-event';
 import { useOpenAgent } from '@ui/hooks/use-open-chat';
 import { useContentCollapsed } from '../../../_components/content-collapsed-context';
 import type { Content } from '@tiptap/core';
@@ -72,6 +76,10 @@ export const MessageUser = memo(
     const chatInputRef = useRef<ChatInputHandle>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [openAgent] = useOpenAgent();
+    const [goalModeEnabled, setGoalModeEnabled] = useState(() => {
+      const state = window.__stagewiseGoalModeState;
+      return state?.agentId === openAgent && state.enabled === true;
+    });
     const { collapsed: contentCollapsed } = useContentCollapsed();
 
     // File attachments via shared hook
@@ -283,6 +291,7 @@ export const MessageUser = memo(
             msg.id,
             newMessage,
             undoToolCalls,
+            { restoreLastGoal: goalModeEnabled },
           );
 
           // Note: State cleanup is minimal since component will unmount after replaceUserMessage
@@ -311,6 +320,7 @@ export const MessageUser = memo(
         selectedElementsFromEditor,
         editedFileAttachments,
         pendingTiptapContent,
+        goalModeEnabled,
       ],
     );
 
@@ -511,6 +521,14 @@ export const MessageUser = memo(
       (e: ChatEditUserMessageRequestedEvent) => {
         if (isEditing && e.detail.messageId === editMessageId) return;
         if (e.detail.messageId === editMessageId) handleStartEditing();
+      },
+    );
+
+    useEventListener(
+      CHAT_GOAL_MODE_CHANGED_EVENT,
+      (e: ChatGoalModeChangedEvent) => {
+        if (e.detail.agentId !== openAgent) return;
+        setGoalModeEnabled(e.detail.enabled);
       },
     );
 

@@ -119,6 +119,11 @@ different default `ReadParams`:
 - **Rationale:** Attachments are explicit user-provided context. The user
   intentionally uploaded the file for the agent to process. Truncating or
   previewing would lose critical information.
+- **Diagnostic exception:** `.har`, large `.log`, and large `.textclip`
+  attachments are summarized/indexed by their transformer even without
+  explicit preview params. The raw blob stays mounted for targeted
+  `startLine`/`endLine` reads or searches, but large evidence files do not
+  inflate every model request.
 - **Implementation:** `resolveReadParams()` returns `undefined` for any
   path starting with `att/`, overriding the caller's default.
 
@@ -259,6 +264,27 @@ The entry point (`index.ts`) routes files to transformers by extension:
   - `startLine` / `endLine` — slice to specific line range
   - `preview` — first 30 lines with truncation indicator
 
+#### `har.ts` — HTTP Archive captures
+- **Extensions:** `.har`
+- **Output:** Compact network index with entry count, hosts, methods,
+  statuses, response content types, failed requests, slowest requests, and
+  GraphQL operation names.
+- **Body policy:** Request/response bodies are omitted by default. Use search
+  or a narrow raw `startLine` / `endLine` read for exact payload evidence.
+- **ReadParams:**
+  - default / `preview` — structured HAR summary
+  - `startLine` / `endLine` — raw JSON line range via the text transformer
+
+#### `diagnostic-text.ts` — Large logs
+- **Extensions:** `.log`
+- **Output:** Full text for small logs; compact summary for large logs
+  including first/last sample lines, level counts, timestamp range, and top
+  repeated normalized messages.
+- **ReadParams:**
+  - default — summary when the log is at least 64 KB or 1,000 lines
+  - `preview` — summary
+  - `startLine` / `endLine` — exact raw line range via the text transformer
+
 #### `image.ts` — Raster images
 - **Extensions:** `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.avif`, `.ico`
 - **Output:** `ImagePart` (WebP at quality 80 via sharp)
@@ -290,6 +316,9 @@ The entry point (`index.ts`) routes files to transformers by extension:
 - **ReadParams:**
   - `startLine` / `endLine` — slice to specific line range
   - `preview` — first 30 lines with truncation indicator
+- **Large `.textclip`:** Summarized with the diagnostic-text index when the
+  paste is at least 64 KB or 1,000 lines, so pasted logs do not become full
+  persistent chat context by default.
 
 #### `directory.ts` — Filesystem directories
 - **Extensions:** N/A (detected by stat)
@@ -438,5 +467,5 @@ paths from completed `readFile` tool-call parts (state `output-available` or
 | `file-read-transformer.test.ts` | Integration tests for the full pipeline (21 cases, including no-dedup regression tests) |
 | `format-utils.ts` | Human-readable size formatting (`formatBytes`), language inference from extension |
 | `format-directory-tree.ts` | Generic tree formatter — used by directory, archive, and disk-image transformers |
-| `transformers/` | Per-type transformer implementations (10 files) |
+| `transformers/` | Per-type transformer implementations |
 | `transformers/index.ts` | Barrel re-export of all transformers |

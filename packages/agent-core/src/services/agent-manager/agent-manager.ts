@@ -24,6 +24,7 @@ import {
   type AgentHistoryEntry,
   type AgentMessage,
   type AgentState,
+  type AgentGoalState,
   AgentTypes,
 } from '../../types/agent';
 import {
@@ -129,7 +130,14 @@ function hasPendingToolApproval(history: AgentMessage[]): boolean {
 export type SendUserMessageOptions = {
   goalMode?: boolean;
   tokenBudget?: number;
+  restoreLastGoal?: boolean;
 };
+
+const GOAL_TOKEN_BUDGET_BLOCK_PREFIX = 'Goal token budget reached';
+
+function isGoalTokenBudgetBlockReason(reason: string | undefined): boolean {
+  return reason?.startsWith(GOAL_TOKEN_BUDGET_BLOCK_PREFIX) === true;
+}
 
 function extractTextObjective(message: AgentMessage): string {
   return message.parts
@@ -139,6 +147,128 @@ function extractTextObjective(message: AgentMessage): string {
     })
     .join('\n')
     .trim();
+}
+
+function getUpdateGoalToolName(part: unknown): string | undefined {
+  if (typeof part !== 'object' || part === null) return undefined;
+  const toolPart = part as { type?: unknown; toolName?: unknown };
+  if (typeof toolPart.toolName === 'string') return toolPart.toolName;
+  if (typeof toolPart.type !== 'string') return undefined;
+  if (toolPart.type === 'dynamic-tool') return undefined;
+  if (!toolPart.type.startsWith('tool-')) return undefined;
+  return toolPart.type.slice('tool-'.length);
+}
+
+function isAgentGoalState(value: unknown): value is AgentGoalState {
+  if (typeof value !== 'object' || value === null) return false;
+  const goal = value as Partial<AgentGoalState>;
+  return (
+    typeof goal.id === 'string' &&
+    typeof goal.objective === 'string' &&
+    ['active', 'paused', 'complete', 'blocked'].includes(
+      goal.status as string,
+    ) &&
+    typeof goal.createdAt === 'number' &&
+    typeof goal.updatedAt === 'number'
+  );
+}
+
+function getUpdateGoalOutputSnapshot(
+  message: AgentMessage,
+): AgentGoalState | undefined {
+  if (message.role !== 'assistant') return undefined;
+
+  for (let i = message.parts.length - 1; i >= 0; i--) {
+    const part = message.parts[i] as {
+      state?: unknown;
+      output?: unknown;
+    };
+    if (getUpdateGoalToolName(part) !== 'updateGoal') continue;
+    if (part.state !== 'output-available') continue;
+    const output = part.output as { goal?: unknown } | undefined;
+    if (isAgentGoalState(output?.goal)) return { ...output.goal };
+  }
+
+  return undefined;
+}
+
+function getLastGoalSnapshot(
+  history: AgentMessage[],
+): AgentGoalState | null | undefined {
+  let newerUpdateGoalSnapshot: AgentGoalState | undefined;
+
+  for (let i = history.length - 1; i >= 0; i--) {
+    const message = history[i];
+    if (!message) continue;
+
+    const updateGoalSnapshot = getUpdateGoalOutputSnapshot(message);
+    if (updateGoalSnapshot && !newerUpdateGoalSnapshot) {
+      newerUpdateGoalSnapshot = updateGoalSnapshot;
+    }
+
+    if (message.role !== 'user') continue;
+
+    const snapshot = message.metadata?.goalSnapshot;
+    if (snapshot === null) return null;
+    if (snapshot) {
+      if (newerUpdateGoalSnapshot?.id === snapshot.id) {
+        return { ...newerUpdateGoalSnapshot };
+      }
+      return { ...snapshot };
+    }
+  }
+  return undefined;
+}
+
+function getLastUserMessageIndex(history: AgentMessage[]): number | undefined {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i]?.role === 'user') return i;
+  }
+  return undefined;
+}
+
+function withDirtyMessageIndex(
+  dirtyMessageIndices: number[] | undefined,
+  index: number | undefined,
+): number[] | undefined {
+  if (index === undefined) return dirtyMessageIndices;
+  if (!dirtyMessageIndices) return [index];
+  if (dirtyMessageIndices.includes(index)) return dirtyMessageIndices;
+  return [...dirtyMessageIndices, index];
+}
+
+function restoreLastGoalFromHistory(
+  state: Pick<AgentState, 'history' | 'goal'>,
+  options?: { forceActive?: boolean },
+): AgentGoalState | undefined {
+  if (state.goal) return state.goal;
+
+  const snapshot = getLastGoalSnapshot(state.history);
+  if (!snapshot) return undefined;
+
+  const isLegacyTokenBudgetBlock =
+    snapshot.status === 'blocked' &&
+    isGoalTokenBudgetBlockReason(snapshot.blockReason);
+  const shouldForceActive =
+    isLegacyTokenBudgetBlock ||
+    (options?.forceActive &&
+      (snapshot.status === 'paused' || snapshot.status === 'blocked'));
+
+  state.goal = shouldForceActive
+    ? {
+        ...snapshot,
+        status: 'active',
+        updatedAt: Date.now(),
+        pausedAt: undefined,
+        blockedAt: undefined,
+        blockReason: undefined,
+        finalTokenUsage: undefined,
+        tokenBudget: isLegacyTokenBudgetBlock
+          ? undefined
+          : snapshot.tokenBudget,
+      }
+    : snapshot;
+  return state.goal;
 }
 
 /**
@@ -573,6 +703,21 @@ export class AgentManager extends DisposableService {
     this.wrapAgentRpc('agents.stop', async (instanceId: string) => {
       await this.stopAgent(instanceId);
     });
+    this.wrapAgentRpc('agents.pauseGoal', async (instanceId: string) => {
+      await this.pauseGoal(instanceId);
+    });
+    this.wrapAgentRpc('agents.resumeGoal', async (instanceId: string) => {
+      await this.resumeGoal(instanceId);
+    });
+    this.wrapAgentRpc(
+      'agents.updateGoalObjective',
+      async (instanceId: string, objective: string) => {
+        await this.updateGoalObjective(instanceId, objective);
+      },
+    );
+    this.wrapAgentRpc('agents.deleteGoal', async (instanceId: string) => {
+      await this.deleteGoal(instanceId);
+    });
     this.wrapAgentRpc('agents.flushQueue', async (instanceId: string) => {
       await this.flushQueue(instanceId);
     });
@@ -606,12 +751,14 @@ export class AgentManager extends DisposableService {
         userMessageId: string,
         newMessage: AgentMessage & { role: 'user' },
         undoToolCalls: boolean,
+        options?: SendUserMessageOptions,
       ) => {
         return await this.replaceUserMessage(
           instanceId,
           userMessageId,
           newMessage,
           undoToolCalls,
+          options,
         );
       },
     );
@@ -1222,6 +1369,11 @@ export class AgentManager extends DisposableService {
     // Validate that the persisted model still exists (it may have been a deleted custom model)
     const resumedModelValid =
       agent.activeModelId && this.host.models.has(agent.activeModelId);
+    const restoredGoalState: Pick<AgentState, 'history' | 'goal'> = {
+      history: agent.history as AgentMessage[],
+      goal: undefined,
+    };
+    const restoredGoal = restoreLastGoalFromHistory(restoredGoalState);
 
     const createdAgent = await this.createAgent(
       agent.type,
@@ -1239,6 +1391,7 @@ export class AgentManager extends DisposableService {
         inputState: agent.inputState,
         usedTokens: agent.usedTokens,
         isWorking: false,
+        goal: restoredGoal,
       },
       instanceId,
     );
@@ -1265,6 +1418,10 @@ export class AgentManager extends DisposableService {
       agent_instance_id: instanceId,
     });
 
+    if (restoredGoal?.status === 'active') {
+      createdAgent.continueActiveGoal();
+    }
+
     return createdAgent;
   }
 
@@ -1286,32 +1443,49 @@ export class AgentManager extends DisposableService {
       // We don't persist empty agents.
     }
 
+    bindStateMutations(this.agentStore, instanceId).syncGoalSnapshot();
+    const syncedEnvelope = getAgentInstance(this.agentStore, instanceId);
+    const syncedAgentState = syncedEnvelope?.state;
+
+    if (!syncedAgentState) {
+      throw new Error(`Agent with instance id ${instanceId} not found`);
+    }
+
+    const goalSnapshotMessageIndex = getLastUserMessageIndex(
+      syncedAgentState.history,
+    );
+    const effectiveDirtyMessageIndices = withDirtyMessageIndex(
+      dirtyMessageIndices,
+      goalSnapshotMessageIndex,
+    );
+
     const mountedWorkspaces =
       this.managerToolbox.getWorkspaceSnapshotForPersistence(instanceId);
-    const firstHistoryEntry = agentState.history[0];
-    const lastHistoryEntry = agentState.history[agentState.history.length - 1];
+    const firstHistoryEntry = syncedAgentState.history[0];
+    const lastHistoryEntry =
+      syncedAgentState.history[syncedAgentState.history.length - 1];
 
     await this.persistenceDb.storeAgentInstance(
       {
         id: instanceId,
         type: agent.agentType,
-        title: agentState.title,
-        titleLockedByUser: agentState.titleLockedByUser,
-        activeModelId: agentState.activeModelId,
-        toolApprovalMode: agentState.toolApprovalMode as ToolApprovalMode,
+        title: syncedAgentState.title,
+        titleLockedByUser: syncedAgentState.titleLockedByUser,
+        activeModelId: syncedAgentState.activeModelId,
+        toolApprovalMode: syncedAgentState.toolApprovalMode as ToolApprovalMode,
         createdAt:
           (firstHistoryEntry?.metadata as UserMessageMetadata | undefined)
             ?.createdAt ?? new Date(0), // Fallback should never be reached
         lastMessageAt:
           (lastHistoryEntry?.metadata as UserMessageMetadata | undefined)
             ?.createdAt ?? new Date(), // Fallback should never be reached
-        queuedMessages: agentState.queuedMessages,
-        inputState: agentState.inputState,
-        usedTokens: agentState.usedTokens,
+        queuedMessages: syncedAgentState.queuedMessages,
+        inputState: syncedAgentState.inputState,
+        usedTokens: syncedAgentState.usedTokens,
         mountedWorkspaces,
       },
-      agentState.history,
-      dirtyMessageIndices,
+      syncedAgentState.history,
+      effectiveDirtyMessageIndices,
     );
   }
 
@@ -1472,6 +1646,9 @@ export class AgentManager extends DisposableService {
     });
 
     if (options?.goalMode) {
+      restoreLastGoalFromHistory(instance?.state ?? { history: [] }, {
+        forceActive: true,
+      });
       const objective = extractTextObjective(message);
       if (objective) {
         bindStateMutations(this.agentStore, instanceId).startGoal({
@@ -1487,6 +1664,10 @@ export class AgentManager extends DisposableService {
     // (browser-specific mention kinds) while the core default widens
     // these. Cast at the seam — the runtime shape is identical.
     await agent.sendUserMessage(message as any);
+    if (options?.goalMode || options?.restoreLastGoal) {
+      bindStateMutations(this.agentStore, instanceId).syncGoalSnapshot();
+      await this.persistAgentState(instanceId);
+    }
   }
 
   /**
@@ -1559,6 +1740,59 @@ export class AgentManager extends DisposableService {
       ...(telemetry?.toolCallId && { tool_call_id: telemetry.toolCallId }),
       ...(telemetry?.toolName && { tool_name: telemetry.toolName }),
     });
+  }
+
+  public async pauseGoal(instanceId: string): Promise<void> {
+    const agent = this.activeAgents.get(instanceId);
+
+    if (!agent) {
+      throw new Error(`Agent with instance id ${instanceId} not found`);
+    }
+
+    const goal = this.agentStore.get().agents.instances[instanceId]?.state.goal;
+    if (goal?.status !== 'active') return;
+
+    await agent.stop();
+    bindStateMutations(this.agentStore, instanceId).pauseGoal();
+    await this.persistAgentState(instanceId);
+  }
+
+  public async resumeGoal(instanceId: string): Promise<void> {
+    const agent = this.activeAgents.get(instanceId);
+
+    if (!agent) {
+      throw new Error(`Agent with instance id ${instanceId} not found`);
+    }
+
+    bindStateMutations(this.agentStore, instanceId).resumeGoal();
+    await this.persistAgentState(instanceId);
+  }
+
+  public async updateGoalObjective(
+    instanceId: string,
+    objective: string,
+  ): Promise<void> {
+    const agent = this.activeAgents.get(instanceId);
+
+    if (!agent) {
+      throw new Error(`Agent with instance id ${instanceId} not found`);
+    }
+
+    bindStateMutations(this.agentStore, instanceId).updateGoalObjective({
+      objective,
+    });
+    await this.persistAgentState(instanceId);
+  }
+
+  public async deleteGoal(instanceId: string): Promise<void> {
+    const agent = this.activeAgents.get(instanceId);
+
+    if (!agent) {
+      throw new Error(`Agent with instance id ${instanceId} not found`);
+    }
+
+    bindStateMutations(this.agentStore, instanceId).deleteGoal();
+    await this.persistAgentState(instanceId);
   }
 
   /**
@@ -1674,6 +1908,7 @@ export class AgentManager extends DisposableService {
     userMessageId: string,
     newMessage: AgentMessage & { role: 'user' },
     undoToolCalls: boolean,
+    options?: SendUserMessageOptions,
   ): Promise<string> {
     const agent = this.activeAgents.get(instanceId);
 
@@ -1681,13 +1916,23 @@ export class AgentManager extends DisposableService {
       throw new Error(`Agent with instance id ${instanceId} not found`);
     }
 
-    return await agent.replaceUserMessage(
+    if (options?.restoreLastGoal) {
+      const state = this.agentStore.get().agents.instances[instanceId]?.state;
+      if (state) restoreLastGoalFromHistory(state, { forceActive: true });
+    }
+
+    const newMessageId = await agent.replaceUserMessage(
       userMessageId,
       // See note in sendUserMessage — host AgentMessage is structurally
       // compatible with core but TS rejects the nominal mismatch.
       newMessage as any,
       undoToolCalls,
     );
+    if (options?.restoreLastGoal) {
+      bindStateMutations(this.agentStore, instanceId).syncGoalSnapshot();
+      await this.persistAgentState(instanceId);
+    }
+    return newMessageId;
   }
 
   /**

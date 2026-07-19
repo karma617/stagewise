@@ -164,6 +164,18 @@ export const askUserQuestions = (
     strict: false,
     execute: async (flatParams) => {
       const params = flatParams as unknown as AskUserQuestionsToolInput;
+      const goal =
+        uiKarton.state.agents.instances[agentInstanceId]?.state.goal;
+      if (goal?.status === 'active') {
+        return {
+          completed: false,
+          cancelled: false,
+          answers: {},
+          completedSteps: 0,
+          notice:
+            'Goal mode is active and unattended. Do not wait for user input or call askUserQuestions again for this goal. Choose the safest reasonable option yourself, try alternatives when needed, and continue working toward the active goal.',
+        } satisfies AskUserQuestionsToolOutput;
+      }
 
       // Cancel any existing pending question for this agent before creating
       // a new one, so the old deferred promise doesn't leak.

@@ -1,7 +1,9 @@
 import type { DynamicToolUIPart } from 'ai';
 import type { AgentStore } from '../../../store/agent-store';
 import type { AgentMessage, AgentToolUIPart } from '../../../types/agent';
+import type { AgentRuntimePhase } from '../../../types/agent';
 import type {
+  CompressionState,
   OwnedReasoningDetails,
   UserMessageMetadata,
 } from '../../../types/metadata';
@@ -22,6 +24,16 @@ const SETTLED_PART_STATES = new Set([
   'output-denied',
   'done',
 ]);
+
+export function setRuntimePhase(
+  store: AgentStore,
+  agentInstanceId: string,
+  args: { phase: AgentRuntimePhase | undefined },
+): void {
+  updateAgentInstanceState(store, agentInstanceId, (state) => {
+    state.runtimePhase = args.phase;
+  });
+}
 
 /**
  * Merge an incoming UI message stream chunk into history. The
@@ -125,7 +137,11 @@ export function mergeUIMessageStream(
 export function storeCompressedHistory(
   store: AgentStore,
   agentInstanceId: string,
-  args: { boundaryMessageId: string; compressedHistory: string },
+  args: {
+    boundaryMessageId: string;
+    compressedHistory: string;
+    compressionState?: CompressionState;
+  },
 ): 'missing' | 'written' {
   let result: 'missing' | 'written' = 'missing';
   updateAgentInstanceState(store, agentInstanceId, (state) => {
@@ -139,6 +155,9 @@ export function storeCompressedHistory(
     } as unknown as UserMessageMetadata;
     const bm = boundaryMessage.metadata as UserMessageMetadata;
     bm.compressedHistory = args.compressedHistory;
+    if (args.compressionState) {
+      bm.compressionState = args.compressionState;
+    }
     result = 'written';
   });
   return result;

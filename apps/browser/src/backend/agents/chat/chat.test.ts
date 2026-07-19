@@ -25,6 +25,26 @@ const HOST_TOOL_IDS = [
   'executeShellCommand',
 ] as const;
 
+type StubBrowserChatAgent = {
+  instanceId: string;
+  toolbox: { getTool: ReturnType<typeof vi.fn> };
+  hasActiveGoal: () => boolean;
+  getAdditionalTools: () => Promise<Record<string, unknown>>;
+};
+
+function makeStub(
+  getTool: ReturnType<typeof vi.fn>,
+  hasActiveGoal = false,
+): StubBrowserChatAgent {
+  const instance = Object.create(
+    BrowserChatAgent.prototype,
+  ) as StubBrowserChatAgent;
+  instance.instanceId = 'browser-chat';
+  instance.toolbox = { getTool };
+  instance.hasActiveGoal = () => hasActiveGoal;
+  return instance;
+}
+
 describe('BrowserChatAgent', () => {
   it('defaults new browser chat agents to the Default alias', () => {
     expect(BrowserChatAgent.config.defaultModelId).toBe('default');
@@ -32,13 +52,7 @@ describe('BrowserChatAgent', () => {
 
   it('getAdditionalTools requests every browser host tool from the toolbox', async () => {
     const getTool = vi.fn().mockResolvedValue({ kind: 'host-tool' });
-    const instance = Object.create(BrowserChatAgent.prototype) as {
-      instanceId: string;
-      toolbox: { getTool: typeof getTool };
-      getAdditionalTools: () => Promise<Record<string, unknown>>;
-    };
-    instance.instanceId = 'browser-chat';
-    instance.toolbox = { getTool };
+    const instance = makeStub(getTool);
 
     const extra = await instance.getAdditionalTools();
 
@@ -58,17 +72,28 @@ describe('BrowserChatAgent', () => {
       .mockImplementation(async (name: string) =>
         name === 'executeSandboxJs' ? null : { kind: 'host-tool' },
       );
-    const instance = Object.create(BrowserChatAgent.prototype) as {
-      instanceId: string;
-      toolbox: { getTool: typeof getTool };
-      getAdditionalTools: () => Promise<Record<string, unknown>>;
-    };
-    instance.instanceId = 'browser-chat';
-    instance.toolbox = { getTool };
+    const instance = makeStub(getTool);
 
     const extra = await instance.getAdditionalTools();
 
     expect(extra.executeSandboxJs).toBeNull();
     expect(extra.executeShellCommand).toEqual({ kind: 'host-tool' });
+  });
+
+  it('does not expose askUserQuestions while goal mode is active', async () => {
+    const getTool = vi.fn().mockResolvedValue({ kind: 'host-tool' });
+    const instance = makeStub(getTool, true);
+
+    const extra = await instance.getAdditionalTools();
+
+    expect(extra.askUserQuestions).toBeNull();
+    expect(getTool).not.toHaveBeenCalledWith(
+      'askUserQuestions',
+      'browser-chat',
+    );
+    expect(getTool).toHaveBeenCalledWith(
+      'executeShellCommand',
+      'browser-chat',
+    );
   });
 });

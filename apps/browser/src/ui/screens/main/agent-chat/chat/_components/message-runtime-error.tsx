@@ -146,9 +146,14 @@ export function MessageRuntimeError({
   const continueAfterError = useKartonProcedure(
     (p) => p.agents.continueAfterError,
   );
-  // All error kinds use continueAfterError to preserve full history.
-  // Falls back to onRetry (retryLastUserMessage) only if the agent is gone.
+  // Generic runtime errors are retried by replaying the last user message.
+  // Typed provider/risk errors keep the full history and continue in place.
   const retryAction = () => {
+    if (error.kind === undefined) {
+      onRetry();
+      return;
+    }
+
     void continueAfterError(agentInstanceId).catch(() => {
       onRetry();
     });
