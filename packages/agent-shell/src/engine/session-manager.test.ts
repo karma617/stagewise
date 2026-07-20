@@ -15,6 +15,7 @@ import {
 import { detectShell } from './shell-env';
 import { sanitizeEnv } from './sanitize-env';
 import {
+  DEFAULT_EMPTY_COMMAND_POLL_TIMEOUT_MS,
   DEFAULT_EXITED_IDLE_MS,
   DEFAULT_EXITED_WAIT_UNTIL_TIMEOUT_MS,
   DEFAULT_IDLE_MS,
@@ -144,6 +145,12 @@ describe('command timeout/idle selection', () => {
   it('uses stdin timeout for raw input without waitUntil', () => {
     expect(getCommandTimeoutMs({ command: '\r', rawInput: true })).toBe(
       DEFAULT_TIMEOUT_STDIN_MS,
+    );
+  });
+
+  it('uses short timeout for empty-command polls without waitUntil', () => {
+    expect(getCommandTimeoutMs({ command: '' })).toBe(
+      DEFAULT_EMPTY_COMMAND_POLL_TIMEOUT_MS,
     );
   });
 

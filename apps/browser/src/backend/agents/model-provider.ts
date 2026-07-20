@@ -76,7 +76,7 @@ export type ModelWithOptions = {
   headers: Record<string, string>;
   contextWindowSize: number;
   providerMode: ProviderMode;
-  reasoningSignatureSource: ReasoningSignatureSource;
+  reasoningSignatureSource?: ReasoningSignatureSource;
   /**
    * When true, the agent must strip the `strict` field from every tool
    * definition before passing them to `streamText`. Required for providers
@@ -625,7 +625,6 @@ export class ModelProviderService {
             typeof streamText
           >[0]['providerOptions'],
           contextWindowSize,
-          reasoningSignatureSource,
         };
       }
       case 'google': {
@@ -875,7 +874,6 @@ export class ModelProviderService {
           headers,
           providerOptions: modelProviderOptions as any,
           contextWindowSize,
-          reasoningSignatureSource,
         };
       }
 
@@ -1078,7 +1076,6 @@ export class ModelProviderService {
           headers,
           providerOptions,
           contextWindowSize: customModel.contextWindowSize,
-          reasoningSignatureSource,
         };
       }
 

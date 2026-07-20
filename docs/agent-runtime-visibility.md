@@ -61,4 +61,8 @@ The runtime trace records request lifecycle milestones without storing full prom
 
 The LLM network wrapper logs request summaries to `stagewise-backend.log` with a per-request id, method, URL origin/path, proxy mode, status code, and elapsed time. It intentionally does not persist authorization headers, cookies, API keys, or full request bodies.
 
+OpenAI Responses requests do not replay stored reasoning item signatures, because the app sends requests with non-persistent response storage. If a provider error mentions a missing `rs_...` item, check that the active route is using the Responses path without `reasoningSignatureSource`.
+
+Shell command polling is intentionally short for empty-command follow-ups: a poll without explicit `wait_until` now returns after about two seconds when no new output arrives, and raw stdin follow-ups use about three seconds. Longer waits still require explicit `wait_until` on the tool call.
+
 When a chat appears stuck, first filter `agent-runtime-YYYY-MM-DD.jsonl` by the latest `agentId` or `traceId`. If the last event is `stream-request-start`, compare the timestamp with the matching `[llm-network] request start` / `request response` / `request error` lines in `stagewise-backend.log`. If the last event is `compression-start`, inspect the following compression events to determine whether context compression is still running, completed, or failed.

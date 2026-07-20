@@ -39,10 +39,17 @@ export const MAX_EXITED_WAIT_UNTIL_TIMEOUT_MS = 300_000;
 export const DEFAULT_TIMEOUT_NO_WAIT_UNTIL_MS = 10_000;
 
 /**
- * Shorter timeout (ms) for raw stdin input without explicit `waitUntil`.
- * Interactive prompts respond quickly; 5s avoids long hangs on menu selections.
+ * Hard-timeout (ms) for empty-command polls without explicit `waitUntil`.
+ * Polls only drain the existing PTY output; keeping them short avoids the
+ * visible multi-card wait when the model repeatedly checks a running script.
  */
-export const DEFAULT_TIMEOUT_STDIN_MS = 5_000;
+export const DEFAULT_EMPTY_COMMAND_POLL_TIMEOUT_MS = 2_000;
+
+/**
+ * Shorter timeout (ms) for raw stdin input without explicit `waitUntil`.
+ * Interactive prompts respond quickly; follow-up polls are cheap if output arrives later.
+ */
+export const DEFAULT_TIMEOUT_STDIN_MS = 3_000;
 
 /**
  * Ceiling on `waitUntil.timeoutMs` values requested by the agent. Prevents

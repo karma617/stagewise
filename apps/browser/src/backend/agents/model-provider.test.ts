@@ -17,6 +17,7 @@ function createTestModelProviderService({
   connectedCodingPlanIds = {},
   modelThinkingOverrides = {},
   customEndpoints = [],
+  customModels = [],
 }: {
   providerModes?: Record<string, 'stagewise' | 'official' | 'custom'>;
   connectedCodingPlanIds?: Record<string, string | undefined>;
@@ -28,10 +29,12 @@ function createTestModelProviderService({
     }
   >;
   customEndpoints?: typeof defaultUserPreferences.customEndpoints;
+  customModels?: typeof defaultUserPreferences.customModels;
 } = {}) {
   const preferences = structuredClone(defaultUserPreferences);
   preferences.agent.modelThinkingOverrides = modelThinkingOverrides;
   preferences.customEndpoints = customEndpoints;
+  preferences.customModels = customModels;
   for (const [provider, mode] of Object.entries(providerModes)) {
     const config =
       preferences.providerConfigs[
@@ -549,6 +552,105 @@ describe('thinking override provider option resolution', () => {
       agentStepMetadata,
     );
 
+    expect(result.providerOptions).toMatchObject({
+      openai: { reasoningEffort: 'medium' },
+    });
+  });
+});
+
+describe('OpenAI Responses reasoning replay routing', () => {
+  it('does not replay reasoning signatures for official OpenAI Responses requests', () => {
+    const service = createTestModelProviderService({
+      providerModes: { openai: 'official' },
+    });
+
+    const result = service.getModelWithOptions(
+      'gpt-5.5',
+      'trace-1',
+      agentStepMetadata,
+    );
+
+    expect(result.reasoningSignatureSource).toBeUndefined();
+    expect(result.providerOptions).toMatchObject({
+      openai: { reasoningSummary: 'auto' },
+    });
+  });
+
+  it('does not replay reasoning signatures for custom OpenAI Responses endpoints', () => {
+    const service = createTestModelProviderService({
+      providerModes: { openai: 'custom' },
+      customEndpoints: [
+        {
+          id: 'openai-custom',
+          name: 'OpenAI Responses',
+          apiSpec: 'openai-responses',
+          baseUrl: 'https://example.com/v1',
+          awsAuthMode: 'access-keys',
+        },
+      ],
+    });
+
+    const result = service.getModelWithOptions(
+      'gpt-5.5',
+      'trace-1',
+      agentStepMetadata,
+    );
+
+    expect(result.reasoningSignatureSource).toBeUndefined();
+    expect(result.providerOptions).toMatchObject({
+      openai: { reasoningEffort: 'medium' },
+    });
+  });
+
+  it('does not replay reasoning signatures for user custom OpenAI Responses models', () => {
+    const service = createTestModelProviderService({
+      customEndpoints: [
+        {
+          id: 'responses-endpoint',
+          name: 'OpenAI Responses',
+          apiSpec: 'openai-responses',
+          baseUrl: 'https://example.com/v1',
+          awsAuthMode: 'access-keys',
+        },
+      ],
+      customModels: [
+        {
+          modelId: 'custom-responses-model',
+          displayName: 'Custom Responses Model',
+          description: '',
+          contextWindowSize: 128000,
+          endpointId: 'responses-endpoint',
+          thinkingEnabled: true,
+          capabilities: {
+            inputModalities: {
+              text: true,
+              audio: false,
+              image: false,
+              video: false,
+              file: false,
+            },
+            outputModalities: {
+              text: true,
+              audio: false,
+              image: false,
+              video: false,
+              file: false,
+            },
+            toolCalling: true,
+          },
+          providerOptions: { reasoningEffort: 'medium' },
+          headers: {},
+        },
+      ],
+    });
+
+    const result = service.getModelWithOptions(
+      'custom-responses-model',
+      'trace-1',
+      agentStepMetadata,
+    );
+
+    expect(result.reasoningSignatureSource).toBeUndefined();
     expect(result.providerOptions).toMatchObject({
       openai: { reasoningEffort: 'medium' },
     });

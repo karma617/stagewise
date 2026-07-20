@@ -2272,3 +2272,40 @@
 - packages/agent-core/src/services/mount-manager/workspace-info/skills.test.ts：新增 symlink skill 发现回归测试。回滚：`Remove-Item -LiteralPath packages\agent-core\src\services\mount-manager\workspace-info\skills.test.ts`。
 - progress.md：追加本轮合并与验证记录。回滚：删除本条记录。
 统一回滚点：`git checkout -- apps/browser/src/backend/services/toolbox/services/lsp/client.ts apps/browser/src/ui/components/streamdown/index.tsx apps/browser/src/ui/screens/main/_components/content-collapsed-context.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/footer-status-card/index.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-part-ui/tools/write/create-plan.tsx apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config-utils.ts apps/browser/src/ui/screens/main/agent-chat/chat/_components/workspace-action-config.test.ts packages/agent-core/src/services/mount-manager/workspace-info/skills.ts progress.md; Remove-Item -LiteralPath packages\agent-core\src\services\mount-manager\workspace-info\skills.test.ts`。
+
+## 2026-07-20 - Task: OpenAI Responses missing item and slow shell polls
+### What was done
+- 修复 OpenAI Responses 路由复用上一轮 reasoning item 的问题：官方 OpenAI、OpenAI Responses 自定义端点、用户自定义 Responses 模型都不再向后续请求注入 `reasoningSignatureSource`，避免在 `store=false` 时携带已经不存在的 `rs_...` 引用。
+- 将 `reasoningSignatureSource` 标记为可选，和 agent-core 已有的可选消费方式对齐。
+- 缩短 shell follow-up 的等待体感：空命令轮询没有显式 `wait_until` 时约 2 秒返回；stdin 跟进默认约 3 秒返回，减少“Poll / Interrupt / Inspect”一串工具卡长时间挂起的情况。
+- 更新运行诊断文档，记录 Responses reasoning replay 边界和 shell follow-up 超时策略。
+
+### Testing
+- `node node_modules/electron/install.js` 退出码 0；用于修复本机 Electron 缺少 `dist/electron.exe` 导致 browser 测试无法加载的问题。
+- `pnpm -F stagewise test -- src/backend/agents/model-provider.test.ts` 退出码 0，1 个 test file / 37 个 tests 全部通过。
+- `pnpm -F @stagewise/agent-shell test -- session-manager` 退出码 0，1 个 test file / 51 个 tests 全部通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F @stagewise/agent-shell typecheck` 退出码 0。
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/model-provider.test.ts packages/agent-shell/src/engine/types.ts packages/agent-shell/src/engine/session-manager.ts packages/agent-shell/src/engine/session-manager.test.ts docs/agent-runtime-visibility.md` 退出码 0。
+- `git diff --check` 退出码 0；仅有 CRLF/LF 提示。
+
+### Notes
+- apps/browser/src/backend/agents/model-provider.ts：OpenAI Responses 路由不再提供 reasoning replay source，并将 source 类型改为可选。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.ts`。
+- apps/browser/src/backend/agents/model-provider.test.ts：新增 OpenAI Responses 三条路由的回归测试，并让测试 helper 支持 customModels。回滚：`git checkout -- apps/browser/src/backend/agents/model-provider.test.ts`。
+- packages/agent-shell/src/engine/types.ts：新增空命令轮询默认超时并缩短 stdin 默认等待。回滚：`git checkout -- packages/agent-shell/src/engine/types.ts`。
+- packages/agent-shell/src/engine/session-manager.ts：空命令轮询使用更短的默认 timeout。回滚：`git checkout -- packages/agent-shell/src/engine/session-manager.ts`。
+- packages/agent-shell/src/engine/session-manager.test.ts：补充空命令轮询 timeout 选择测试。回滚：`git checkout -- packages/agent-shell/src/engine/session-manager.test.ts`。
+- docs/agent-runtime-visibility.md：补充 Responses item 缺失排查点和 shell follow-up 超时策略。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-20 - Task: shell follow-up prompt guidance
+### What was done
+- 同步更新 shell 工具描述，让模型知道空命令轮询是短快照，应重复轮询而不是主动拉长等待时间。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/model-provider.test.ts packages/agent-shell/src/engine/types.ts packages/agent-shell/src/engine/session-manager.ts packages/agent-shell/src/engine/session-manager.test.ts packages/agent-shell/src/tools/execute-shell-command.ts docs/agent-runtime-visibility.md` 退出码 0。
+- `pnpm -F @stagewise/agent-shell typecheck` 退出码 0。
+
+### Notes
+- packages/agent-shell/src/tools/execute-shell-command.ts：工具提示补充空命令轮询短快照说明。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.ts`。
+- progress.md：追加本轮记录。回滚：删除本条记录。

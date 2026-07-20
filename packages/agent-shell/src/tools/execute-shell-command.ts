@@ -127,6 +127,8 @@ When \`resolved_by\` is \`idle\`, \`pattern\`, or \`timeout\`, command still run
 - Poll output: \`{ explanation, session_id, command: "" }\`.
 - Kill session: \`{ explanation, session_id, kill: true }\`.
 
+Empty-command polls are short snapshots; poll again instead of setting long waits unless a specific output pattern is needed.
+
 \`explanation\` required on every follow-up.
 
 ## Parameter guidance

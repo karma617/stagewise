@@ -10,6 +10,7 @@ import {
   DEFAULT_WAIT_UNTIL_TIMEOUT_MS,
   DEFAULT_EXITED_WAIT_UNTIL_TIMEOUT_MS,
   DEFAULT_TIMEOUT_NO_WAIT_UNTIL_MS,
+  DEFAULT_EMPTY_COMMAND_POLL_TIMEOUT_MS,
   DEFAULT_TIMEOUT_STDIN_MS,
   HEAD_LINES,
   MAX_SESSIONS_PER_AGENT,
@@ -45,6 +46,10 @@ export function getCommandIdleMs(request: SessionCommandRequest): number {
 
 export function getCommandTimeoutMs(request: SessionCommandRequest): number {
   if (!request.waitUntil) {
+    if (!request.rawInput && request.command.length === 0) {
+      return DEFAULT_EMPTY_COMMAND_POLL_TIMEOUT_MS;
+    }
+
     return request.rawInput
       ? DEFAULT_TIMEOUT_STDIN_MS
       : DEFAULT_TIMEOUT_NO_WAIT_UNTIL_MS;
