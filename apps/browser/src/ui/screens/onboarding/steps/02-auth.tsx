@@ -1,5 +1,4 @@
 import { Button } from '@stagewise/stage-ui/components/button';
-import { Checkbox } from '@stagewise/stage-ui/components/checkbox';
 import { cn } from '@ui/utils';
 import { Input } from '@stagewise/stage-ui/components/input';
 import { OverlayScrollbar } from '@stagewise/stage-ui/components/overlay-scrollbar';
@@ -29,10 +28,7 @@ import {
 } from 'nucleo-ui-outline-18';
 import type { StepValidityCallback } from '../index';
 import { useI18n } from '@ui/hooks/use-i18n';
-import type {
-  ModelProvider,
-  TelemetryLevel,
-} from '@shared/karton-contracts/ui/shared-types';
+import type { ModelProvider } from '@shared/karton-contracts/ui/shared-types';
 
 type AuthMode = 'stagewise' | 'api-keys' | 'coding-plan';
 type CompletionAuthMode = 'stagewise' | 'api-keys' | 'coding-plan';
@@ -108,7 +104,6 @@ export function StepAuth({
   const connectProvider = useKartonProcedure(
     (p) => p.preferences.connectProvider,
   );
-  const preferencesUpdate = useKartonProcedure((p) => p.preferences.update);
   const openExternalUrl = useKartonProcedure((p) => p.openExternalUrl);
   const track = useTrack();
   const authStatus = useKartonState((s) => s.userAccount.status);
@@ -126,11 +121,6 @@ export function StepAuth({
       ? 'authentication-validated'
       : 'form-input',
   );
-  // The anonymous telemetry toggle has been removed from onboarding.
-  // Basic (anonymous) telemetry is enabled by default and is only opt-out
-  // from the settings page. This state only governs the identifiable /
-  // "full" telemetry upgrade checkbox shown below.
-  const [telemetry, setTelemetry] = useState<TelemetryLevel>('anonymous');
   const [showMoreProviders, setShowMoreProviders] = useState(false);
 
   // API-keys list scroll fadeout — mirrors the models-list pattern in
@@ -337,32 +327,6 @@ export function StepAuth({
             {t('onboarding.auth.useDifferentEmail')}
           </Button>
         </div>
-        <div className="app-no-drag mt-2 flex items-center gap-2">
-          <Checkbox
-            size="xs"
-            id="telemetry-full-checkbox"
-            checked={telemetry === 'full'}
-            onCheckedChange={(checked: boolean) => {
-              setTelemetry(checked ? 'full' : 'anonymous');
-              void preferencesUpdate([
-                {
-                  op: 'replace',
-                  path: ['privacy', 'telemetryLevel'],
-                  value: checked ? 'full' : 'anonymous',
-                },
-              ]);
-            }}
-          />
-          <label
-            htmlFor="telemetry-full-checkbox"
-            className="text-muted-foreground text-xs"
-          >
-            {t('onboarding.auth.telemetryFull')}
-          </label>
-        </div>
-        <p className="mt-1 max-w-sm text-center text-[11px] text-muted-foreground/80">
-          {t('onboarding.auth.telemetryHint')}
-        </p>
       </div>
     );
   }

@@ -1,12 +1,12 @@
 {
   "name": "stagewise",
   "version": "1.14.0",
-  "description": "The browser devs always wished they had.",
+  "description": "PickStar Studio desktop agent workspace.",
   "keywords": [],
   "license": "AGPL-3.0-only",
   "author": {
-    "name": "stagewise Inc.",
-    "email": "support@stagewise.io"
+    "name": "PickStar Studio",
+    "email": "support@pickstar.asia"
   },
   "type": "module",
   "main": ".vite/build/main.js",
@@ -185,5 +185,6 @@
     "xml": "^1.0.1",
     "zod": "4.3.5"
   },
-  "productName": "stagewise"
+  "productName": "PickStar Studio",
+  "homepage": "https://pickstar.asia"
 }

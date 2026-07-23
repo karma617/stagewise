@@ -125,6 +125,8 @@ export const customEndpointSchema = z.object({
   encryptedApiKey: z.string().optional(),
   /** Maps built-in model IDs to the IDs expected by this endpoint */
   modelIdMapping: z.record(z.string(), z.string()).optional(),
+  /** Optional context window override for built-in models routed here */
+  contextWindowSize: z.number().int().positive().optional(),
   // Azure-specific fields
   resourceName: z.string().optional(),
   apiVersion: z.string().optional(),

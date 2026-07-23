@@ -66,7 +66,7 @@ export const CODING_PLANS: Record<CodingPlanId, CodingPlan> = {
     endpointHelpText: 'Routed through api.z.ai/api/coding/paas/v4.',
     endpointHelpTextKey: 'settings.models.plan.glm.endpointHelpText',
     disclaimer:
-      'stagewise is not yet an officially supported tool for the GLM Coding Plan. We are working with Z.ai on a partnership.',
+      'PickStar Studio is not yet an officially supported tool for the GLM Coding Plan.',
     disclaimerKey: 'settings.models.plan.glm.disclaimer',
     featuredModelIds: ['glm-5.2', 'glm-5.1', 'glm-5v-turbo'],
   },

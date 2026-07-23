@@ -13,6 +13,9 @@ compressed briefing on a boundary message.
   against the active model's context window. If the prompt is close to the
   window limit, it synchronously compresses history and rebuilds the context
   before sending the request.
+- For built-in models routed through a custom provider, an optional custom
+  provider "Model Max Context" setting overrides the built-in model window for
+  context accounting and automatic compression triggers.
 - If a provider still returns a context-window error such as
   `context_too_large`, the runtime compresses history once and retries the
   step instead of immediately surfacing the provider error.

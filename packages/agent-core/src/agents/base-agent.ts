@@ -83,10 +83,68 @@ function getLastCompressionBaselineUsedTokens(
 const STEP_ACTIVITY_TIMEOUT_MS = 120_000;
 const STEP_ACTIVITY_CHECK_INTERVAL_MS = 10_000;
 const STEP_ACTIVITY_TOOL_HEARTBEAT_MS = 30_000;
-const STEP_ACTIVITY_ERROR_MESSAGE =
-  'LLM stream stalled: no model output or lifecycle event was received for 120 seconds.';
+const STEP_ACTIVITY_LARGE_CONTEXT_TIMEOUT_MS = 180_000;
+const STEP_ACTIVITY_HUGE_CONTEXT_TIMEOUT_MS = 240_000;
+const STEP_ACTIVITY_ELEVATED_REASONING_GRACE_MS = 120_000;
+const STEP_ACTIVITY_CUSTOM_PROVIDER_GRACE_MS = 60_000;
+const STEP_ACTIVITY_REQUEST_TIMEOUT_GRACE_MS = 30_000;
+const STEP_ACTIVITY_MAX_TIMEOUT_MS = 600_000;
+const CONTEXT_PREPARATION_TIMEOUT_MS = 45_000;
+const LEAN_CONTEXT_PREPARATION_TIMEOUT_MS = 20_000;
+const STEP_ACTIVITY_ERROR_PREFIX =
+  'LLM stream stalled: no model output or lifecycle event was received for';
 const CONTEXT_TOO_LARGE_RECOVERY_ATTEMPTS = 1;
 const RUNTIME_TRACE_LOG_PREFIX = 'agent-runtime';
+
+class ContextPreparationTimeoutError extends Error {
+  constructor(
+    readonly label: string,
+    readonly timeoutMs: number,
+  ) {
+    super(`${label} timed out after ${timeoutMs}ms`);
+    this.name = 'ContextPreparationTimeoutError';
+  }
+}
+
+function hasElevatedReasoningEffort(value: unknown, depth = 0): boolean {
+  if (depth > 5 || value == null) return false;
+  if (Array.isArray(value)) {
+    return value.some((item) => hasElevatedReasoningEffort(item, depth + 1));
+  }
+  if (typeof value !== 'object') return false;
+
+  for (const [key, raw] of Object.entries(value)) {
+    const normalizedKey = key.toLowerCase();
+    if (
+      typeof raw === 'string' &&
+      (normalizedKey.includes('effort') ||
+        normalizedKey.includes('thinkinglevel'))
+    ) {
+      const normalizedValue = raw.toLowerCase();
+      if (
+        normalizedValue === 'high' ||
+        normalizedValue === 'xhigh' ||
+        normalizedValue === 'max'
+      ) {
+        return true;
+      }
+    }
+    if (
+      typeof raw === 'number' &&
+      normalizedKey.includes('budget') &&
+      raw >= 10_000
+    ) {
+      return true;
+    }
+    if (hasElevatedReasoningEffort(raw, depth + 1)) return true;
+  }
+
+  return false;
+}
+
+function formatStepActivityErrorMessage(timeoutMs: number): string {
+  return `${STEP_ACTIVITY_ERROR_PREFIX} ${Math.round(timeoutMs / 1000)} seconds.`;
+}
 import {
   convertAgentMessagesToModelMessages,
   capitalizeFirstLetter,
@@ -1290,9 +1348,15 @@ export abstract class BaseAgent<
     systemPrompt: string,
     reasoningSignatureSource?: ReasoningSignatureSource,
     allowedEnvDomainIds?: readonly string[],
+    options?: {
+      skipFileContext?: boolean;
+      skipSkills?: boolean;
+    },
   ): Promise<ModelMessage[]> {
     const activeModelId = this.state.get().activeModelId;
-    const fileReadCache = this.fileReadCacheService;
+    const fileReadCache = options?.skipFileContext
+      ? undefined
+      : this.fileReadCacheService;
     const capabilities = this.host.models.getCapabilities(activeModelId);
 
     // Derive per-request content limits from the model's context window
@@ -1314,7 +1378,9 @@ export abstract class BaseAgent<
       // their built-in defaults.
     }
 
-    const skills = await this.toolbox.getSkillsList(this.instanceId);
+    const skills = options?.skipSkills
+      ? []
+      : await this.toolbox.getSkillsList(this.instanceId);
 
     return convertAgentMessagesToModelMessages(
       messages,
@@ -1355,7 +1421,9 @@ export abstract class BaseAgent<
         imageCache: this.processedImageCacheService,
         skills,
         fileReadCache,
-        mountPaths: this.toolbox.getMountedPathsForAgent(this.instanceId),
+        mountPaths: options?.skipFileContext
+          ? undefined
+          : this.toolbox.getMountedPathsForAgent(this.instanceId),
         contentLimits,
         renderExtraMention: this.renderExtraMention,
         domainAdapterRegistry: this.domainAdapterRegistry,
@@ -1486,6 +1554,16 @@ export abstract class BaseAgent<
     this.markStepActivity(now);
   }
 
+  protected calculateStepActivityTimeoutForTest(args: {
+    estimatedTokens: number;
+    contextWindowTokens: number;
+    providerMode?: ModelWithOptions['providerMode'];
+    providerOptions?: ModelWithOptions['providerOptions'];
+    requestTimeoutMs?: number;
+  }): number {
+    return this.calculateStepActivityTimeout(args);
+  }
+
   protected runWithStepActivityHeartbeatForTest<T>(
     fn: () => Promise<T>,
     heartbeatMs: number,
@@ -1546,6 +1624,43 @@ export abstract class BaseAgent<
     this._stepActivityWatchdog.unref?.();
   }
 
+  private calculateStepActivityTimeout(args: {
+    estimatedTokens: number;
+    contextWindowTokens: number;
+    providerMode?: ModelWithOptions['providerMode'];
+    providerOptions?: ModelWithOptions['providerOptions'];
+    requestTimeoutMs?: number;
+  }): number {
+    let timeoutMs = STEP_ACTIVITY_TIMEOUT_MS;
+    const contextRatio =
+      args.contextWindowTokens > 0
+        ? args.estimatedTokens / args.contextWindowTokens
+        : 0;
+
+    if (args.estimatedTokens >= 500_000 || contextRatio >= 0.5) {
+      timeoutMs = STEP_ACTIVITY_HUGE_CONTEXT_TIMEOUT_MS;
+    } else if (args.estimatedTokens >= 250_000 || contextRatio >= 0.25) {
+      timeoutMs = STEP_ACTIVITY_LARGE_CONTEXT_TIMEOUT_MS;
+    }
+
+    if (hasElevatedReasoningEffort(args.providerOptions)) {
+      timeoutMs += STEP_ACTIVITY_ELEVATED_REASONING_GRACE_MS;
+    }
+
+    if (args.providerMode === 'custom') {
+      timeoutMs += STEP_ACTIVITY_CUSTOM_PROVIDER_GRACE_MS;
+    }
+
+    if (typeof args.requestTimeoutMs === 'number' && args.requestTimeoutMs > 0) {
+      timeoutMs = Math.max(
+        timeoutMs,
+        args.requestTimeoutMs + STEP_ACTIVITY_REQUEST_TIMEOUT_GRACE_MS,
+      );
+    }
+
+    return Math.min(timeoutMs, STEP_ACTIVITY_MAX_TIMEOUT_MS);
+  }
+
   private stopStepActivityWatchdog(stepGen?: number): void {
     if (stepGen !== undefined && this._stepGeneration !== stepGen) return;
     if (this._stepActivityWatchdog) {
@@ -1564,14 +1679,20 @@ export abstract class BaseAgent<
     this.host.logger.warn(
       `[BaseAgent:${this.instanceId}] Step activity watchdog timed out after ${timeoutMs}ms without model output or lifecycle event.`,
     );
+    const errorMessage = formatStepActivityErrorMessage(timeoutMs);
     this.report(
-      new Error(STEP_ACTIVITY_ERROR_MESSAGE),
+      new Error(errorMessage),
       'stepActivityWatchdog',
       {
         timeoutMs,
         goalStatus: this.state.get().goal?.status,
       },
     );
+    this.writeRuntimeTrace('step-activity-timeout', {
+      timeoutMs,
+      elapsedMs: Date.now() - this._stepStartTime,
+      goalStatus: this.state.get().goal?.status,
+    });
     this.stopStepActivityWatchdog(stepGen);
     this._stepGeneration++;
     this.stepAbortController?.abort();
@@ -1590,7 +1711,7 @@ export abstract class BaseAgent<
     this._pendingSyntheticContinuation = null;
     this.state.commands.recordStepError({
       error: {
-        message: STEP_ACTIVITY_ERROR_MESSAGE,
+        message: errorMessage,
       },
       markUnread: 'mark-unread',
     });
@@ -2002,7 +2123,7 @@ export abstract class BaseAgent<
       const syntheticContinuationBeforeContext =
         this._pendingSyntheticContinuation;
       this.state.commands.setRuntimePhase({ phase: 'preparing-context' });
-      modelMessages = await this.generateContextForNewStep(
+      modelMessages = await this.generateContextForNewStepWithTimeout(
         queueFlushIndex >= 0 ? queueFlushIndex : undefined,
         modelWithOptions.reasoningSignatureSource,
       );
@@ -2070,7 +2191,14 @@ export abstract class BaseAgent<
 
     this.stepAbortController = new AbortController();
     this.state.commands.setRuntimePhase({ phase: 'waiting-for-model' });
-    this.startStepActivityWatchdog(stepGen);
+    const stepActivityTimeoutMs = this.calculateStepActivityTimeout({
+      estimatedTokens: stepContextTokens,
+      contextWindowTokens: stepContextWindowTokens,
+      providerMode: modelWithOptions.providerMode,
+      providerOptions: modelWithOptions.providerOptions,
+      requestTimeoutMs: resolvedConfig.maxTime,
+    });
+    this.startStepActivityWatchdog(stepGen, stepActivityTimeoutMs);
     this.writeRuntimeTrace('stream-request-start', {
       modelId: stepModelId,
       providerMode: this._stepProviderMode,
@@ -2079,6 +2207,9 @@ export abstract class BaseAgent<
       maxRetries: resolvedConfig.maxRetries ?? 1,
       maxOutputTokens: resolvedConfig.maxOutputTokens,
       timeoutMs: resolvedConfig.maxTime,
+      activityTimeoutMs: stepActivityTimeoutMs,
+      estimatedTokens: stepContextTokens,
+      contextWindowTokens: stepContextWindowTokens,
     });
 
     const stream = streamText({
@@ -2819,7 +2950,7 @@ export abstract class BaseAgent<
       });
       if (compressed) {
         this._pendingSyntheticContinuation = args.syntheticContinuation;
-        nextModelMessages = await this.generateContextForNewStep(
+        nextModelMessages = await this.generateContextForNewStepWithTimeout(
           args.queueFlushIndex >= 0 ? args.queueFlushIndex : undefined,
           args.reasoningSignatureSource,
         );
@@ -2859,7 +2990,7 @@ export abstract class BaseAgent<
       }
 
       this._pendingSyntheticContinuation = args.syntheticContinuation;
-      nextModelMessages = await this.generateContextForNewStep(
+      nextModelMessages = await this.generateContextForNewStepWithTimeout(
         args.queueFlushIndex >= 0 ? args.queueFlushIndex : undefined,
         args.reasoningSignatureSource,
       );
@@ -3173,9 +3304,82 @@ export abstract class BaseAgent<
    * there rather than at the end — env context appears before user
    * content.
    */
+  private async generateContextForNewStepWithTimeout(
+    queueFlushStart?: number,
+    reasoningSignatureSource?: ReasoningSignatureSource,
+  ): Promise<ModelMessage[]> {
+    try {
+      return await this.withContextPreparationTimeout(
+        'context preparation',
+        CONTEXT_PREPARATION_TIMEOUT_MS,
+        () =>
+          this.generateContextForNewStep(
+            queueFlushStart,
+            reasoningSignatureSource,
+          ),
+      );
+    } catch (error) {
+      if (!(error instanceof ContextPreparationTimeoutError)) throw error;
+
+      this.host.logger.warn(
+        `[BaseAgent:${this.instanceId}] Context preparation exceeded ${error.timeoutMs}ms. Retrying with lean context so the step can continue.`,
+      );
+      this.writeRuntimeTrace('context-preparation-timeout', {
+        label: error.label,
+        timeoutMs: error.timeoutMs,
+      });
+
+      return await this.withContextPreparationTimeout(
+        'lean context preparation',
+        LEAN_CONTEXT_PREPARATION_TIMEOUT_MS,
+        () =>
+          this.generateContextForNewStep(
+            queueFlushStart,
+            reasoningSignatureSource,
+            {
+              skipEnvCapture: true,
+              skipPathReferences: true,
+              skipFileContext: true,
+              skipSkills: true,
+            },
+          ),
+      );
+    }
+  }
+
+  private async withContextPreparationTimeout<T>(
+    label: string,
+    timeoutMs: number,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new ContextPreparationTimeoutError(label, timeoutMs));
+      }, timeoutMs);
+      timer.unref?.();
+
+      operation().then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
+  }
+
   private async generateContextForNewStep(
     queueFlushStart?: number,
     reasoningSignatureSource?: ReasoningSignatureSource,
+    options?: {
+      skipEnvCapture?: boolean;
+      skipPathReferences?: boolean;
+      skipFileContext?: boolean;
+      skipSkills?: boolean;
+    },
   ): Promise<ModelMessage[]> {
     // ─── Resolve env-domain allow-list from this agent type's profile ─
     // Hosts opt agent types into env capture explicitly via
@@ -3201,15 +3405,21 @@ export abstract class BaseAgent<
         : history.length - 1;
     const prevStates =
       targetIdx > 0 ? resolveEffectiveEnvStates(history, targetIdx - 1) : {};
-    const { entries } = await this.domainAdapterRegistry.captureAll(
-      prevStates,
-      this.instanceId,
-      allowedEnvDomainIds,
-    );
-    if (entries.size > 0) {
-      this.state.commands.attachEnvState({
-        entries,
-        queueFlushStart,
+    if (!options?.skipEnvCapture) {
+      const { entries } = await this.domainAdapterRegistry.captureAll(
+        prevStates,
+        this.instanceId,
+        allowedEnvDomainIds,
+      );
+      if (entries.size > 0) {
+        this.state.commands.attachEnvState({
+          entries,
+          queueFlushStart,
+        });
+      }
+    } else {
+      this.writeRuntimeTrace('context-env-capture-skipped', {
+        reason: 'lean-context-timeout-retry',
       });
     }
 
@@ -3217,7 +3427,13 @@ export abstract class BaseAgent<
     // Extracts path: links, attachment paths, and mention paths, then
     // hashes each file/directory so the conversion pipeline can track
     // content state and deduplicate injections.
-    await this.populatePathReferencesOnUserMessages();
+    if (!options?.skipPathReferences) {
+      await this.populatePathReferencesOnUserMessages();
+    } else {
+      this.writeRuntimeTrace('context-path-references-skipped', {
+        reason: 'lean-context-timeout-retry',
+      });
+    }
 
     // ─── Build model messages from history ────────────────────────────
     const messages = this.state.get().history;
@@ -3231,6 +3447,10 @@ export abstract class BaseAgent<
       systemPrompt,
       reasoningSignatureSource,
       allowedEnvDomainIds,
+      {
+        skipFileContext: !!options?.skipFileContext,
+        skipSkills: !!options?.skipSkills,
+      },
     );
 
     // Then, we allow another step to modify the final model messages

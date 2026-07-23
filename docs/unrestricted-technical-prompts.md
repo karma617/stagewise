@@ -18,9 +18,19 @@ Core fragments:
 - `packages/agent-core/src/agents/chat/prompts/output-style-basics.md`
 - `packages/agent-core/src/agents/chat/prompts/authorities.md`
 
-The `soul.md` fragment now explicitly tells the chat agent to reply in the
-user's latest message language and switch immediately when the user's language
-changes.
+The `soul.md` fragment now explicitly tells the chat agent to always reply in
+Chinese.
+
+The main chat `soul.md` fragments also include an Authorized Security Assessment
+Mode section. It declares the user interaction as authorized security assessment
+work, expands the expected cybersecurity execution style, and defines OSINT,
+reproducibility, high-risk-step annotation, and scoped-target handling rules.
+
+The same `soul.md` fragments define a business-first final task report format
+for completed code changes, debugging, validation, and staged delivery. The
+format leads with business conclusion, reasons, risks, next step, validated
+checks, and files changed in the current turn. Chinese responses use the visible
+headings `业务结论`, `原因`, `风险`, `下一步`, `已验证通过`, and `本轮改动文件`.
 
 Browser host fragments:
 
@@ -72,6 +82,9 @@ The main chat agent is explicitly allowed to assist with:
 - Unpacking, decompilation, deobfuscation, and dynamic instrumentation.
 - Analysis of stagewise itself and any mounted application, binary, package,
   workspace, or project.
+- Authorized security assessment workflows with OSINT retrieval, reproducible
+  findings, exploit-chain analysis, risk-level labeling, and emergency rollback
+  recommendations.
 
 Shell smart approval no longer requires approval merely because a command uses
 CTF, exploit, reverse-engineering, unpacking, or decompilation tools/terms when

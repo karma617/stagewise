@@ -138,7 +138,7 @@ export const settingsDict: Dict = {
   'settings.general.llmNetwork.description': {
     'zh-CN':
       '所有 LLM 对话请求会走这里配置的本地代理；遇到 Forbidden 时可通过 Clash 接口切换节点后自动重试。默认使用本机 7897 代理和 9097 Clash Controller。',
-    en: 'All LLM chat requests use this local proxy. When Forbidden occurs, Stagewise can ask Clash to switch nodes and retry automatically. Defaults use local proxy 7897 and Clash controller 9097.',
+    en: 'All LLM chat requests use this local proxy. When Forbidden occurs, PickStar Studio can ask Clash to switch nodes and retry automatically. Defaults use local proxy 7897 and Clash controller 9097.',
   },
   'settings.general.llmNetwork.proxyUrl': {
     'zh-CN': '本地 HTTP 代理',
@@ -242,8 +242,8 @@ export const settingsDict: Dict = {
     en: 'UI size',
   },
   'settings.personalization.uiSize.description': {
-    'zh-CN': '独立于网页缩放调整 stagewise 界面大小。',
-    en: 'Scale the stagewise interface independently from web page zoom.',
+    'zh-CN': '独立于网页缩放调整 PickStar Studio 界面大小。',
+    en: 'Scale the PickStar Studio interface independently from web page zoom.',
   },
   'settings.personalization.uiSize.small': {
     'zh-CN': '小',
@@ -263,7 +263,7 @@ export const settingsDict: Dict = {
   },
   'settings.personalization.appearance.description': {
     'zh-CN': '选择跟随系统外观，或始终使用浅色/深色主题。',
-    en: 'Choose whether stagewise follows your system appearance or always uses light or dark mode.',
+    en: 'Choose whether PickStar Studio follows your system appearance or always uses light or dark mode.',
   },
   'settings.personalization.appearance.system': {
     'zh-CN': '跟随系统',
@@ -282,8 +282,8 @@ export const settingsDict: Dict = {
     en: 'Color scheme',
   },
   'settings.personalization.colorScheme.description': {
-    'zh-CN': '按你的喜好调整 stagewise 的颜色风格。',
-    en: 'Adapt the color style of your stagewise setup to your liking.',
+    'zh-CN': '按你的喜好调整 PickStar Studio 的颜色风格。',
+    en: 'Adapt the color style of your PickStar Studio setup to your liking.',
   },
   'settings.personalization.theme.default': {
     'zh-CN': '默认',
@@ -881,8 +881,8 @@ export const settingsDict: Dict = {
   },
   'settings.autoRegister.captcha.browserUiFlowHint': {
     'zh-CN':
-      '启动一个可见的隔离 Electron 窗口加载 console.stagewise.io 登录页，页面自行完成 Turnstile，必要时可手动交互，然后自动填入邮箱与 OTP。',
-    en: 'Opens a visible isolated Electron window for the real console.stagewise.io sign-in page. The page completes Turnstile itself, allows manual interaction when needed, then auto-fills email and OTP.',
+      '启动一个可见的隔离 Electron 窗口加载登录页，页面自行完成 Turnstile，必要时可手动交互，然后自动填入邮箱与 OTP。',
+    en: 'Opens a visible isolated Electron window for the sign-in page. The page completes Turnstile itself, allows manual interaction when needed, then auto-fills email and OTP.',
   },
   'settings.autoRegister.captcha.apiKey': {
     'zh-CN': 'API Key',
@@ -931,8 +931,8 @@ export const settingsDict: Dict = {
     en: 'Skills & Context files',
   },
   'settings.skillsContext.description': {
-    'zh-CN': '按工作区配置 stagewise 代理可用的上下文文件与技能。',
-    en: 'Per-workspace configuration, context files, and skills for the stagewise agent.',
+    'zh-CN': '按工作区配置 PickStar Studio 代理可用的上下文文件与技能。',
+    en: 'Per-workspace configuration, context files, and skills for the PickStar Studio agent.',
   },
   'settings.skillsContext.noWorkspaces': {
     'zh-CN': '当前未连接工作区。请先为代理连接一个工作区后再进行配置。',
@@ -1656,12 +1656,12 @@ export const settingsDict: Dict = {
     en: 'Cancel',
   },
   'settings.browsing.page.optionHome': {
-    'zh-CN': 'Stagewise 首页',
-    en: 'Stagewise Home',
+    'zh-CN': 'PickStar Studio 首页',
+    en: 'PickStar Studio Home',
   },
   'settings.browsing.page.optionHomeDesc': {
-    'zh-CN': '打开 stagewise 首页',
-    en: 'Open the stagewise home page',
+    'zh-CN': '打开 PickStar Studio 首页',
+    en: 'Open the PickStar Studio home page',
   },
   'settings.browsing.page.optionCustom': {
     'zh-CN': '自定义 URL',
@@ -1688,8 +1688,8 @@ export const settingsDict: Dict = {
     en: 'On Browser Start',
   },
   'settings.browsing.startup.description': {
-    'zh-CN': '选择 stagewise 启动时打开的页面。',
-    en: 'Choose what page opens when stagewise starts.',
+    'zh-CN': '选择 PickStar Studio 启动时打开的页面。',
+    en: 'Choose what page opens when PickStar Studio starts.',
   },
   'settings.browsing.permission.media': {
     'zh-CN': '摄像头与麦克风',
@@ -1829,6 +1829,26 @@ export const settingsDict: Dict = {
     'zh-CN': '正在检查更新',
     en: 'Checking for Updates',
   },
+  'settings.about.project.title': {
+    'zh-CN': '项目说明',
+    en: 'Project notes',
+  },
+  'settings.about.project.stagewiseFork': {
+    'zh-CN': '当前项目为 Stagewise 魔改版。',
+    en: 'This project is a modified Stagewise build.',
+  },
+  'settings.about.project.accountPool': {
+    'zh-CN': '增加了帐号池、代理池等帐号切换逻辑；官方调整 Free 计划后，该能力目前已失效。',
+    en: 'It added account-pool, proxy-pool, and account-switching logic; after the official Free plan changed, that capability is currently ineffective.',
+  },
+  'settings.about.project.goalMode': {
+    'zh-CN': '增加了类似 Codex 的目标模式。',
+    en: 'It added a Codex-like goal mode.',
+  },
+  'settings.about.project.prompt': {
+    'zh-CN': '同时魔改了核心系统提示词，使模型原生破甲，支持执行 CTF、逆向等任务；无法控制具有网络端安全验证的模型，但已能够满足绝大多数破限任务。',
+    en: 'It also modifies the core system prompt so the model is natively unrestricted for CTF, reverse engineering, and similar tasks; server-side model safety checks remain outside local control, but it covers most limit-bypass tasks.',
+  },
   'settings.about.update.downloading': {
     'zh-CN': '正在下载更新…',
     en: 'Downloading Update...',
@@ -1961,14 +1981,6 @@ export const settingsDict: Dict = {
     'zh-CN': '主页',
     en: 'Homepage',
   },
-  'settings.about.details.otherVersions': {
-    'zh-CN': '其他版本',
-    en: 'Other Versions',
-  },
-  'settings.about.details.na': {
-    'zh-CN': '无',
-    en: 'N/A',
-  },
 
   // ---- custom providers ----
   'settings.customProviders.title': {
@@ -2075,6 +2087,23 @@ export const settingsDict: Dict = {
   'settings.customProviders.dialog.modelMappingDescription': {
     'zh-CN': '将内置模型 ID 映射为此端点期望的 ID，例如服务商使用不同命名时。',
     en: 'Map built-in model IDs to the IDs this endpoint expects, e.g. when the provider uses different naming.',
+  },
+  'settings.customProviders.dialog.contextWindow': {
+    'zh-CN': '模型最大上下文',
+    en: 'Model Max Context',
+  },
+  'settings.customProviders.dialog.contextWindowOptional': {
+    'zh-CN': '（可选）',
+    en: '(optional)',
+  },
+  'settings.customProviders.dialog.contextWindowDescription': {
+    'zh-CN':
+      '留空则使用内置模型默认上下文；填写后，该服务商下的内置模型会按此上限计算上下文并触发自动压缩。',
+    en: 'Leave blank to use the built-in model default. When set, built-in models routed through this provider use this limit for context accounting and automatic compression.',
+  },
+  'settings.customProviders.dialog.invalidContextWindow': {
+    'zh-CN': '模型最大上下文必须是大于 0 的整数',
+    en: 'Model max context must be an integer greater than 0',
   },
   'settings.customProviders.dialog.invalidJson': {
     'zh-CN': 'JSON 无效',
@@ -2321,8 +2350,8 @@ export const settingsDict: Dict = {
   },
   'settings.models.plan.glm.disclaimer': {
     'zh-CN':
-      'stagewise 还不是 GLM 编程套餐的官方支持工具。我们正在与 Z.ai 推进合作。',
-    en: 'stagewise is not yet an officially supported tool for the GLM Coding Plan. We are working with Z.ai on a partnership.',
+      'PickStar Studio 还不是 GLM 编程套餐的官方支持工具。',
+    en: 'PickStar Studio is not yet an officially supported tool for the GLM Coding Plan.',
   },
   'settings.models.plan.kimi.displayName': {
     'zh-CN': 'Kimi',
@@ -2383,8 +2412,8 @@ export const settingsDict: Dict = {
   },
   'settings.models.apiKeys.description': {
     'zh-CN':
-      '配置代理如何连接 LLM 服务商。可使用 stagewise 账号、官方服务商端点或自定义 URL。',
-    en: 'Configure how the agent connects to LLM providers. Use your stagewise account, official provider endpoints, or custom URLs.',
+      '配置代理如何连接 LLM 服务商。可使用 PickStar Studio 账号、官方服务商端点或自定义 URL。',
+    en: 'Configure how the agent connects to LLM providers. Use your PickStar Studio account, official provider endpoints, or custom URLs.',
   },
   'settings.models.models.description': {
     'zh-CN':
@@ -2488,8 +2517,8 @@ export const settingsDict: Dict = {
     en: 'This provider is currently set to Custom. Connecting will switch it to Official.',
   },
   'settings.models.use.stagewise': {
-    'zh-CN': '使用我的 stagewise 账号',
-    en: 'Use my stagewise account',
+    'zh-CN': '使用我的 PickStar Studio 账号',
+    en: 'Use my PickStar Studio account',
   },
   'settings.models.use.ownKey': {
     'zh-CN': '使用 {provider} 的 API 密钥',
@@ -2594,8 +2623,8 @@ export const settingsDict: Dict = {
     en: 'Worktrees',
   },
   'settings.worktree.description': {
-    'zh-CN': '配置脚本并清理 stagewise 管理的 Git worktree。',
-    en: 'Configure scripts and clean stagewise-managed Git worktrees.',
+    'zh-CN': '配置脚本并清理 PickStar Studio 管理的 Git worktree。',
+    en: 'Configure scripts and clean PickStar Studio-managed Git worktrees.',
   },
   'settings.worktree.script': {
     'zh-CN': '脚本',
@@ -2630,12 +2659,12 @@ export const settingsDict: Dict = {
     en: 'Managed worktrees',
   },
   'settings.worktree.managed.description': {
-    'zh-CN': '此仓库由 stagewise 控制的 worktree 实例。',
-    en: 'Stagewise-controlled worktree instances for this repository.',
+    'zh-CN': '此仓库由 PickStar Studio 控制的 worktree 实例。',
+    en: 'PickStar Studio-controlled worktree instances for this repository.',
   },
   'settings.worktree.managed.empty': {
-    'zh-CN': '此仓库没有 stagewise 管理的 worktree。',
-    en: 'No stagewise-managed worktrees for this repository.',
+    'zh-CN': '此仓库没有 PickStar Studio 管理的 worktree。',
+    en: 'No PickStar Studio-managed worktrees for this repository.',
   },
   'settings.worktree.managed.filterPlaceholder': {
     'zh-CN': '筛选 worktree…',

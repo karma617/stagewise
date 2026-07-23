@@ -361,7 +361,7 @@ export const Omnibox = ({
                   <span>
                     Always building something new?{' '}
                     <strong className="font-medium">
-                      Set stagewise as your default browser!
+                      Set PickStar Studio as your default browser!
                     </strong>
                   </span>
                   <Button variant="primary" size="xs">

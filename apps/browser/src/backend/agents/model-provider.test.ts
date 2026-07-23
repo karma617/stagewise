@@ -556,6 +556,30 @@ describe('thinking override provider option resolution', () => {
       openai: { reasoningEffort: 'medium' },
     });
   });
+
+  it('uses custom endpoint context window for routed built-in models', () => {
+    const service = createTestModelProviderService({
+      providerModes: { openai: 'custom' },
+      customEndpoints: [
+        {
+          id: 'openai-custom',
+          name: 'OpenAI-compatible',
+          apiSpec: 'openai-chat-completions',
+          baseUrl: 'https://example.com/v1',
+          awsAuthMode: 'access-keys',
+          contextWindowSize: 200000,
+        },
+      ],
+    });
+
+    const result = service.getModelWithOptions(
+      'gpt-5.5',
+      'trace-1',
+      agentStepMetadata,
+    );
+
+    expect(result.contextWindowSize).toBe(200000);
+  });
 });
 
 describe('OpenAI Responses reasoning replay routing', () => {

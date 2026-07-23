@@ -439,19 +439,10 @@ export function AboutSection() {
           <div className="flex flex-col gap-2">
             <div className="flex items-baseline gap-2">
               <h2 className="font-bold text-3xl text-foreground leading-none">
-                stagewise
+                {appInfo.name}
               </h2>
               <p className="relative bottom-[2px] text-lg text-subtle-foreground leading-none">
                 {appInfo.version}
-                {appInfo.name !== 'stagewise' && (
-                  <span>
-                    {' ('}
-                    {appInfo.name
-                      .replace(/^stagewise\s*/, '')
-                      .replace(/[()]/g, '')}
-                    {')'}
-                  </span>
-                )}
               </p>
             </div>
 
@@ -460,6 +451,18 @@ export function AboutSection() {
                 <AppUpdateStatus />
               </div>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-lg border border-border/40 bg-surface-1/60 p-4">
+            <h3 className="font-medium text-foreground text-sm">
+              {t('settings.about.project.title')}
+            </h3>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground text-sm leading-relaxed">
+              <li>{t('settings.about.project.stagewiseFork')}</li>
+              <li>{t('settings.about.project.accountPool')}</li>
+              <li>{t('settings.about.project.goalMode')}</li>
+              <li>{t('settings.about.project.prompt')}</li>
+            </ul>
           </div>
 
           {/* Divider */}
@@ -566,18 +569,6 @@ export function AboutSection() {
                 </a>
               </div>
 
-              <div className="grid grid-cols-[140px_1fr] gap-x-4">
-                <span className="font-medium text-muted-foreground text-sm">
-                  {t('settings.about.details.otherVersions')}
-                </span>
-                <div className="text-foreground text-sm">
-                  {Object.entries(appInfo.otherVersions).map(([key, value]) => (
-                    <div key={key}>
-                      {key}: {value ?? t('settings.about.details.na')}
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
 
@@ -594,8 +585,8 @@ export function AboutSection() {
           name: appInfo.name,
           version: appInfo.version,
           license: 'AGPL-3.0',
-          repository: 'https://github.com/stagewise/stagewise',
-          publisher: 'stagewise Inc.',
+          repository: appInfo.homepage,
+          publisher: appInfo.author,
           licenseText: agplLicenseText,
         }}
         open={appLicenseOpen}

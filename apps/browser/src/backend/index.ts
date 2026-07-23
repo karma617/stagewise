@@ -21,38 +21,13 @@ if (started) {
   app.quit();
 }
 
-const appBaseName = (() => {
-  switch (__APP_RELEASE_CHANNEL__) {
-    case 'release':
-      return 'stagewise';
-    case 'nightly':
-      return 'stagewise-nightly';
-    case 'prerelease':
-      return 'stagewise-prerelease';
-    case 'dev':
-    default:
-      return 'stagewise-dev';
-  }
-})();
-
-const appName = (() => {
-  switch (__APP_RELEASE_CHANNEL__) {
-    case 'release':
-      return 'stagewise';
-    case 'nightly':
-      return 'stagewise Nightly';
-    case 'prerelease':
-      return 'stagewise (Pre-Release)';
-    case 'dev':
-    default:
-      return 'stagewise (Dev-Build)';
-  }
-})();
+const appBaseName = __APP_BASE_NAME__;
+const appName = __APP_NAME__;
 
 // Set the app name for macOS menu bar
 app.setName(appName);
 if (process.platform === 'win32') {
-  app.setAppUserModelId(`com.squirrel.${appBaseName}.${appBaseName}`);
+  app.setAppUserModelId(__APP_BUNDLE_ID__);
 }
 app.applicationMenu = null;
 installStartupOpenUrlListener();

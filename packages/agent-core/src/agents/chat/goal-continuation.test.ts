@@ -7,6 +7,7 @@ import type { AgentSystemState } from '../../store/state';
 import type { AgentHostModels } from '../../host/models';
 import type { AgentHostTelemetry } from '../../host/telemetry';
 import type { Logger } from '../../host/logger';
+import type { HostPaths } from '../../host/paths';
 import type { FileReadCacheService } from '../../services/file-read-cache';
 import type { AttachmentsService } from '../../services/attachments';
 import type {
@@ -61,6 +62,16 @@ class TestChatAgent extends ChatAgent {
     this.markStepActivityForTest(now);
   }
 
+  public calculateActivityTimeoutForTest(args: {
+    estimatedTokens: number;
+    contextWindowTokens: number;
+    providerMode?: 'stagewise' | 'official' | 'custom';
+    providerOptions?: Record<string, unknown>;
+    requestTimeoutMs?: number;
+  }): number {
+    return this.calculateStepActivityTimeoutForTest(args);
+  }
+
   public runWithActivityHeartbeatForTest<T>(
     fn: () => Promise<T>,
     heartbeatMs: number,
@@ -98,8 +109,39 @@ function makeLogger(): Logger {
   };
 }
 
+function makePaths(): HostPaths {
+  const root = 'C:\\tmp\\stagewise-agent-core-test';
+  return {
+    dataDir: () => root,
+    tempDir: () => root,
+    agentsDir: () => `${root}\\agents`,
+    agentDir: (agentId) => `${root}\\agents\\${agentId}`,
+    agentAttachmentsDir: (agentId) =>
+      `${root}\\agents\\${agentId}\\attachments`,
+    agentAttachmentPath: (agentId, attachmentId) =>
+      `${root}\\agents\\${agentId}\\attachments\\${attachmentId}`,
+    agentAppsDir: (agentId) => `${root}\\agents\\${agentId}\\apps`,
+    agentShellLogsDir: (agentId) =>
+      `${root}\\agents\\${agentId}\\shell-logs`,
+    diffHistoryDir: () => `${root}\\diff-history`,
+    diffHistoryDbPath: () => `${root}\\diff-history.sqlite`,
+    diffHistoryBlobsDir: () => `${root}\\diff-history\\blobs`,
+    agentDbPath: () => `${root}\\agents.sqlite`,
+    fileReadCacheDbPath: () => `${root}\\file-read-cache.sqlite`,
+    processedImageCacheDbPath: () => `${root}\\processed-image-cache.sqlite`,
+    userDataDir: () => `${root}\\user-data`,
+    plansDir: () => `${root}\\user-data\\plans`,
+    logsDir: () => `${root}\\user-data\\logs`,
+    memoryDir: () => `${root}\\user-data\\memory`,
+    pluginsDir: () => `${root}\\plugins`,
+    builtinSkillsDir: () => `${root}\\skills`,
+    ripgrepBaseDir: () => `${root}\\ripgrep`,
+  };
+}
+
 function makeHost(): AgentHost {
   return new AgentHost({
+    paths: makePaths(),
     logger: makeLogger(),
     telemetry: {
       capture: () => {},
@@ -364,6 +406,21 @@ describe('ChatAgent goal continuation', () => {
     expect(agent.state.get().error?.message).toContain(
       'LLM stream stalled',
     );
+  });
+
+  it('extends the silent-stream watchdog for large high-reasoning custom requests', () => {
+    const agent = makeAgent(makeBaseState());
+
+    expect(
+      agent.calculateActivityTimeoutForTest({
+        estimatedTokens: 322_000,
+        contextWindowTokens: 1_000_000,
+        providerMode: 'custom',
+        providerOptions: {
+          openai: { reasoningEffort: 'high' },
+        },
+      }),
+    ).toBe(360_000);
   });
 
   it('recovers a silent stalled active goal instead of blocking it', () => {

@@ -161,9 +161,9 @@ export const chatDict: Dict = {
   },
   'chat.slash.description.plugin.javascriptSandbox': {
     'zh-CN':
-      '使用 stagewise 内置 JavaScript 沙箱的最佳实践。说明如何访问浏览器调试/交互 API，使用外部依赖、文件系统访问、运行 mini-app 等。',
+      '使用 PickStar Studio 内置 JavaScript 沙箱的最佳实践。说明如何访问浏览器调试/交互 API，使用外部依赖、文件系统访问、运行 mini-app 等。',
     en:
-      'Best practices for using the stagewise built-in JavaScript sandbox. Explains how to access APIs for browser debugging/interaction, use external dependencies, file system access, running mini-apps, etc.',
+      'Best practices for using the PickStar Studio built-in JavaScript sandbox. Explains how to access APIs for browser debugging/interaction, use external dependencies, file system access, running mini-apps, etc.',
   },
   'chat.slash.description.plugin.miniApps': {
     'zh-CN':
@@ -179,9 +179,9 @@ export const chatDict: Dict = {
   },
   'chat.slash.description.plugin.remotion': {
     'zh-CN':
-      '使用 Remotion 创建或编辑视频。stagewise 与 Remotion 第一方技能，包含完整视频制作流程。',
+      '使用 Remotion 创建或编辑视频。PickStar Studio 与 Remotion 第一方技能，包含完整视频制作流程。',
     en:
-      'Create or edit video with Remotion. First-party stagewise + Remotion skill. Contains full video-making process.',
+      'Create or edit video with Remotion. First-party PickStar Studio + Remotion skill. Contains full video-making process.',
   },
   'chat.slash.description.plugin.supabase': {
     'zh-CN':
@@ -708,8 +708,8 @@ export const chatDict: Dict = {
   'chat.runtimeError.waitingForConnection': { 'zh-CN': '正在等待连接…', en: 'Waiting for connection...' },
   'chat.runtimeError.offlineDescription': { 'zh-CN': '你的设备似乎处于离线状态。网络恢复后代理会自动重试。', en: 'Your device appears to be offline. The agent will retry automatically once internet access is available again.' },
   'chat.runtimeError.lastNetworkError': { 'zh-CN': '最近的网络错误：{error}', en: 'Last network error: {error}' },
-  'chat.runtimeError.notLoggedInDescription': { 'zh-CN': '你尚未登录 stagewise，也没有配置其他 AI 模型访问方式。', en: 'You aren\'t signed in to stagewise, and you haven\'t configured any other method for AI model access.' },
-  'chat.runtimeError.logInToStagewise': { 'zh-CN': '登录 stagewise', en: 'Log in to stagewise' },
+  'chat.runtimeError.notLoggedInDescription': { 'zh-CN': '你尚未登录 PickStar Studio，也没有配置其他 AI 模型访问方式。', en: 'You aren\'t signed in to PickStar Studio, and you haven\'t configured any other method for AI model access.' },
+  'chat.runtimeError.logInToStagewise': { 'zh-CN': '登录 PickStar Studio', en: 'Log in to PickStar Studio' },
   'chat.runtimeError.reportPrefix': { 'zh-CN': '如果这个错误持续出现，你可以', en: 'If this error continues to occur, you can ' },
   'chat.runtimeError.reportLink': { 'zh-CN': '在 GitHub 上报告', en: 'report it on GitHub' },
   'chat.runtimeError.reportSuffix': { 'zh-CN': '。请附上错误消息和堆栈跟踪（如果有），帮助我们诊断问题。', en: '. Please include the error message and stack trace (if available) to help us diagnose the issue.' },

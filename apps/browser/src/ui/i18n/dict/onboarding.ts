@@ -13,13 +13,17 @@ export const onboardingDict: Dict = {
     'zh-CN': '完成',
     en: 'Finish',
   },
+  'onboarding.skipAuth': {
+    'zh-CN': '跳过，直接进入',
+    en: 'Skip and enter',
+  },
   'onboarding.welcome.line1': {
     'zh-CN': '欢迎使用开源 Agent IDE。',
     en: 'Welcome to the Open Source Agentic IDE.',
   },
   'onboarding.welcome.line2': {
-    'zh-CN': '欢迎使用 stagewise。',
-    en: 'Welcome to stagewise.',
+    'zh-CN': '欢迎使用 PickStar Studio。',
+    en: 'Welcome to PickStar Studio.',
   },
   'onboarding.auth.blocked': {
     'zh-CN': '请登录或至少提供一个提供商密钥',
@@ -32,14 +36,6 @@ export const onboardingDict: Dict = {
   'onboarding.auth.useDifferentEmail': {
     'zh-CN': '使用其他邮箱',
     en: 'Use a different email',
-  },
-  'onboarding.auth.telemetryFull': {
-    'zh-CN': '与 stagewise 共享可识别的聊天与使用数据。',
-    en: 'Share identifiable chat and usage data with stagewise.',
-  },
-  'onboarding.auth.telemetryHint': {
-    'zh-CN': '基础遥测默认开启，可在设置中调整。',
-    en: 'Basic telemetry is enabled by default and can be configured in settings.',
   },
   'onboarding.auth.title': {
     'zh-CN': '完成认证',
@@ -162,8 +158,8 @@ export const onboardingDict: Dict = {
     en: 'Plugins',
   },
   'onboarding.demo.plugins.subtitle': {
-    'zh-CN': '通过 Figma、GitHub 等插件把 stagewise 集成到你的技术栈中。',
-    en: 'Use plugins like Figma, GitHub and more to integrate stagewise into your stack.',
+    'zh-CN': '通过 Figma、GitHub 等插件把 PickStar Studio 集成到你的技术栈中。',
+    en: 'Use plugins like Figma, GitHub and more to integrate PickStar Studio into your stack.',
   },
   'auth.title': {
     'zh-CN': '完成认证',
@@ -242,8 +238,8 @@ export const onboardingDict: Dict = {
     en: 'We sent a code to {email}. Enter it below.',
   },
   'auth.socialHandoff': {
-    'zh-CN': '请在浏览器中完成 {provider} 登录后返回 stagewise。',
-    en: 'Please finish signing in with {provider} in your browser, then return to stagewise.',
+    'zh-CN': '请在浏览器中完成 {provider} 登录后返回 PickStar Studio。',
+    en: 'Please finish signing in with {provider} in your browser, then return to PickStar Studio.',
   },
   'auth.handoff.google': {
     'zh-CN': 'Google',

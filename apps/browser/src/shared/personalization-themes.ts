@@ -14,7 +14,7 @@ export const PERSONALIZATION_THEMES: PersonalizationTheme[] = [
   {
     id: 'default',
     name: 'Default',
-    description: 'Stagewise purple with warm neutrals.',
+    description: 'PickStar Studio purple with warm neutrals.',
     baseHue: 85,
     baseChromaScale: 1,
     primaryHue: 265,

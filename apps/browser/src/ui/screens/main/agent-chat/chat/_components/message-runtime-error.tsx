@@ -119,7 +119,7 @@ function localizeProviderErrorMessage(message: string): string {
     /configure your own api keys/i.test(message) ||
     /connect a coding plan/i.test(message)
   ) {
-    return '当前 Stagewise 帐号没有可用订阅或编程套餐，正在尝试自动切换其他帐号。';
+    return '当前 PickStar Studio 帐号没有可用订阅或编程套餐，正在尝试自动切换其他帐号。';
   }
   if (/missing or invalid session/i.test(message) || /invalid session/i.test(message)) {
     return '当前帐号会话已失效，正在尝试自动切换其他帐号。';

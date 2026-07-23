@@ -506,6 +506,9 @@ export class ModelProviderService {
       const remappedModelId =
         resolved.customEndpoint.modelIdMapping?.[modelSettings.modelId] ??
         defaultModelId;
+      const contextWindowSize =
+        resolved.customEndpoint.contextWindowSize ??
+        modelSettings.modelContextRaw;
       if (
         incompatibleSpecs.has(resolved.customEndpoint.apiSpec) &&
         remappedModelId === modelSettings.modelId
@@ -531,7 +534,7 @@ export class ModelProviderService {
             requestMetadata: otherPostHogProperties,
           }) as Record<string, unknown>,
           headers,
-          modelSettings.modelContextRaw,
+          contextWindowSize,
           posthogConfig,
         ),
         providerMode: 'custom',

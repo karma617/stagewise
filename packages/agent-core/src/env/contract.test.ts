@@ -162,6 +162,42 @@ describe('DomainAdapterRegistry.captureAll', () => {
     expect(logger.error).toHaveBeenCalledOnce();
   });
 
+  it('isolates a hanging adapter without blocking the batch', async () => {
+    vi.useFakeTimers();
+    try {
+      const logger = { error: vi.fn() } as { error: ReturnType<typeof vi.fn> };
+      const registry = new DomainAdapterRegistry(
+        logger as unknown as ConstructorParameters<
+          typeof DomainAdapterRegistry
+        >[0],
+      );
+      registry.register(
+        makeAdapter('healthy', 0, {
+          getState: () => 'h',
+          renderState: () => 'H',
+        }),
+      );
+      registry.register(
+        makeAdapter('hanging', 1, {
+          getState: () => new Promise(() => {}),
+          renderState: () => 'never',
+        }),
+      );
+
+      const pending = registry.captureAll({}, 'inst-timeout', [
+        'healthy',
+        'hanging',
+      ]);
+      await vi.advanceTimersByTimeAsync(8_000);
+
+      const result = await pending;
+      expect([...result.entries.keys()]).toEqual(['healthy']);
+      expect(logger.error).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('listSorted orders adapters by ascending renderOrder', () => {
     const registry = new DomainAdapterRegistry();
     registry.register(

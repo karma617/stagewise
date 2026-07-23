@@ -2309,3 +2309,224 @@
 ### Notes
 - packages/agent-shell/src/tools/execute-shell-command.ts：工具提示补充空命令轮询短快照说明。回滚：`git checkout -- packages/agent-shell/src/tools/execute-shell-command.ts`。
 - progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-21 - Task: PickStar Studio 品牌、包标识、主页、关于页与应用图标替换
+### What was done
+- 将浏览器应用展示名、窗口标题、打包基础名、Windows 元数据和包标识同步为 PickStar Studio / pickstar-studio / asia.pickstar。
+- 将主页同步为 https://pickstar.asia，并在关于页移除主页下方其他版本列表，新增项目说明。
+- 使用用户提供图片生成 dev、nightly、release 三套 PNG/ICO/ICNS 图标，并让前端 Logo 使用同一 PickStar 图标。
+- 清理剩余前端可见 Stagewise 品牌文案，保留 pnpm workspace name、内部协议、内部 provider mode 和 @stagewise 包名。
+### Testing
+- `pnpm exec biome check --formatter-enabled=false ...` 退出码 0，检查本轮涉及的 23 个源码/配置文件通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise package:fast` 退出码 0，生成 `apps/browser/out/dev/pickstar-studio-win32-x64/pickstar-studio.exe`。
+- 已读取打包 exe 元数据，确认 ProductName、FileDescription、CompanyName 均为 `PickStar Studio`，OriginalFilename/InternalName 为 `pickstar-studio.exe` / `pickstar-studio`。
+- `git diff --check` 退出码 0；仅输出 CRLF/LF 提示，无空白错误。
+### Notes
+改动文件清单：
+- `apps/browser/assets/icons/dev/icon-1024.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon-128.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon-16.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon-256.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon-32.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon-48.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon-512.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon-64.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon-96.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon.icns`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon.ico`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/dev/icon.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-1024.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-128.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-16.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-256.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-32.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-48.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-512.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-64.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon-96.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon.icns`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon.ico`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/nightly/icon.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-1024.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-128.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-16.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-256.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-32.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-48.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-512.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-64.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon-96.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon.icns`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon.ico`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/assets/icons/release/icon.png`：替换为 PickStar Studio 各尺寸打包图标。
+- `apps/browser/build-constants.ts`：统一应用展示名、基础包名、包标识与主页常量。
+- `apps/browser/etc/windows/windowsSign.ts`：同步 Windows 签名元数据主页。
+- `apps/browser/forge.config.mts`：同步打包名称、安装器标题、元数据、主页与修复配置文件 UTF-8 注释。
+- `apps/browser/package.json`：同步 productName、description、author 与 homepage，保留 workspace name。
+- `apps/browser/src/backend/agents/chat/prompts/environment-preamble.md`：同步运行环境提示中的应用名称和项目来源说明。
+- `apps/browser/src/backend/index.ts`：启动时使用统一应用名与包标识。
+- `apps/browser/src/shared/coding-plans.ts`：同步编码套餐兜底免责声明中的产品名。
+- `apps/browser/src/shared/credential-types/stagewise-auth.ts`：同步内置登录凭据的展示名与说明。
+- `apps/browser/src/shared/personalization-themes.ts`：同步默认主题描述中的产品名。
+- `apps/browser/src/ui/components/title-manager.tsx`：同步窗口标题。
+- `apps/browser/src/ui/components/ui/logo-with-text.tsx`：同步带文字 Logo 为 PickStar Studio。
+- `apps/browser/src/ui/components/ui/logo.tsx`：改为使用 PickStar Studio 图片图标。
+- `apps/browser/src/ui/i18n/dict/chat.ts`：同步聊天相关可见文案中的产品名。
+- `apps/browser/src/ui/i18n/dict/common.ts`：同步通用登录标题与按钮文案中的产品名。
+- `apps/browser/src/ui/i18n/dict/file-tree.ts`：同步文件预览相关可见文案中的产品名。
+- `apps/browser/src/ui/i18n/dict/onboarding.ts`：同步引导页可见文案中的产品名。
+- `apps/browser/src/ui/i18n/dict/settings.ts`：同步设置页产品名并新增关于页项目说明文案。
+- `apps/browser/src/ui/index.html`：同步 HTML 标题。
+- `apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx`：同步模型帐号错误提示中的产品名。
+- `apps/browser/src/ui/screens/main/content/_components/omnibox/index.tsx`：同步默认浏览器提示中的产品名。
+- `apps/browser/src/ui/screens/main/content/_components/omnibox/internal-page-breadcrumbs.tsx`：同步内部页面面包屑产品名。
+- `apps/browser/src/ui/screens/main/file-tree/file-preview-tab-content.tsx`：同步文件预览硬编码产品名并复用现有 i18n 文案。
+- `apps/browser/src/ui/screens/settings/sections/about-section.tsx`：关于页改为 PickStar Studio，移除其他版本列表并展示项目说明。
+- `apps/browser/src/ui/screens/settings/sections/agent-settings.worktree-setup.tsx`：同步 worktree 初始化脚本模板中的产品名。
+- `apps/browser/assets/pages/pickstar-icon.png`：新增渲染层使用的 PickStar Studio 图标。
+- `docs/pickstar-studio-branding.md`：新增 PickStar Studio 品牌和图标改动说明。
+回滚方式：执行 `git checkout -- apps/browser/build-constants.ts apps/browser/etc/windows/windowsSign.ts apps/browser/forge.config.mts apps/browser/package.json apps/browser/src/backend/agents/chat/prompts/environment-preamble.md apps/browser/src/backend/index.ts apps/browser/src/shared/coding-plans.ts apps/browser/src/shared/credential-types/stagewise-auth.ts apps/browser/src/shared/personalization-themes.ts apps/browser/src/ui/components/title-manager.tsx apps/browser/src/ui/components/ui/logo-with-text.tsx apps/browser/src/ui/components/ui/logo.tsx apps/browser/src/ui/i18n/dict/chat.ts apps/browser/src/ui/i18n/dict/common.ts apps/browser/src/ui/i18n/dict/file-tree.ts apps/browser/src/ui/i18n/dict/onboarding.ts apps/browser/src/ui/i18n/dict/settings.ts apps/browser/src/ui/index.html apps/browser/src/ui/screens/main/agent-chat/chat/_components/message-runtime-error.tsx apps/browser/src/ui/screens/main/content/_components/omnibox/index.tsx apps/browser/src/ui/screens/main/content/_components/omnibox/internal-page-breadcrumbs.tsx apps/browser/src/ui/screens/main/file-tree/file-preview-tab-content.tsx apps/browser/src/ui/screens/settings/sections/about-section.tsx apps/browser/src/ui/screens/settings/sections/agent-settings.worktree-setup.tsx`，再执行 `git checkout -- apps/browser/assets/icons/dev apps/browser/assets/icons/nightly apps/browser/assets/icons/release`，删除 `apps/browser/assets/pages/pickstar-icon.png` 与 `docs/pickstar-studio-branding.md`，最后按需删除 `apps/browser/out/dev/pickstar-studio-win32-x64` 后重新打包。
+- `progress.md`：追加本轮进度、验证与回滚记录。
+  回滚：删除本条 PickStar Studio 记录。
+
+## 2026-07-21 - Task: 认证页允许跳过进入主界面
+### What was done
+- 将 onboarding 认证步骤改为可跳过：用户未登录、未配置 API Key、未连接订阅时，右下角按钮显示“跳过，直接进入”。
+- 点击跳过会直接标记 onboarding 已完成，并以 `unknown` 认证方式进入主对话界面，不再强制停在登录页。
+- 同步补充中英文按钮文案和 PickStar Studio 品牌说明文档。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/ui/screens/onboarding/index.tsx apps/browser/src/ui/i18n/dict/onboarding.ts docs/pickstar-studio-branding.md` 退出码 0；Biome 当前配置只检查源码文件，docs markdown 被忽略。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/ui/screens/onboarding/index.tsx apps/browser/src/ui/i18n/dict/onboarding.ts docs/pickstar-studio-branding.md progress.md` 退出码 0；仅输出 CRLF/LF 提示，无空白错误。
+
+### Notes
+- apps/browser/src/ui/screens/onboarding/index.tsx：认证步骤未满足登录条件时，底部下一步按钮改为跳过并直接完成 onboarding。回滚：`git checkout -- apps/browser/src/ui/screens/onboarding/index.tsx`。
+- apps/browser/src/ui/i18n/dict/onboarding.ts：新增“跳过，直接进入”中英文文案。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/onboarding.ts`。
+- docs/pickstar-studio-branding.md：补充 onboarding 认证可跳过说明。回滚：`git checkout -- docs/pickstar-studio-branding.md` 或删除该文件中本轮小节。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-21 - Task: 移除 onboarding 共享用户内容复选框
+### What was done
+- 移除已登录认证页中的“共享可识别的聊天与使用数据”复选框和说明文案。
+- 删除对应的 onboarding telemetry 文案键和前端状态/更新逻辑，避免 onboarding 引导用户开启 full telemetry。
+- 同步更新 PickStar Studio 品牌说明文档，明确已登录 onboarding 只显示账号和切换邮箱入口。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/ui/screens/onboarding/steps/02-auth.tsx apps/browser/src/ui/i18n/dict/onboarding.ts docs/pickstar-studio-branding.md` 退出码 0；Biome 当前配置只检查源码文件，docs markdown 被忽略。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/ui/screens/onboarding/steps/02-auth.tsx apps/browser/src/ui/i18n/dict/onboarding.ts docs/pickstar-studio-branding.md progress.md` 退出码 0；仅输出 CRLF/LF 提示，无空白错误。
+
+### Notes
+- apps/browser/src/ui/screens/onboarding/steps/02-auth.tsx：移除共享用户内容复选框、telemetry 状态和 preferences 更新调用。回滚：`git checkout -- apps/browser/src/ui/screens/onboarding/steps/02-auth.tsx`。
+- apps/browser/src/ui/i18n/dict/onboarding.ts：删除 onboarding 共享用户内容相关文案键。回滚：`git checkout -- apps/browser/src/ui/i18n/dict/onboarding.ts`。
+- docs/pickstar-studio-branding.md：补充已登录 onboarding 不再展示共享用户内容复选框。回滚：`git checkout -- docs/pickstar-studio-branding.md` 或删除该文件中本轮新增句子。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-21 - Task: 修复正在准备上下文卡住
+### What was done
+- 给环境上下文采集增加单个适配器超时隔离，某个业务环境采集挂起时不再阻塞整轮上下文准备。
+- 给 `preparing-context` 阶段增加整体超时保护；完整上下文准备超时后自动记录运行轨迹，并用精简上下文重试，跳过环境快照、路径引用、文件内容注入和技能列表等可选增强，继续推进到模型请求。
+- 补充运行可观测性文档，说明上下文准备降级和新增 trace 事件，便于后续排查同类卡住问题。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/env/contract.ts packages/agent-core/src/env/contract.test.ts docs/agent-runtime-visibility.md` 退出码 0；Biome 检查源码通过，markdown 被当前配置忽略。
+- `pnpm -F @stagewise/agent-core test -- contract` 退出码 0；`src/env/contract.test.ts` 17 个测试通过。
+- `pnpm -F @stagewise/agent-core exec tsc -p tsconfig.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit` 退出码 0。
+- `git diff --check -- packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/env/contract.ts packages/agent-core/src/env/contract.test.ts docs/agent-runtime-visibility.md progress.md` 退出码 0；仅输出 CRLF/LF 提示，无空白错误。
+
+### Notes
+- packages/agent-core/src/agents/base-agent.ts：为上下文准备增加完整超时、精简上下文重试和 `context-preparation-timeout`、`context-env-capture-skipped`、`context-path-references-skipped` 运行轨迹。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/env/contract.ts：为单个 domain adapter 状态采集增加 8 秒超时隔离。回滚：`git checkout -- packages/agent-core/src/env/contract.ts`。
+- packages/agent-core/src/env/contract.test.ts：新增挂起 adapter 不阻塞健康 adapter 的回归测试。回滚：`git checkout -- packages/agent-core/src/env/contract.test.ts`。
+- docs/agent-runtime-visibility.md：补充 `preparing-context` 阶段降级策略和新增 trace 事件说明。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-22 - Task: 融合授权安全评估核心提示词
+### What was done
+- 在浏览器宿主主聊天 `soul.md` 中新增 Authorized Security Assessment Mode，合入用户提供的授权安全评估、OSINT、复现、高风险步骤标注和目标范围处理要求。
+- 在 agent-core 默认主聊天 `soul.md` 中同步新增相同提示词内容，避免宿主未覆盖时回退到旧默认提示。
+- 为浏览器宿主 `soul.md` 增加回归测试，确认授权安全评估段落、OSINT 文案、风险等级和紧急回滚建议要求存在。
+- 同步更新 `docs/unrestricted-technical-prompts.md`，记录主聊天系统提示词的新增行为范围。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/chat/prompts/soul.test.ts apps/browser/src/backend/agents/chat/prompts/soul.md packages/agent-core/src/agents/chat/prompts/soul.md docs/unrestricted-technical-prompts.md` 退出码 0；Biome 检查源码通过，markdown 被当前配置忽略。
+- `pnpm -F stagewise test -- soul` 退出码 0；`src/backend/agents/chat/prompts/soul.test.ts` 2 个测试通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F @stagewise/agent-core exec tsc -p tsconfig.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/chat/prompts/soul.md packages/agent-core/src/agents/chat/prompts/soul.md docs/unrestricted-technical-prompts.md apps/browser/src/backend/agents/chat/prompts/soul.test.ts progress.md` 退出码 0；仅输出 CRLF/LF 提示，无空白错误。
+
+### Notes
+- apps/browser/src/backend/agents/chat/prompts/soul.md：新增浏览器宿主主聊天授权安全评估模式段落。回滚：`git checkout -- apps/browser/src/backend/agents/chat/prompts/soul.md`。
+- packages/agent-core/src/agents/chat/prompts/soul.md：同步新增 agent-core 默认主聊天授权安全评估模式段落。回滚：`git checkout -- packages/agent-core/src/agents/chat/prompts/soul.md`。
+- apps/browser/src/backend/agents/chat/prompts/soul.test.ts：新增授权安全评估提示词存在性测试。回滚：`git checkout -- apps/browser/src/backend/agents/chat/prompts/soul.test.ts`。
+- docs/unrestricted-technical-prompts.md：记录新增授权安全评估提示词范围。回滚：`git checkout -- docs/unrestricted-technical-prompts.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-22 - Task: 融入 Codex 外层最终汇报规范
+### What was done
+- 将“业务结论、原因、风险、下一步、已验证通过、本轮改动文件”的 Codex 外层汇报规范翻译成英文，并合入浏览器宿主主聊天 `soul.md`。
+- 在 agent-core 默认主聊天 `soul.md` 同步新增相同的最终任务汇报格式，保证宿主覆盖和默认回退路径一致。
+- 更新浏览器宿主 `soul.md` 测试，覆盖始终中文回复、授权安全评估提示词和 business-first final task report format。
+- 同步更新提示词说明文档，记录最终汇报格式和当前“始终中文回复”的实际规则。
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/backend/agents/chat/prompts/soul.test.ts apps/browser/src/backend/agents/chat/prompts/soul.md packages/agent-core/src/agents/chat/prompts/soul.md docs/unrestricted-technical-prompts.md` 退出码 0；Biome 检查源码通过，markdown 被当前配置忽略。
+- `pnpm -F stagewise test -- soul` 退出码 0；`src/backend/agents/chat/prompts/soul.test.ts` 3 个测试通过。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `pnpm -F @stagewise/agent-core exec tsc -p tsconfig.json --noEmit` 退出码 0。
+- `git diff --check -- apps/browser/src/backend/agents/chat/prompts/soul.md packages/agent-core/src/agents/chat/prompts/soul.md apps/browser/src/backend/agents/chat/prompts/soul.test.ts docs/unrestricted-technical-prompts.md progress.md` 退出码 0；仅输出 CRLF/LF 提示，无空白错误。
+
+### Notes
+- apps/browser/src/backend/agents/chat/prompts/soul.md：新增英文最终任务汇报格式，并要求中文响应使用“业务结论、原因、风险、下一步、已验证通过、本轮改动文件”标题。回滚：`git checkout -- apps/browser/src/backend/agents/chat/prompts/soul.md`。
+- packages/agent-core/src/agents/chat/prompts/soul.md：同步新增 agent-core 默认最终任务汇报格式。回滚：`git checkout -- packages/agent-core/src/agents/chat/prompts/soul.md`。
+- apps/browser/src/backend/agents/chat/prompts/soul.test.ts：更新旧语言断言并新增最终汇报格式存在性测试。回滚：`git checkout -- apps/browser/src/backend/agents/chat/prompts/soul.test.ts`。
+- docs/unrestricted-technical-prompts.md：记录最终汇报格式，并同步当前始终中文回复规则。回滚：`git checkout -- docs/unrestricted-technical-prompts.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-22 - Task: 放宽高上下文高推理请求的静默流 watchdog
+### What was done
+- 排查用户截图中的 `LLM stream stalled`：日志显示第一轮模型请求正常完成并发起 3 个工具调用，第二轮 `https://subapi.pickstar.asia/v1/responses` 请求在 120 秒内没有任何响应事件，随后被本地 step activity watchdog 主动中止；同期还有 `fetch failed` 和订阅查询超时，说明网络/代理/上游卡住概率较高。
+- 将模型流静默 watchdog 从固定 120 秒改为动态阈值：基础仍为 120 秒，但大上下文、高 reasoning、自定义 provider、显式请求超时会自动增加等待时间，避免 GPT-5.5 High + 30 万以上上下文时被过早误杀。
+- 新增 `step-activity-timeout` runtime trace，并在 `stream-request-start` 中记录 `activityTimeoutMs`、`estimatedTokens`、`contextWindowTokens`，后续能直接判断实际阈值和触发原因。
+- 错误文案从固定 “120 seconds” 改为按实际 watchdog 阈值输出。
+- 同步运行可观测性文档和回归测试。截图场景对应的 322k tokens + custom provider + high reasoning 会将静默阈值放宽到 360 秒。
+
+### Testing
+- `pnpm -F @stagewise/agent-core test -- goal-continuation` 退出码 0；`src/agents/chat/goal-continuation.test.ts` 13 个测试通过。
+- `pnpm exec biome check --formatter-enabled=false packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts docs/agent-runtime-visibility.md` 退出码 0；Biome 检查源码通过，markdown 被当前配置忽略。
+- `pnpm -F @stagewise/agent-core exec tsc -p tsconfig.json --noEmit` 退出码 0。
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit` 退出码 0。
+- `git diff --check -- packages/agent-core/src/agents/base-agent.ts packages/agent-core/src/agents/chat/goal-continuation.test.ts docs/agent-runtime-visibility.md progress.md` 退出码 0；仅输出 CRLF/LF 提示，无空白错误。
+
+### Notes
+- packages/agent-core/src/agents/base-agent.ts：新增动态 step activity watchdog 阈值、实际秒数错误文案、`step-activity-timeout` trace 和 `stream-request-start` 阈值字段。回滚：`git checkout -- packages/agent-core/src/agents/base-agent.ts`。
+- packages/agent-core/src/agents/chat/goal-continuation.test.ts：补充 HostPaths mock，并新增大上下文 high reasoning custom provider 阈值回归测试。回滚：`git checkout -- packages/agent-core/src/agents/chat/goal-continuation.test.ts`。
+- docs/agent-runtime-visibility.md：记录动态 watchdog、`activityTimeoutMs` 和 `step-activity-timeout` 排查方式。回滚：`git checkout -- docs/agent-runtime-visibility.md`。
+- progress.md：追加本轮记录。回滚：删除本条记录。
+
+## 2026-07-23 - Task: add custom provider max context setting
+### What was done
+- Added an optional model max context field to the custom provider configuration dialog.
+- Persisted the value on custom endpoints and used it when built-in models are routed through that custom provider, so compression and context preflight use the configured window instead of the built-in default.
+- Added a regression test and updated the context-compression documentation to describe the custom provider override.
+
+### Testing
+- `pnpm exec biome check --formatter-enabled=false apps/browser/src/ui/screens/settings/sections/custom-providers-section.tsx apps/browser/src/ui/i18n/dict/settings.ts apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/model-provider.test.ts docs/agent-context-compression.md`
+- `pnpm -F stagewise test -- model-provider`
+- `pnpm -F stagewise exec tsc -p tsconfig.backend.json --noEmit`
+- `pnpm -F stagewise exec tsc -p tsconfig.ui.json --noEmit`
+
+### Notes
+- `apps/browser/src/shared/karton-contracts/ui/shared-types.ts`: added optional `contextWindowSize` to custom endpoint schema.
+- `apps/browser/src/ui/screens/settings/sections/custom-providers-section.tsx`: added the dialog input, validation, dirty-state tracking, and save persistence for the endpoint context window.
+- `apps/browser/src/ui/i18n/dict/settings.ts`: added Chinese and English labels, description, and validation copy for the new field.
+- `apps/browser/src/backend/agents/model-provider.ts`: custom-routed built-in models now use the endpoint context override when present.
+- `apps/browser/src/backend/agents/model-provider.test.ts`: added coverage proving a custom endpoint context override reaches `ModelWithOptions.contextWindowSize`.
+- `docs/agent-context-compression.md`: documented that the custom provider context setting controls context accounting and automatic compression triggers.
+- Rollback: restore the five task-only files with `git restore -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/ui/screens/settings/sections/custom-providers-section.tsx apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/model-provider.test.ts docs/agent-context-compression.md`; in `apps/browser/src/ui/i18n/dict/settings.ts`, remove only the four `settings.customProviders.dialog.contextWindow*` entries to avoid discarding earlier unrelated branding edits already present in that file.
+- Additional validation: `git diff --check -- apps/browser/src/shared/karton-contracts/ui/shared-types.ts apps/browser/src/ui/screens/settings/sections/custom-providers-section.tsx apps/browser/src/ui/i18n/dict/settings.ts apps/browser/src/backend/agents/model-provider.ts apps/browser/src/backend/agents/model-provider.test.ts docs/agent-context-compression.md progress.md` exited 0; output only CRLF/LF normalization warnings.

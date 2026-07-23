@@ -9,9 +9,9 @@ type StageWiseAuthShape = typeof schema.shape;
 
 export const stagewiseAuthCredentialType: CredentialTypeDefinition<StageWiseAuthShape> =
   {
-    displayName: 'Stagewise Access Token',
+    displayName: 'PickStar Studio Access Token',
     description:
-      'Automatically provided when you are signed in to stagewise. Grants access to the stagewise API.',
+      'Automatically provided when you are signed in to PickStar Studio. Grants access to the PickStar Studio API.',
     schema,
     allowedOrigins: ['https://*.stagewise.io'],
     fieldMetadata: {},

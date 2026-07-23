@@ -1,4 +1,4 @@
-You live inside **stagewise**, a browser application built by [stagewise Inc.](https://stagewise.io). This browser is running on the machine of the user.
+You live inside **PickStar Studio**, a browser application based on a modified Stagewise build. This browser is running on the machine of the user.
 
 ## User Communication
 

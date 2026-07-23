@@ -60,6 +60,7 @@ type EndpointSaveData = {
   baseUrl: string;
   apiKey: string;
   modelIdMapping?: Record<string, string>;
+  contextWindowSize?: number;
   resourceName?: string;
   apiVersion?: string;
   region?: string;
@@ -622,6 +623,9 @@ function CustomEndpointDialog({
   );
   const [baseUrl, setBaseUrl] = useState(endpoint?.baseUrl ?? '');
   const [apiKey, setApiKey] = useState('');
+  const [contextWindowSize, setContextWindowSize] = useState(
+    endpoint?.contextWindowSize ? String(endpoint.contextWindowSize) : '',
+  );
   const [modelIdMappingJson, setModelIdMappingJson] = useState(
     endpoint?.modelIdMapping && Object.keys(endpoint.modelIdMapping).length > 0
       ? JSON.stringify(endpoint.modelIdMapping, null, 2)
@@ -752,6 +756,9 @@ function CustomEndpointDialog({
     setApiSpec(endpoint?.apiSpec ?? 'openai-chat-completions');
     setBaseUrl(endpoint?.baseUrl ?? '');
     setApiKey('');
+    setContextWindowSize(
+      endpoint?.contextWindowSize ? String(endpoint.contextWindowSize) : '',
+    );
     setModelIdMappingJson(
       endpoint?.modelIdMapping &&
         Object.keys(endpoint.modelIdMapping).length > 0
@@ -790,9 +797,23 @@ function CustomEndpointDialog({
     apiSpec === 'amazon-bedrock' &&
     awsAuthMode === 'profile' &&
     awsProfileName.trim().length === 0;
+  const initialContextWindowSize = endpoint?.contextWindowSize
+    ? String(endpoint.contextWindowSize)
+    : '';
+  const trimmedContextWindowSize = contextWindowSize.trim();
+  const parsedContextWindowSize = Number(trimmedContextWindowSize);
+  const contextWindowError =
+    trimmedContextWindowSize.length > 0 &&
+    (!Number.isInteger(parsedContextWindowSize) ||
+      parsedContextWindowSize <= 0)
+      ? t('settings.customProviders.dialog.invalidContextWindow')
+      : null;
 
   const canSave =
-    name.trim().length > 0 && !mappingError && !bedrockProfileInvalid;
+    name.trim().length > 0 &&
+    !mappingError &&
+    !contextWindowError &&
+    !bedrockProfileInvalid;
 
   // "Touched" = the user changed anything from the initial field values.
   // Derived from current state so we don't need per-input bookkeeping.
@@ -803,6 +824,7 @@ function CustomEndpointDialog({
     apiSpec !== (endpoint?.apiSpec ?? 'openai-chat-completions') ||
     baseUrl !== (endpoint?.baseUrl ?? '') ||
     apiKey !== '' ||
+    contextWindowSize !== initialContextWindowSize ||
     modelIdMappingJson !==
       (endpoint?.modelIdMapping &&
       Object.keys(endpoint.modelIdMapping).length > 0
@@ -822,8 +844,9 @@ function CustomEndpointDialog({
   // `name` field at initial state means "not filled in yet", not
   // "validation failed". `had_validation_errors` should only be true when
   // the user entered input that triggered a concrete validation rule
-  // (currently: invalid JSON in the model-id mapping).
-  const hadValidationErrors = mappingError !== null;
+  // (currently: invalid JSON in the model-id mapping or invalid context size).
+  const hadValidationErrors =
+    mappingError !== null || contextWindowError !== null;
 
   /**
    * Build the provider-URL-related telemetry properties for the current
@@ -943,6 +966,29 @@ function CustomEndpointDialog({
             bedrockDetectedRegion={bedrockDetectedRegion}
           />
 
+          <div className="space-y-1.5">
+            <p className="font-medium text-foreground text-xs">
+              {t('settings.customProviders.dialog.contextWindow')}{' '}
+              <span className="font-normal text-muted-foreground">
+                {t('settings.customProviders.dialog.contextWindowOptional')}
+              </span>
+            </p>
+            <Input
+              placeholder="1000000"
+              value={contextWindowSize}
+              onValueChange={setContextWindowSize}
+              size="sm"
+            />
+            <p className="text-muted-foreground text-xs">
+              {t('settings.customProviders.dialog.contextWindowDescription')}
+            </p>
+            {contextWindowError && (
+              <p className="text-error-foreground text-xs">
+                {contextWindowError}
+              </p>
+            )}
+          </div>
+
           <div className="space-y-1.5 border-derived border-t pt-3">
             <div className="flex items-center justify-between gap-2">
               <p className="font-medium text-foreground text-xs">
@@ -1036,6 +1082,9 @@ function CustomEndpointDialog({
                 baseUrl,
                 apiKey,
                 modelIdMapping,
+                contextWindowSize: trimmedContextWindowSize
+                  ? parsedContextWindowSize
+                  : undefined,
                 resourceName: resourceName || undefined,
                 apiVersion: apiVersion || undefined,
                 region: region || undefined,
@@ -1180,6 +1229,7 @@ function CustomEndpointsSection() {
           ep.apiSpec = data.apiSpec;
           ep.baseUrl = data.baseUrl;
           ep.modelIdMapping = data.modelIdMapping;
+          ep.contextWindowSize = data.contextWindowSize;
           ep.resourceName = data.resourceName;
           ep.apiVersion = data.apiVersion;
           ep.region = data.region;
@@ -1217,6 +1267,7 @@ function CustomEndpointsSection() {
             apiSpec: data.apiSpec,
             baseUrl: data.baseUrl,
             modelIdMapping: data.modelIdMapping,
+            contextWindowSize: data.contextWindowSize,
             resourceName: data.resourceName,
             apiVersion: data.apiVersion,
             region: data.region,

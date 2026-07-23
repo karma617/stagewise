@@ -142,7 +142,7 @@ export function InternalPageBreadcrumbs({ url }: InternalPageBreadcrumbsProps) {
       <div className="flex h-6 shrink-0 items-center justify-center gap-1 rounded-full bg-primary-solid/10 px-2 py-0.5">
         <Logo className="size-3 text-primary-foreground" color="current" />
         <span className="font-medium text-primary-foreground text-xs">
-          stagewise
+          PickStar Studio
         </span>
       </div>
       {breadcrumbSegments.length > 0 ? (

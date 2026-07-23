@@ -26,48 +26,12 @@ const packageJson = JSON.parse(
   readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'),
 );
 
-export const __APP_BASE_NAME__ = (() => {
-  switch (__APP_RELEASE_CHANNEL__) {
-    case 'release':
-      return 'stagewise';
-    case 'nightly':
-      return 'stagewise-nightly';
-    case 'prerelease':
-      return 'stagewise-prerelease';
-    case 'dev':
-    default:
-      return 'stagewise-dev';
-  }
-})();
+export const __APP_BASE_NAME__ = 'pickstar-studio';
 
 // App name includes channel suffix for differentiation
-export const __APP_NAME__ = (() => {
-  switch (__APP_RELEASE_CHANNEL__) {
-    case 'release':
-      return 'stagewise';
-    case 'nightly':
-      return 'stagewise Nightly';
-    case 'prerelease':
-      return 'stagewise (Pre-Release)';
-    case 'dev':
-    default:
-      return 'stagewise (Dev-Build)';
-  }
-})();
+export const __APP_NAME__ = 'PickStar Studio';
 
-export const __APP_BUNDLE_ID__ = (() => {
-  switch (__APP_RELEASE_CHANNEL__) {
-    case 'release':
-      return 'io.stagewise.app';
-    case 'nightly':
-      return 'io.stagewise.nightly';
-    case 'prerelease':
-      return 'io.stagewise.prerelease';
-    case 'dev':
-    default:
-      return 'io.stagewise.dev';
-  }
-})();
+export const __APP_BUNDLE_ID__ = 'asia.pickstar';
 
 export const __APP_VERSION__ = (() => {
   const override = process.env.APP_VERSION_OVERRIDE;
@@ -96,7 +60,7 @@ export const __APP_AUTHOR__ = (() => {
   ) {
     return author.name;
   }
-  return 'GENERIC_AUTHOR';
+  return 'PickStar Studio';
 })();
 
 const readCliOption = (name: string) => {
@@ -128,5 +92,5 @@ export const __APP_HOMEPAGE__ = (() => {
   if (typeof homepage === 'string' && homepage.trim()) {
     return homepage;
   }
-  return 'https://stagewise.io';
+  return 'https://pickstar.asia';
 })();

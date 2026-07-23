@@ -18,6 +18,8 @@
 import { z } from 'zod';
 import type { Logger } from '../host/logger';
 
+const DOMAIN_ADAPTER_CAPTURE_TIMEOUT_MS = 8_000;
+
 /** Host-defined domain identifier (core does not enumerate domains). */
 export type DomainId = string;
 
@@ -151,7 +153,11 @@ export class DomainAdapterRegistry {
     const results = await Promise.all(
       adapters.map(async (adapter) => {
         try {
-          const curr = await adapter.getState(agentInstanceId);
+          const curr = await withTimeout(
+            adapter.getState(agentInstanceId),
+            DOMAIN_ADAPTER_CAPTURE_TIMEOUT_MS,
+            `adapter '${adapter.domainId}' capture timed out after ${DOMAIN_ADAPTER_CAPTURE_TIMEOUT_MS}ms`,
+          );
           const previousRaw = prev[adapter.domainId];
           const hasPrev = previousRaw !== undefined;
           const previous = hasPrev ? previousRaw : null;
@@ -190,6 +196,27 @@ export class DomainAdapterRegistry {
     }
     return { entries };
   }
+}
+
+function withTimeout<T>(
+  value: T | Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    timer.unref?.();
+    Promise.resolve(value).then(
+      (result) => {
+        clearTimeout(timer);
+        resolve(result);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 function defaultOrAdapterEquals<TState>(

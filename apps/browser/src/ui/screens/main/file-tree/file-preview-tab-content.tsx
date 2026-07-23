@@ -668,7 +668,6 @@ function ToolbarTooltip({
   shortcut?: HotkeyActions;
   children: ReactElement;
 }) {
-  const { t } = useI18n();
   return (
     <Tooltip>
       <TooltipTrigger>{children}</TooltipTrigger>
@@ -935,8 +934,11 @@ function FileMoveBanner({
       <div className="flex min-w-0 items-center gap-1.5">
         <TriangleAlertIcon className="size-3.5 shrink-0" />
         <span className="truncate">
-          File moved from {fromPath} to {toPath}. Future edits will apply to the
-          new location.
+          {t('fileTree.fileMovedFrom')}
+          {fromPath}
+          {t('fileTree.fileMovedTo')}
+          {toPath}
+          {t('fileTree.fileMovedTail')}
         </span>
       </div>
       <Button
@@ -970,7 +972,7 @@ function FileDeletedBanner({
       <div className="flex min-w-0 items-center gap-1.5">
         <TriangleAlertIcon className="size-3.5 shrink-0" />
         <span className="truncate">
-          This file was deleted outside of stagewise.
+          {t('fileTree.fileDeletedOutside')}
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-1">
@@ -980,7 +982,9 @@ function FileDeletedBanner({
           onClick={onRecreate}
           disabled={isRecreating}
         >
-          {isRecreating ? 'Recreating…' : 'Re-create and save'}
+          {isRecreating
+            ? t('fileTree.recreating')
+            : t('fileTree.recreateAndSave')}
         </Button>
         <Button
           variant="destructive"
@@ -988,7 +992,7 @@ function FileDeletedBanner({
           onClick={onClose}
           disabled={isRecreating}
         >
-          Close
+          {t('common.close')}
         </Button>
       </div>
     </div>
@@ -1492,7 +1496,6 @@ function TextEditorPreview({
   preview: FilePreviewResult;
   tabId: string;
 }) {
-  const { t } = useI18n();
   const cacheKey = getPreviewCacheKey(
     preview.workspaceKey,
     preview.relativePath,
@@ -2682,14 +2685,16 @@ function BinaryPreview({
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-6 text-muted-foreground">
           <span className="font-normal text-muted-foreground text-sm">
-            Can't display this file inside stagewise
+            {t('fileTree.cantDisplayFile')}
           </span>
           <Button
             variant="secondary"
             size="sm"
             onClick={() => revealInFolder(workspaceKey, relativePath)}
           >
-            Reveal in {nativeFileManagerLabel}
+            {t('fileTree.revealInPrefix')}
+            {nativeFileManagerLabel}
+            {t('fileTree.revealInSuffix')}
           </Button>
         </div>
       </div>
@@ -2721,11 +2726,10 @@ function MissingFileNotice() {
         <div className="flex max-w-sm flex-col items-center gap-3 text-center text-muted-foreground">
           <IconDatabaseFillDuo18 className="size-12" />
           <span className="font-medium text-foreground text-sm">
-            This file is no longer available
+            {t('fileTree.fileNoLongerAvailable')}
           </span>
           <span className="text-xs">
-            It may have been deleted, moved, or removed together with the agent
-            it belonged to. The contents can no longer be loaded.
+            {t('fileTree.fileNoLongerAvailableDetail')}
           </span>
         </div>
       </div>

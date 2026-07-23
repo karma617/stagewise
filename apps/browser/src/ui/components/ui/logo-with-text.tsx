@@ -1,16 +1,13 @@
 import type { FC, HTMLAttributes } from 'react';
 import { cn } from '@ui/utils';
-import { Logo } from '@stagewise/stage-ui/components/logo';
-import { LogoText } from '@stagewise/stage-ui/components/logo-text';
+import { Logo } from '@ui/components/ui/logo';
 
 export interface LogoWithTextProps extends HTMLAttributes<HTMLDivElement> {
   textClassName?: string;
 }
 
 /**
- * stagewise logo with text.
- * Combines the Logo SVG component with the LogoText SVG component.
- * The colors use design system defaults (primary for logo, foreground for text).
+ * PickStar Studio logo with text.
  */
 export const LogoWithText: FC<LogoWithTextProps> = ({
   className,
@@ -20,7 +17,9 @@ export const LogoWithText: FC<LogoWithTextProps> = ({
   return (
     <div className={cn('flex h-10 items-center gap-2', className)} {...props}>
       <Logo className="h-full w-auto" />
-      <LogoText className={cn('h-[60%] w-auto fill-current', textClassName)} />
+      <span className={cn('font-semibold text-foreground text-lg', textClassName)}>
+        PickStar Studio
+      </span>
     </div>
   );
 };

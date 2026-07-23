@@ -49,7 +49,7 @@ const SETUP_SCRIPT_TEMPLATES: Record<WorktreeSetupScriptVariant, string> = {
   posix: `#!/bin/sh
 set -e
 
-# Runs after stagewise creates and mounts a new Git worktree.
+# Runs after PickStar Studio creates and mounts a new Git worktree.
 # CWD is the new worktree.
 
 # Example:
@@ -57,7 +57,7 @@ set -e
 `,
   powershell: `$ErrorActionPreference = 'Stop'
 
-# Runs after stagewise creates and mounts a new Git worktree.
+# Runs after PickStar Studio creates and mounts a new Git worktree.
 # CWD is the new worktree.
 
 # Example:

@@ -61,6 +61,8 @@ export function OnboardingWizard() {
     setCurrentStep((prev) => Math.min(stepIds.length - 1, prev + 1));
   }, []);
 
+  const shouldSkipAuth = isAuthStep && !canProceed;
+
   const complete = useCallback(() => {
     setHasSeenOnboardingFlow({
       value: true,
@@ -148,18 +150,22 @@ export function OnboardingWizard() {
               </Button>
             </NextButtonTooltip>
           ) : (
-            <NextButtonTooltip blockReason={blockReason}>
+            <NextButtonTooltip
+              blockReason={shouldSkipAuth ? null : blockReason}
+            >
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={goNext}
-                disabled={!canProceed}
+                onClick={shouldSkipAuth ? complete : goNext}
+                disabled={!canProceed && !shouldSkipAuth}
                 className={cn(
-                  canProceed &&
+                  (canProceed || shouldSkipAuth) &&
                     'text-primary-foreground! hover:text-hover-derived! active:text-active-derived!',
                 )}
               >
-                {t('onboarding.next')}
+                {shouldSkipAuth
+                  ? t('onboarding.skipAuth')
+                  : t('onboarding.next')}
                 <IconArrowRightFill18 className="size-4" />
               </Button>
             </NextButtonTooltip>

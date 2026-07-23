@@ -9,7 +9,7 @@ export function TitleManager() {
   useEffect(() => {
     if (authStatus === 'unauthenticated')
       document.title = t('common.signInTitle');
-    else document.title = 'stagewise';
+    else document.title = 'PickStar Studio';
   }, [authStatus]);
 
   return null;

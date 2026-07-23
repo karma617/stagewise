@@ -65,8 +65,8 @@ export const commonDict: Dict = {
     en: 'Click to see full file',
   },
   'common.signInTitle': {
-    'zh-CN': '登录 | stagewise',
-    en: 'Sign in | stagewise',
+    'zh-CN': '登录 | PickStar Studio',
+    en: 'Sign in | PickStar Studio',
   },
   'common.light': { 'zh-CN': '浅色', en: 'Light' },
   'common.dark': { 'zh-CN': '深色', en: 'Dark' },
@@ -170,8 +170,8 @@ export const commonDict: Dict = {
   },
   'common.upgradePlan': { 'zh-CN': '升级套餐', en: 'Upgrade plan' },
   'common.logInToStagewise': {
-    'zh-CN': '登录 stagewise',
-    en: 'Log in to stagewise',
+    'zh-CN': '登录 PickStar Studio',
+    en: 'Log in to PickStar Studio',
   },
   'common.reportItOnGithub': {
     'zh-CN': '在 GitHub 上报告',

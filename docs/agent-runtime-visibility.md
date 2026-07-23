@@ -18,7 +18,14 @@ Current phases:
 
 ## Watchdog behavior
 
-The step activity watchdog starts when the runtime enters `waiting-for-model`, not during context generation or compression. This covers stalls while the model request is open and while the stream is consuming output, without treating long compression work as a stream stall.
+The step activity watchdog starts when the runtime enters `waiting-for-model`, not during context generation or compression. This covers stalls while the model request is open and while the stream is consuming output, without treating long compression work as a stream stall. The base timeout is 120 seconds, but the runtime extends it for large contexts, high-reasoning requests, custom providers, and explicit model request timeouts so long first-token latency is not mistaken for a dead stream.
+
+Context generation has its own guardrails. Individual environment-domain
+adapters are omitted if their state capture does not finish quickly, and the
+overall context preparation phase falls back to a lean context if optional
+environment snapshots, file hashing, file-content injection, or skill loading
+take too long. The fallback is designed to move the step forward instead of
+leaving the UI indefinitely on `preparing-context`.
 
 Tool execution counts as runtime activity. While a tool is running, the runtime
 emits a lightweight internal heartbeat so long-running shell commands or other
@@ -55,9 +62,13 @@ The runtime trace records request lifecycle milestones without storing full prom
 
 - `step-start`, `model-resolved`, `context-ready`, and `tools-ready`
 - `stream-request-start`, `stream-finish`, `stream-error`, and `stream-abort`
+- `step-activity-timeout` when the silent-stream watchdog aborts a request
 - `context-preflight-compression`, `compression-start`, `compression-boundary-selected`, `compression-finish`, and `compression-error`
 - `compression-emergency-fallback` when forced context recovery stores a local
   compact summary because the LLM compression model timed out or aborted
+- `context-preparation-timeout`, `context-env-capture-skipped`, and
+  `context-path-references-skipped` when context preparation degrades to lean
+  context after optional context enrichment stalls
 
 The LLM network wrapper logs request summaries to `stagewise-backend.log` with a per-request id, method, URL origin/path, proxy mode, status code, and elapsed time. It intentionally does not persist authorization headers, cookies, API keys, or full request bodies.
 
@@ -65,4 +76,4 @@ OpenAI Responses requests do not replay stored reasoning item signatures, becaus
 
 Shell command polling is intentionally short for empty-command follow-ups: a poll without explicit `wait_until` now returns after about two seconds when no new output arrives, and raw stdin follow-ups use about three seconds. Longer waits still require explicit `wait_until` on the tool call.
 
-When a chat appears stuck, first filter `agent-runtime-YYYY-MM-DD.jsonl` by the latest `agentId` or `traceId`. If the last event is `stream-request-start`, compare the timestamp with the matching `[llm-network] request start` / `request response` / `request error` lines in `stagewise-backend.log`. If the last event is `compression-start`, inspect the following compression events to determine whether context compression is still running, completed, or failed.
+When a chat appears stuck, first filter `agent-runtime-YYYY-MM-DD.jsonl` by the latest `agentId` or `traceId`. If the last event is `stream-request-start`, compare its `activityTimeoutMs` with the matching `[llm-network] request start` / `request response` / `request error` lines in `stagewise-backend.log`. If the next event is `step-activity-timeout`, the local watchdog aborted a request that produced no model output or lifecycle event before that threshold. If the last event is `compression-start`, inspect the following compression events to determine whether context compression is still running, completed, or failed.
