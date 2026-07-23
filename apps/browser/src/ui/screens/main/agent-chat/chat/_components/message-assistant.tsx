@@ -515,7 +515,7 @@ function AssistantUsageSummaryLine({
     summary.inputTokens > 0
       ? (summary.cachedInputTokens / summary.inputTokens) * 100
       : 0;
-  const preflightLimitTokens = Math.floor(summary.contextWindowTokens * 0.85);
+  const preflightLimitTokens = Math.floor(summary.contextWindowTokens * 0.75);
   const preflightPercent =
     summary.contextWindowTokens > 0
       ? (preflightLimitTokens / summary.contextWindowTokens) * 100

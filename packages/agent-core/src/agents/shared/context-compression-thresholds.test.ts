@@ -6,7 +6,7 @@ import {
 
 describe('context compression thresholds', () => {
   it('scales preflight compression with large context windows', () => {
-    expect(getContextPreflightCompressionLimit(1_000_000)).toBe(850_000);
+    expect(getContextPreflightCompressionLimit(1_000_000)).toBe(750_000);
   });
 
   it('scales post-step compression with large context windows', () => {

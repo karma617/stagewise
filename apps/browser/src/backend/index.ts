@@ -132,12 +132,9 @@ app.on('ready', async () => {
   startupProfiler?.mark('main-called');
 });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  // macOS apps typically keep the app running when all windows are closed but I (glenn) think that is bs so we'll quit the app when all windows are closed - no matter which platform.
-  app.quit();
-});
+// Keep the process alive after the main window is hidden so users can reopen
+// it from the tray. Real shutdown is driven by app.quit()/app.exit() paths such
+// as the tray Exit action or updater quit flow.
+app.on('window-all-closed', () => {});
 
 app.on('activate', () => {});

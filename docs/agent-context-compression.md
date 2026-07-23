@@ -9,25 +9,45 @@ compressed briefing on a boundary message.
 - After each completed step, the runtime may start a non-blocking history
   compression when token usage since the last compression crosses the
   configured threshold.
-- Before each model request, the runtime estimates the final model context
-  against the active model's context window. If the prompt is close to the
-  window limit, it synchronously compresses history and rebuilds the context
-  before sending the request.
+- Before each model request, the runtime first checks token usage since the
+  latest compression checkpoint. If that usage already crosses the preflight
+  limit, it synchronously compresses history even before prompt estimation. It
+  then estimates the model messages against the active model's context window.
+  After tools are constructed, it performs one final synchronous preflight that
+  also counts serialized tool JSON schemas and request-wrapper overhead before
+  entering `waiting-for-model`; if that final request estimate is still close
+  to the window limit, it compresses again and rebuilds context before sending.
+- The preflight uses the exact `contextWindowSize` resolved for the current
+  agent step. This keeps custom-provider context limits, such as a 480k
+  endpoint override for a built-in model, aligned between the visible usage
+  badge and the backend request gate.
+- If history compression still cannot bring the final request under the
+  preflight limit, the runtime rebuilds a lean context that skips file
+  context, path-reference expansion, env capture, and skills before sending.
+  This prevents large current-turn attachments such as `.textclip` files from
+  being re-injected after history has already been compacted.
+- Legacy compressed histories that do not have a saved compression checkpoint
+  are treated as having no baseline, so an already-oversized restored goal
+  session still triggers preflight compression instead of skipping it.
 - For built-in models routed through a custom provider, an optional custom
   provider "Model Max Context" setting overrides the built-in model window for
   context accounting and automatic compression triggers.
 - If a provider still returns a context-window error such as
-  `context_too_large`, the runtime compresses history once and retries the
-  step instead of immediately surfacing the provider error.
-- For preflight and `context_too_large` recovery, compression is allowed to be
-  more aggressive than normal post-step compression: if the normal boundary
+  `context_too_large` / `maximum prompt length`, including errors where the
+  top-level message is only a generic `Upstream error: 400`, the runtime reads
+  the response body, compresses history once, and retries the step instead of
+  immediately surfacing the provider error.
+- For preflight and `context_too_large` / `maximum prompt length` recovery,
+  compression is allowed to be more aggressive than normal post-step
+  compression: if the normal boundary
   walk thinks history is small enough but the final model prompt is still too
   large, it compresses all prior history and keeps only the latest message
   verbatim.
 - If compression cannot reduce the context, the original provider error is
   shown to the user so the failure is visible and diagnosable.
-- For forced recovery paths (`preflight` and `context_too_large`), if the
-  LLM-based compression model times out or aborts, the runtime stores a small
+- For forced recovery paths (`preflight` and `context_too_large` /
+  `maximum prompt length`), if the LLM-based compression model times out or
+  aborts, the runtime stores a small
   local emergency summary and retries from the recent uncompressed messages
   instead of stopping on the original context-window error.
 - If a background compression is already in progress, the next request waits
@@ -75,7 +95,8 @@ goal and re-adds the model-only goal continuation when needed.
   context window, so 1M-context models do not compress at the old 100k-token
   absolute cap.
 - Chat post-step compression defaults to 50% of the context window, while
-  request preflight compression uses 85% of the context window.
+  request preflight compression uses 75% of the context window, leaving extra
+  room for provider-side tokenization differences and tool-schema overhead.
 - Compression itself keeps a bounded recent-message budget and folds older
   compressed briefings into the next briefing, so repeated long-running goal
   tasks can continue without carrying the full raw transcript forever.

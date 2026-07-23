@@ -169,6 +169,9 @@ export class WindowLayoutService extends DisposableService {
 
   private baseWindow: BaseWindow | null = null;
   private uiController: UIController | null = null;
+  private shouldQuitOnWindowClose = false;
+  private beforeQuitListener: (() => void) | null = null;
+  private secondInstanceListener: (() => void) | null = null;
   private tabs: Record<string, BrowsingTabController> = {};
   private activeTabId: string | null = null;
   private chatStateController: ChatStateController | null = null;
@@ -620,9 +623,14 @@ export class WindowLayoutService extends DisposableService {
         draft.appInfo.isFullScreen = false;
       });
     });
-    this.baseWindow.on('close', () => {
+    this.baseWindow.on('close', (event) => {
       this.saveWindowState();
       this.saveTabState();
+
+      if (!this.shouldQuitOnWindowClose) {
+        event.preventDefault();
+        this.hideMainWindow();
+      }
     });
 
     // Track app focus state and propagate to all tab controllers so they can
@@ -649,13 +657,16 @@ export class WindowLayoutService extends DisposableService {
       });
     });
 
-    app.on('second-instance', () => {
-      if (this.baseWindow) {
-        if (this.baseWindow.isMinimized()) this.baseWindow.restore();
-        this.baseWindow.focus();
-      }
+    this.beforeQuitListener = () => {
+      this.shouldQuitOnWindowClose = true;
+    };
+    app.on('before-quit', this.beforeQuitListener);
+
+    this.secondInstanceListener = () => {
+      this.showMainWindow();
       // URL handling is done in main.ts
-    });
+    };
+    app.on('second-instance', this.secondInstanceListener);
 
     // Initialize browser state
     this.uiKarton.setState((draft) => {
@@ -702,6 +713,27 @@ export class WindowLayoutService extends DisposableService {
     return this.baseWindow;
   }
 
+  public showMainWindow(): void {
+    const win = this.getBaseWindow();
+    if (!win) return;
+
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+
+  public hideMainWindow(): void {
+    const win = this.getBaseWindow();
+    if (!win) return;
+
+    win.hide();
+  }
+
+  public quitFromTray(): void {
+    this.shouldQuitOnWindowClose = true;
+    app.quit();
+  }
+
   /** Returns the UI WebContents for executing JS in the renderer. */
   public getUIWebContents(): WebContents | null {
     const view = this.uiController?.getView();
@@ -736,9 +768,21 @@ export class WindowLayoutService extends DisposableService {
       this.uiZoomPreferenceListener = null;
     }
 
+    if (this.beforeQuitListener) {
+      app.removeListener('before-quit', this.beforeQuitListener);
+      this.beforeQuitListener = null;
+    }
+
+    if (this.secondInstanceListener) {
+      app.removeListener('second-instance', this.secondInstanceListener);
+      this.secondInstanceListener = null;
+    }
+
     ipcMain.removeHandler('request-turnstile-token');
 
     app.applicationMenu = null;
+
+    this.shouldQuitOnWindowClose = true;
 
     if (this.baseWindow && !this.baseWindow.isDestroyed()) {
       this.baseWindow.contentView.removeChildView(this.uiController!.getView());

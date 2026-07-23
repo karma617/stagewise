@@ -1,4 +1,5 @@
 ﻿import {
+  asSchema,
   type ModelMessage,
   type Tool,
   type ToolApprovalResponse,
@@ -65,19 +66,15 @@ type AgentFinishOutputSchemaOf<T> = [T] extends [
   ? S
   : z.ZodType | null;
 
-function getLastCompressionBaselineUsedTokens(
+export function getLastCompressionBaselineUsedTokens(
   history: AgentMessage[],
-  fallbackUsedTokens: number,
+  _fallbackUsedTokens: number,
 ): number {
-  let hasCompressedHistory = false;
   for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i]?.metadata?.compressedHistory) {
-      hasCompressedHistory = true;
-    }
     const baseline = history[i]?.metadata?.compressionState?.baselineUsedTokens;
     if (typeof baseline === 'number') return baseline;
   }
-  return hasCompressedHistory ? fallbackUsedTokens : 0;
+  return 0;
 }
 
 const STEP_ACTIVITY_TIMEOUT_MS = 120_000;
@@ -1366,7 +1363,10 @@ export abstract class BaseAgent<
     try {
       const { contextWindowSize } = await this.host.models.getWithOptions(
         activeModelId,
-        '',
+        this.instanceId,
+        {
+          [MODEL_REQUEST_PURPOSE_METADATA_KEY]: 'agent-step',
+        },
       );
       contentLimits = {
         maxReadChars: deriveMaxReadChars(contextWindowSize),
@@ -1719,11 +1719,21 @@ export abstract class BaseAgent<
   }
 
   private isContextWindowExceededError(error: Error): boolean {
-    const message = error.message.toLowerCase();
+    const frame = BaseAgent.unwrapApiErrorFrame(error);
+    const candidates = [error.message];
+    if (typeof frame.responseBody === 'string') {
+      candidates.push(frame.responseBody);
+    }
+    if (frame.cause instanceof Error) candidates.push(frame.cause.message);
+
+    const message = candidates.join('\n').toLowerCase();
     return (
       message.includes('context_too_large') ||
       message.includes('context too large') ||
       message.includes('exceeds the context window') ||
+      message.includes('maximum prompt length') ||
+      (message.includes('prompt length') &&
+        message.includes('request contains')) ||
       (message.includes('exceed') && message.includes('context window'))
     );
   }
@@ -2133,6 +2143,7 @@ export abstract class BaseAgent<
           queueFlushIndex,
           reasoningSignatureSource: modelWithOptions.reasoningSignatureSource,
           syntheticContinuation: syntheticContinuationBeforeContext,
+          contextWindowSize: modelWithOptions.contextWindowSize,
         },
       );
       this.writeRuntimeTrace('context-ready', {
@@ -2142,7 +2153,7 @@ export abstract class BaseAgent<
         estimatedTokens: this.estimateModelMessagesTokens(modelMessages),
       });
       stepContextTokens = this.estimateModelMessagesTokens(modelMessages);
-      stepContextWindowTokens = await this.getActiveContextWindowSize();
+      stepContextWindowTokens = modelWithOptions.contextWindowSize;
       this.state.commands.setRuntimePhase({ phase: 'preparing-tools' });
       tools = await this.getToolsForStep();
       this._toolCallDurations.clear();
@@ -2154,6 +2165,20 @@ export abstract class BaseAgent<
       this.writeRuntimeTrace('tools-ready', {
         toolCount: Object.keys(tools).length,
       });
+      const finalPreflight =
+        await this.compressAndRegenerateFinalRequestContextIfNeeded(
+          modelMessages,
+          tools,
+          {
+            queueFlushIndex,
+            reasoningSignatureSource: modelWithOptions.reasoningSignatureSource,
+            syntheticContinuation: syntheticContinuationBeforeContext,
+            contextWindowSize: modelWithOptions.contextWindowSize,
+          },
+        );
+      modelMessages = finalPreflight.modelMessages;
+      stepContextTokens = finalPreflight.estimatedTokens;
+      stepContextWindowTokens = finalPreflight.contextWindowTokens;
       resolvedConfig = {
         ...this.config,
         ...(await this.getModelSettings(this.messages)),
@@ -2675,9 +2700,7 @@ export abstract class BaseAgent<
       // ── Compute token budget for kept messages ────────────────────
       let contextWindowSize: number;
       try {
-        contextWindowSize = (
-          await this.host.models.getWithOptions(state.activeModelId, '')
-        ).contextWindowSize;
+        contextWindowSize = await this.getActiveContextWindowSize();
       } catch {
         // Model may have been deleted — fall back to a conservative size
         contextWindowSize = 100_000;
@@ -2859,7 +2882,10 @@ export abstract class BaseAgent<
       return (
         await this.host.models.getWithOptions(
           this.state.get().activeModelId,
-          '',
+          this.instanceId,
+          {
+            [MODEL_REQUEST_PURPOSE_METADATA_KEY]: 'agent-step',
+          },
         )
       ).contextWindowSize;
     } catch {
@@ -2928,6 +2954,250 @@ export abstract class BaseAgent<
     return Math.ceil(totalChars / 4);
   }
 
+  private async estimateFinalRequestTokens(
+    modelMessages: ModelMessage[],
+    tools: Partial<ToolSet>,
+  ): Promise<number> {
+    const messageTokens = this.estimateModelMessagesTokens(modelMessages);
+    const toolTokens = await this.estimateToolSetTokens(tools);
+    const requestWrapperTokens = 2000;
+    return messageTokens + toolTokens + requestWrapperTokens;
+  }
+
+  private async estimateToolSetTokens(
+    tools: Partial<ToolSet>,
+  ): Promise<number> {
+    let totalChars = 0;
+    for (const [name, rawTool] of Object.entries(tools)) {
+      if (!rawTool) continue;
+      const currentTool = rawTool as Tool;
+      totalChars += name.length + 800;
+      totalChars += currentTool.title?.length ?? 0;
+      totalChars += currentTool.description?.length ?? 0;
+      const providerOptions = this.safeStringifyForTokenEstimate(
+        currentTool.providerOptions,
+      );
+      if (providerOptions) totalChars += providerOptions.length;
+      const inputExamples = this.safeStringifyForTokenEstimate(
+        currentTool.inputExamples,
+      );
+      if (inputExamples) totalChars += inputExamples.length;
+      totalChars += await this.estimateToolInputSchemaChars(currentTool);
+    }
+    return Math.ceil(totalChars / 4);
+  }
+
+  private async estimateToolInputSchemaChars(currentTool: Tool): Promise<number> {
+    try {
+      const normalizedSchema = asSchema(currentTool.inputSchema);
+      const jsonSchema = await Promise.resolve(normalizedSchema.jsonSchema);
+      const serializedSchema =
+        this.safeStringifyForTokenEstimate(jsonSchema);
+      if (serializedSchema) return serializedSchema.length;
+    } catch {
+      // Fall back to the raw schema shape below. The estimate is best-effort.
+    }
+
+    const fallbackSchema = this.safeStringifyForTokenEstimate(
+      currentTool.inputSchema,
+    );
+    return fallbackSchema?.length ?? 4000;
+  }
+
+  private safeStringifyForTokenEstimate(value: unknown): string | null {
+    if (value === undefined) return null;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return null;
+    }
+  }
+
+  private async compressAndRegenerateFinalRequestContextIfNeeded(
+    modelMessages: ModelMessage[],
+    tools: Partial<ToolSet>,
+    args: {
+      queueFlushIndex: number;
+      reasoningSignatureSource?: ReasoningSignatureSource;
+      syntheticContinuation: {
+        reason:
+          | 'system-resumed'
+          | 'event-loop-stalled'
+          | 'quota-account-switched'
+          | 'goal-active';
+      } | null;
+      contextWindowSize?: number;
+    },
+  ): Promise<{
+    modelMessages: ModelMessage[];
+    estimatedTokens: number;
+    contextWindowTokens: number;
+  }> {
+    let nextModelMessages = modelMessages;
+    let contextWindowSize =
+      args.contextWindowSize ?? (await this.getActiveContextWindowSize());
+    let estimatedTokens = await this.estimateFinalRequestTokens(
+      nextModelMessages,
+      tools,
+    );
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const preflightLimit =
+        getContextPreflightCompressionLimit(contextWindowSize);
+      if (estimatedTokens <= preflightLimit) {
+        this.writeRuntimeTrace('final-request-preflight-ready', {
+          attempt: attempt + 1,
+          estimatedTokens,
+          contextWindowSize,
+          preflightLimit,
+          messageTokens:
+            this.estimateModelMessagesTokens(nextModelMessages),
+          toolCount: Object.keys(tools).length,
+        });
+        return {
+          modelMessages: nextModelMessages,
+          estimatedTokens,
+          contextWindowTokens: contextWindowSize,
+        };
+      }
+
+      this.host.logger.warn(
+        `[BaseAgent:${this.instanceId}] Final request preflight exceeded limit (${estimatedTokens}/${preflightLimit}, window=${contextWindowSize}). Compressing history before request.`,
+      );
+      this.writeRuntimeTrace('final-request-preflight-compression', {
+        attempt: attempt + 1,
+        estimatedTokens,
+        contextWindowSize,
+        preflightLimit,
+        messageTokens: this.estimateModelMessagesTokens(nextModelMessages),
+        toolCount: Object.keys(tools).length,
+      });
+
+      const compressed = await this.compressHistoryInternal({
+        reason: 'preflight',
+      });
+      if (!compressed) {
+        this.writeRuntimeTrace('final-request-preflight-compression-skip', {
+          attempt: attempt + 1,
+          estimatedTokens,
+          contextWindowSize,
+          preflightLimit,
+        });
+        const leanResult = await this.generateLeanContextForOversizedPreflight(
+          tools,
+          args,
+          {
+            estimatedTokens,
+            contextWindowSize,
+            preflightLimit,
+          },
+        );
+        if (leanResult) return leanResult;
+        return {
+          modelMessages: nextModelMessages,
+          estimatedTokens,
+          contextWindowTokens: contextWindowSize,
+        };
+      }
+
+      this._pendingSyntheticContinuation = args.syntheticContinuation;
+      nextModelMessages = await this.generateContextForNewStepWithTimeout(
+        args.queueFlushIndex >= 0 ? args.queueFlushIndex : undefined,
+        args.reasoningSignatureSource,
+      );
+      contextWindowSize =
+        args.contextWindowSize ?? (await this.getActiveContextWindowSize());
+      estimatedTokens = await this.estimateFinalRequestTokens(
+        nextModelMessages,
+        tools,
+      );
+    }
+
+    const leanResult = await this.generateLeanContextForOversizedPreflight(
+      tools,
+      args,
+      {
+        estimatedTokens,
+        contextWindowSize,
+        preflightLimit: getContextPreflightCompressionLimit(contextWindowSize),
+      },
+    );
+    if (leanResult) return leanResult;
+
+    return {
+      modelMessages: nextModelMessages,
+      estimatedTokens,
+      contextWindowTokens: contextWindowSize,
+    };
+  }
+
+  private async generateLeanContextForOversizedPreflight(
+    tools: Partial<ToolSet>,
+    args: {
+      queueFlushIndex: number;
+      reasoningSignatureSource?: ReasoningSignatureSource;
+      syntheticContinuation: {
+        reason:
+          | 'system-resumed'
+          | 'event-loop-stalled'
+          | 'quota-account-switched'
+          | 'goal-active';
+      } | null;
+      contextWindowSize?: number;
+    },
+    previous: {
+      estimatedTokens: number;
+      contextWindowSize: number;
+      preflightLimit: number;
+    },
+  ): Promise<{
+    modelMessages: ModelMessage[];
+    estimatedTokens: number;
+    contextWindowTokens: number;
+  } | null> {
+    this.state.commands.setRuntimePhase({ phase: 'compressing-context' });
+    this.writeRuntimeTrace('final-request-preflight-lean-context', {
+      estimatedTokens: previous.estimatedTokens,
+      contextWindowSize: previous.contextWindowSize,
+      preflightLimit: previous.preflightLimit,
+      reason: 'compression-did-not-fit',
+    });
+    this.host.logger.warn(
+      `[BaseAgent:${this.instanceId}] Final request is still oversized after compression (${previous.estimatedTokens}/${previous.preflightLimit}). Rebuilding lean context without file context before request.`,
+    );
+
+    this._pendingSyntheticContinuation = args.syntheticContinuation;
+    const leanModelMessages = await this.generateContextForNewStep(
+      args.queueFlushIndex >= 0 ? args.queueFlushIndex : undefined,
+      args.reasoningSignatureSource,
+      {
+        skipEnvCapture: true,
+        skipPathReferences: true,
+        skipFileContext: true,
+        skipSkills: true,
+      },
+    );
+    const contextWindowSize =
+      args.contextWindowSize ?? (await this.getActiveContextWindowSize());
+    const estimatedTokens = await this.estimateFinalRequestTokens(
+      leanModelMessages,
+      tools,
+    );
+    this.writeRuntimeTrace('final-request-preflight-lean-context-ready', {
+      estimatedTokens,
+      contextWindowSize,
+      preflightLimit: getContextPreflightCompressionLimit(contextWindowSize),
+      messageTokens: this.estimateModelMessagesTokens(leanModelMessages),
+      toolCount: Object.keys(tools).length,
+    });
+
+    return {
+      modelMessages: leanModelMessages,
+      estimatedTokens,
+      contextWindowTokens: contextWindowSize,
+    };
+  }
+
   private async compressAndRegenerateContextIfNeeded(
     modelMessages: ModelMessage[],
     args: {
@@ -2940,6 +3210,7 @@ export abstract class BaseAgent<
           | 'quota-account-switched'
           | 'goal-active';
       } | null;
+      contextWindowSize?: number;
     },
   ): Promise<ModelMessage[]> {
     let nextModelMessages = modelMessages;
@@ -2957,8 +3228,48 @@ export abstract class BaseAgent<
       }
     }
 
+    const usageContextWindowSize =
+      args.contextWindowSize ?? (await this.getActiveContextWindowSize());
+    const usagePreflightLimit = getContextPreflightCompressionLimit(
+      usageContextWindowSize,
+    );
+    const usageState = this.state.get();
+    const compressionBaselineTokens = getLastCompressionBaselineUsedTokens(
+      usageState.history,
+      usageState.usedTokens,
+    );
+    const tokensSinceLastCompression = Math.max(
+      0,
+      usageState.usedTokens - compressionBaselineTokens,
+    );
+
+    if (tokensSinceLastCompression > usagePreflightLimit) {
+      this.host.logger.warn(
+        `[BaseAgent:${this.instanceId}] Token usage since last compression exceeded preflight limit (${tokensSinceLastCompression}/${usagePreflightLimit}, window=${usageContextWindowSize}). Compressing history before request.`,
+      );
+      this.writeRuntimeTrace('context-preflight-usage-compression', {
+        tokensSinceLastCompression,
+        compressionBaselineTokens,
+        usedTokens: usageState.usedTokens,
+        contextWindowSize: usageContextWindowSize,
+        preflightLimit: usagePreflightLimit,
+      });
+
+      const compressed = await this.compressHistoryInternal({
+        reason: 'preflight',
+      });
+      if (compressed) {
+        this._pendingSyntheticContinuation = args.syntheticContinuation;
+        nextModelMessages = await this.generateContextForNewStepWithTimeout(
+          args.queueFlushIndex >= 0 ? args.queueFlushIndex : undefined,
+          args.reasoningSignatureSource,
+        );
+      }
+    }
+
     for (let attempt = 0; attempt < 2; attempt++) {
-      const contextWindowSize = await this.getActiveContextWindowSize();
+      const contextWindowSize =
+        args.contextWindowSize ?? (await this.getActiveContextWindowSize());
       const estimatedTokens =
         this.estimateModelMessagesTokens(nextModelMessages);
       const preflightLimit =
@@ -3246,9 +3557,7 @@ export abstract class BaseAgent<
     const compactionThreshold = this.config.historyCompressionThreshold ?? 0.65;
     try {
       const postStepState = this.state.get();
-      const contextWindowSize = (
-        await this.host.models.getWithOptions(postStepState.activeModelId, '')
-      ).contextWindowSize;
+      const contextWindowSize = await this.getActiveContextWindowSize();
       const effectiveTriggerTokens = getPostStepCompressionTriggerTokens(
         contextWindowSize,
         compactionThreshold,

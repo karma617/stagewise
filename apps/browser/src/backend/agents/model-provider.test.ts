@@ -580,6 +580,34 @@ describe('thinking override provider option resolution', () => {
 
     expect(result.contextWindowSize).toBe(200000);
   });
+
+  it('uses custom endpoint context window for routed Anthropic built-in models', () => {
+    const service = createTestModelProviderService({
+      providerModes: { anthropic: 'custom' },
+      customEndpoints: [
+        {
+          id: 'anthropic-custom',
+          name: 'Anthropic-compatible',
+          apiSpec: 'openai-chat-completions',
+          baseUrl: 'https://example.com/v1',
+          awsAuthMode: 'access-keys',
+          modelIdMapping: {
+            'claude-opus-4.8': 'grok-4.5',
+          },
+          contextWindowSize: 480000,
+        },
+      ],
+    });
+
+    const result = service.getModelWithOptions(
+      'claude-opus-4.8',
+      'trace-1',
+      agentStepMetadata,
+    );
+
+    expect(result.contextWindowSize).toBe(480000);
+    expect(result.providerMode).toBe('custom');
+  });
 });
 
 describe('OpenAI Responses reasoning replay routing', () => {

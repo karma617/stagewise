@@ -169,6 +169,7 @@ function GoalStatusCard({
   const [isDeletingGoal, setIsDeletingGoal] = useState(false);
   const trimmedDraftObjective = draftObjective.trim();
   const cardRef = useRef<HTMLDivElement>(null);
+  const objectiveTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const card = cardRef.current;
@@ -197,6 +198,23 @@ function GoalStatusCard({
   useEffect(() => {
     if (!isEditing) setDraftObjective(goal.objective);
   }, [goal.objective, isEditing]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    let rafId: number | null = requestAnimationFrame(() => {
+      objectiveTextareaRef.current?.focus();
+    });
+    const timeoutId = window.setTimeout(() => {
+      objectiveTextareaRef.current?.focus();
+      rafId = null;
+    }, 50);
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [isEditing]);
 
   const handleToggleRunState = useCallback(async () => {
     if (isTogglingRunState) return;
@@ -258,6 +276,7 @@ function GoalStatusCard({
   return (
     <div
       ref={cardRef}
+      data-status-card
       className="pointer-events-auto absolute right-2 bottom-[calc(100%+var(--status-card-height,0px)+0.5rem)] left-2 z-10 mx-auto max-w-3xl rounded-xl border border-derived bg-surface-1/95 px-3 py-2 shadow-elevation-2 backdrop-blur"
     >
       <div className="flex items-start gap-2">
@@ -290,15 +309,25 @@ function GoalStatusCard({
               {t(statusKey)}
             </span>
           </div>
-          <div className="mt-1 line-clamp-2 break-words text-muted-foreground text-xs">
+          <div
+            className={cn(
+              'mt-1 break-words text-muted-foreground text-xs',
+              !isEditing && 'line-clamp-2',
+            )}
+          >
             {isEditing ? (
-              <input
-                className="w-full rounded-md border border-derived bg-background px-2 py-1 text-foreground text-xs outline-none ring-0 focus:border-primary-solid dark:bg-surface-2"
+              <textarea
+                ref={objectiveTextareaRef}
+                className="scrollbar-subtle min-h-16 w-full resize-y rounded-md border border-derived bg-background px-2 py-1 text-foreground text-xs leading-relaxed outline-none ring-0 focus:border-primary-solid dark:bg-surface-2"
                 value={draftObjective}
                 autoFocus
+                rows={3}
                 onChange={(event) => setDraftObjective(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
+                  if (
+                    event.key === 'Enter' &&
+                    (event.ctrlKey || event.metaKey)
+                  ) {
                     event.preventDefault();
                     void handleSaveObjective();
                   } else if (event.key === 'Escape') {
@@ -1427,14 +1456,29 @@ export const ChatPanelFooter = memo(function ChatPanelFooter() {
     openAgent ? s.agents.instances[openAgent]?.state.activeModelId : null,
   );
   const customModels = useKartonState((s) => s.preferences.customModels);
+  const customEndpoints = useKartonState((s) => s.preferences.customEndpoints);
+  const providerConfigs = useKartonState((s) => s.preferences.providerConfigs);
   const maxTokens = useMemo(() => {
     if (!activeModelId) return 200000;
     const builtIn = getAvailableModel(activeModelId);
-    if (builtIn) return builtIn.modelContextRaw;
+    if (builtIn) {
+      const provider = builtIn.officialProvider;
+      const providerConfig = provider ? providerConfigs[provider] : undefined;
+      if (
+        providerConfig?.mode === 'custom' &&
+        providerConfig.customProviderId
+      ) {
+        const endpoint = customEndpoints.find(
+          (ep) => ep.id === providerConfig.customProviderId,
+        );
+        if (endpoint?.contextWindowSize) return endpoint.contextWindowSize;
+      }
+      return builtIn.modelContextRaw;
+    }
     const custom = customModels.find((m) => m.modelId === activeModelId);
     if (custom) return custom.contextWindowSize;
     return 200000;
-  }, [activeModelId, customModels]);
+  }, [activeModelId, customEndpoints, customModels, providerConfigs]);
 
   const contextUsed = useMemo(() => {
     const used = usedTokens ?? 0;

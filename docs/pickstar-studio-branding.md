@@ -23,6 +23,10 @@ The onboarding authentication step is optional. If no account, API key, or codin
 
 When a user is already signed in, onboarding shows only the signed-in account and the option to use a different email. The previous checkbox for sharing identifiable chat and usage data is not rendered.
 
+## Tray behavior
+
+PickStar Studio keeps a system tray icon alive after startup. Closing the main window hides it to the tray instead of exiting the app. Users can click or double-click the tray icon to show the window again, or use the tray context menu to show, hide, or choose **退出 / Exit** for a real application shutdown.
+
 ## Icon assets
 
 The app icon was regenerated from the provided PickStar artwork for all packaged channels:

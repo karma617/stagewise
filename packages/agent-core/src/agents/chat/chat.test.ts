@@ -1,5 +1,8 @@
+import { jsonSchema, type ModelMessage, type ToolSet } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
 import { createTestAgentHost } from '../../host/test-utils';
+import type { AgentMessage } from '../../types/agent';
+import { getLastCompressionBaselineUsedTokens } from '../base-agent';
 import { ChatAgent } from './chat';
 
 /**
@@ -127,5 +130,164 @@ describe('ChatAgent', () => {
 
     expect(tools).not.toHaveProperty('missingHostTool');
     expect(tools).toHaveProperty('presentHostTool');
+  });
+});
+
+
+describe('ChatAgent context-window error detection', () => {
+  function makeError(message: string, responseBody?: string): Error {
+    const error = new Error(message) as Error & { responseBody?: string };
+    if (responseBody !== undefined) error.responseBody = responseBody;
+    return error;
+  }
+
+  it('detects prompt-length errors hidden behind a generic upstream 400', () => {
+    const stub = makeStubAgent(ChatAgent, {
+      getTool: vi.fn().mockResolvedValue({}),
+    }) as ChatAgentInternals & {
+      isContextWindowExceededError: (error: Error) => boolean;
+    };
+
+    const error = makeError(
+      'Upstream error: 400',
+      JSON.stringify({
+        code: 'invalid-argument',
+        error:
+          "This model's maximum prompt length is 500000 but the request contains 508279 tokens.",
+      }),
+    );
+
+    expect(stub.isContextWindowExceededError(error)).toBe(true);
+  });
+
+  it('does not treat unrelated upstream 400 errors as context overflow', () => {
+    const stub = makeStubAgent(ChatAgent, {
+      getTool: vi.fn().mockResolvedValue({}),
+    }) as ChatAgentInternals & {
+      isContextWindowExceededError: (error: Error) => boolean;
+    };
+
+    const error = makeError(
+      'Upstream error: 400',
+      JSON.stringify({ error: 'Bad request: malformed tool payload' }),
+    );
+
+    expect(stub.isContextWindowExceededError(error)).toBe(false);
+  });
+});
+
+
+describe('ChatAgent context preflight estimation', () => {
+  it('does not let legacy compressed history suppress preflight compression', () => {
+    const history = [
+      {
+        id: 'legacy-boundary',
+        role: 'assistant',
+        parts: [],
+        metadata: {
+          compressedHistory: 'legacy summary without compressionState',
+        },
+      },
+    ] as unknown as AgentMessage[];
+
+    expect(getLastCompressionBaselineUsedTokens(history, 500_000)).toBe(0);
+  });
+
+  it('keeps compression checkpoints as the active token baseline', () => {
+    const history = [
+      {
+        id: 'boundary',
+        role: 'assistant',
+        parts: [],
+        metadata: {
+          compressedHistory: 'summary',
+          compressionState: {
+            baselineUsedTokens: 123_456,
+            compressedAt: 1,
+          },
+        },
+      },
+    ] as unknown as AgentMessage[];
+
+    expect(getLastCompressionBaselineUsedTokens(history, 500_000)).toBe(
+      123_456,
+    );
+  });
+
+
+
+  it('resolves context window through the current agent instance', async () => {
+    const getWithOptions = vi.fn().mockResolvedValue({
+      contextWindowSize: 480_000,
+    });
+    const stub = makeStubAgent(ChatAgent, {
+      getTool: vi.fn().mockResolvedValue({}),
+    }) as ChatAgentInternals & {
+      state: { get: () => { activeModelId: string } };
+      host: {
+        workspaceMdRelativePath: () => string;
+        models: { getWithOptions: typeof getWithOptions };
+      };
+      getActiveContextWindowSize: () => Promise<number>;
+    };
+    stub.instanceId = 'agent-instance-123';
+    stub.state = {
+      get: () => ({ activeModelId: 'opus-4-8-high' }),
+    };
+    stub.host = {
+      ...stub.host,
+      models: { getWithOptions },
+    };
+
+    await expect(stub.getActiveContextWindowSize()).resolves.toBe(480_000);
+    expect(getWithOptions).toHaveBeenCalledWith(
+      'opus-4-8-high',
+      'agent-instance-123',
+      expect.objectContaining({
+        $model_request_purpose: 'agent-step',
+      }),
+    );
+  });
+
+  it('includes serialized tool schemas in final request token estimates', async () => {
+    const stub = makeStubAgent(ChatAgent, {
+      getTool: vi.fn().mockResolvedValue({}),
+    }) as ChatAgentInternals & {
+      estimateFinalRequestTokens: (
+        modelMessages: ModelMessage[],
+        tools: Partial<ToolSet>,
+      ) => Promise<number>;
+      estimateModelMessagesTokens: (modelMessages: ModelMessage[]) => number;
+    };
+    const modelMessages = [
+      {
+        role: 'user',
+        content: 'short prompt',
+      },
+    ] as ModelMessage[];
+    const messageEstimate = stub.estimateModelMessagesTokens(modelMessages);
+    const tools = {
+      largeSchemaTool: {
+        description: 'large tool used to verify final request preflight',
+        inputSchema: jsonSchema({
+          type: 'object',
+          properties: {
+            payload: {
+              type: 'string',
+              description: 'x'.repeat(8000),
+            },
+          },
+          required: ['payload'],
+          additionalProperties: false,
+        }),
+      },
+    } as Partial<ToolSet>;
+
+    const finalEstimate = await stub.estimateFinalRequestTokens(
+      modelMessages,
+      tools,
+    );
+
+    expect(finalEstimate).toBeGreaterThan(messageEstimate + 2500);
   });
 });

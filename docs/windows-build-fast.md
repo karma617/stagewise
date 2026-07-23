@@ -54,13 +54,20 @@ FAST 打包不需要签名/公证密钥）。`.env` 不纳入版本库。
 
 ## 六、执行步骤
 1. `pnpm install`（首次因配置变更可能需要 `--no-frozen-lockfile`）。
-2. 打包前先构建 browser 依赖的 workspace 包（Forge 不会自动构建依赖）：
-   `pnpm turbo run build --filter="stagewise^..."`
-3. 运行 `build-fast.bat`（或等价地依次执行）：
+2. 运行 `build-fast.bat`（或等价地依次执行）：
+   - 关闭正在运行的 `pickstar-studio.exe`、`stagewise.exe`、
+     `stagewise-dev.exe` 进程，避免旧应用占用打包目录。
+   - 删除旧 `pickstar-studio*` / `stagewise*` 目录和 zip 产物，
+     同时清理旧 `release/make` 分发产物，避免遗留包再次被分发。
+   - `pnpm --filter @stagewise/agent-core build`
+   - 校验 `packages/agent-core/dist/agents/index.js` 中已包含
+     `final-request-preflight`，防止把旧的 agent-core dist 打进 asar。
    - `pnpm exec tsx scripts/prepare-camoufox-assets.ts`
+   - 删除 `apps/browser` 下的 Vite cache 目录，避免旧 workspace 包被缓存复用。
    - `pnpm package:fast`
-   - 将 `apps/browser/assets/camoufox` 复制到 `out/**/resources/camoufox`
-   - 将打包出的应用目录压缩为同级 `.zip` 文件
+   - 将 `apps/browser/assets/camoufox` 复制到
+     `out/**/pickstar-studio-*/resources/camoufox`
+   - 仅将 `pickstar-studio-*` 应用目录压缩为同级 `.zip` 文件
 
 ## 七、已知非致命告警
 - PostHog source map 上传失败：使用的是占位 API key（`POSTHOG_CLI_API_KEY`），
@@ -68,10 +75,10 @@ FAST 打包不需要签名/公证密钥）。`.env` 不纳入版本库。
 - NuGet 下载 VC++ CRT 失败：会自动回退从 `System32` 复制所需 DLL。
 
 ## 八、产物
-`apps/browser/out/dev/stagewise-dev-win32-x64/stagewise-dev.exe`
+`apps/browser/out/dev/pickstar-studio-win32-x64/pickstar-studio.exe`
 
 同时会生成便于分发的 zip 包：
-`apps/browser/out/dev/stagewise-dev-win32-x64.zip`
+`apps/browser/out/dev/pickstar-studio-win32-x64.zip`
 
 ## 九、任务栏图标
 打包产物会将 `assets/icons/dev/icon.png` 写入 `resources/icon.png`，主窗口在

@@ -11,6 +11,7 @@ import { UserExperienceService } from './services/experience';
 import { FilePickerService } from './services/file-picker';
 import { FileTreeService } from './services/file-tree';
 import { AppMenuService } from './services/app-menu';
+import { AppTrayService } from './services/app-tray';
 import { URIHandlerService } from './services/uri-handler';
 import { IdentifierService } from './services/identifier';
 import { Logger } from './services/logger';
@@ -679,6 +680,12 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
           );
       },
     },
+  );
+
+  const appTrayService = new AppTrayService(
+    logger,
+    globalConfigService,
+    windowLayoutService,
   );
 
   const _appMenuService = new AppMenuService(
@@ -1386,6 +1393,7 @@ export async function main({ launchOptions: { verbose } }: MainParameters) {
         );
       }
       runTeardown('autoUpdateService', () => autoUpdateService.teardown());
+      runTeardown('appTrayService', () => appTrayService.teardown());
       runTeardown('agentPowerSaveBlockerService', () =>
         agentPowerSaveBlockerService.teardown(),
       );

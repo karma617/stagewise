@@ -1,4 +1,4 @@
-export const CONTEXT_PREFLIGHT_FRACTION = 0.85;
+export const CONTEXT_PREFLIGHT_FRACTION = 0.75;
 
 export function getContextPreflightCompressionLimit(
   contextWindowSize: number,
